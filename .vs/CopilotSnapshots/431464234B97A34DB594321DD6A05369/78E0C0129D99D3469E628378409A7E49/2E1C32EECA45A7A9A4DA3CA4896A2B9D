@@ -1,0 +1,132 @@
+﻿using System.Windows;
+using System.Windows.Input;
+using System.Runtime.InteropServices;
+using System;
+using System.Windows.Interop;
+
+namespace YASN
+{
+    /// <summary>
+    /// BottomMostWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class BottomMostWindow : Window
+    {
+        // Windows API 用于将窗口置于底层
+        private static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetDesktopWindow();
+
+        private IntPtr _hwnd;
+        private System.Windows.Threading.DispatcherTimer _timer;
+
+        public BottomMostWindow()
+        {
+            InitializeComponent();
+            
+            // 使用计时器定期确保窗口在底层
+            _timer = new System.Windows.Threading.DispatcherTimer();
+            _timer.Interval = TimeSpan.FromMilliseconds(100);
+            _timer.Tick += Timer_Tick;
+        }
+
+        private void Timer_Tick(object sender, EventArgs e)
+        {
+            // 定期将窗口保持在底层
+            if (_hwnd != IntPtr.Zero)
+            {
+                SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            // 获取窗口句柄
+            _hwnd = new WindowInteropHelper(this).Handle;
+            
+            // 确保窗口可见
+            this.Show();
+            this.Activate();
+            
+            // 将窗口发送到底层
+            SendToBottom();
+            
+            // 启动计时器
+            _timer.Start();
+        }
+
+        private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // 允许拖动窗口
+            if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                try
+                {
+                    this.DragMove();
+                }
+                catch { }
+                
+                // 拖动后重新设置为底层
+                SendToBottom();
+            }
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            _timer?.Stop();
+            this.Close();
+        }
+
+        private void SendToBottom()
+        {
+            if (_hwnd == IntPtr.Zero)
+                return;
+
+            // 先取消置顶
+            SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            
+            // 然后将窗口置于底层
+            SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            _hwnd = new WindowInteropHelper(this).Handle;
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _timer?.Stop();
+            base.OnClosed(e);
+        }
+
+        // 防止窗口在激活时跑到前面
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            if (_hwnd != IntPtr.Zero)
+            {
+                // 延迟发送到底层，避免激活时的闪烁
+                Dispatcher.BeginInvoke(new Action(() => SendToBottom()), 
+                    System.Windows.Threading.DispatcherPriority.Background);
+            }
+        }
+    }
+}

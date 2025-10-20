@@ -1,0 +1,67 @@
+﻿using System.Windows;
+using System.Windows.Input;
+using System.Runtime.InteropServices;
+using System;
+
+namespace YASN
+{
+    /// <summary>
+    /// BottomMostWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class BottomMostWindow : Window
+    {
+        // Windows API 用于将窗口置于底层
+        private const int HWND_BOTTOM = 1;
+        private const int SWP_NOSIZE = 0x0001;
+        private const int SWP_NOMOVE = 0x0002;
+        private const int SWP_NOACTIVATE = 0x0010;
+
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        public BottomMostWindow()
+        {
+            InitializeComponent();
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            // 窗口加载时设置为底层
+            SendToBottom();
+        }
+
+        private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // 允许拖动窗口
+            if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                this.DragMove();
+                // 拖动后重新设置为底层
+                SendToBottom();
+            }
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.Close();
+        }
+
+        private void SendToBottom()
+        {
+            // 使用 Windows API 将窗口置于底层
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            SetWindowPos(hwnd, new IntPtr(HWND_BOTTOM), 0, 0, 0, 0, 
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            // 激活时也保持在底层
+            SendToBottom();
+        }
+    }
+}

@@ -1,0 +1,296 @@
+﻿<Window x:Class="YASN.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:YASN"
+        mc:Ignorable="d"
+        Title="YASN - Window Manager" 
+        Height="500" 
+        Width="600"
+        WindowStartupLocation="CenterScreen"
+        Loaded="Window_Loaded">
+    <Grid Background="#F0F0F0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="#2C3E50" Padding="20,15">
+            <TextBlock Text="YASN - Yet Another Sticky Notes" 
+                       FontSize="24" 
+                       FontWeight="Bold" 
+                       Foreground="White"
+                       HorizontalAlignment="Center"/>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="20"/>
+                <ColumnDefinition Width="200"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" 
+                    Background="White" 
+                    BorderBrush="#CCC" 
+                    BorderThickness="1" 
+                    CornerRadius="5"
+                    Padding="15">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="WindowListPanel">
+                        <TextBlock Text="Open Windows" 
+                                   FontSize="16" 
+                                   FontWeight="Bold"
+                                   Margin="0,0,0,15"/>
+                        
+                        <ListView x:Name="WindowListView"
+                                  BorderThickness="0"
+                                  Background="Transparent"
+                                  SelectionChanged="WindowListView_SelectionChanged">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#F8F9FA" 
+                                            Margin="0,2" 
+                                            Padding="10,8"
+                                            CornerRadius="4"
+                                            BorderBrush="#DEE2E6"
+                                            BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding WindowTitle}" 
+                                                           FontWeight="SemiBold"
+                                                           FontSize="14"/>
+                                                <TextBlock FontSize="12" 
+                                                           Foreground="#666">
+                                                    <Run Text="Level:"/>
+                                                    <Run Text="{Binding Level}"/>
+                                                </TextBlock>
+                                            </StackPanel>
+                                            
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                <Button Content="Focus" 
+                                                        Click="FocusWindow_Click"
+                                                        Tag="{Binding}"
+                                                        Background="#3498DB"
+                                                        Foreground="White"
+                                                        BorderThickness="0"
+                                                        Padding="10,5"
+                                                        Margin="5,0"
+                                                        Cursor="Hand"
+                                                        FontSize="12"/>
+                                                <Button Content="Close" 
+                                                        Click="CloseWindow_Click"
+                                                        Tag="{Binding}"
+                                                        Background="#E74C3C"
+                                                        Foreground="White"
+                                                        BorderThickness="0"
+                                                        Padding="10,5"
+                                                        Cursor="Hand"
+                                                        FontSize="12"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                        
+                        <TextBlock x:Name="NoWindowsText"
+                                   Text="No windows open. Create one using the buttons on the right."
+                                   Foreground="#999"
+                                   TextWrapping="Wrap"
+                                   Margin="0,20,0,0"
+                                   Visibility="Collapsed"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Border Grid.Column="2" 
+                    Background="White" 
+                    BorderBrush="#CCC" 
+                    BorderThickness="1" 
+                    CornerRadius="5"
+                    Padding="15">
+                <StackPanel>
+                    <TextBlock Text="Create Window" 
+                               FontSize="14" 
+                               FontWeight="Bold"
+                               Margin="0,0,0,15"/>
+                    
+                    <Button Content="Top Window" 
+                            Padding="12,8" 
+                            Margin="0,0,0,10"
+                            Click="CreateTopWindow_Click"
+                            Background="#3498DB"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontSize="13"
+                            Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="#3498DB"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}" 
+                                                    CornerRadius="4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" 
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#2980B9"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    
+                    <Button Content="Normal Window" 
+                            Padding="12,8" 
+                            Margin="0,0,0,10"
+                            Click="CreateNormalWindow_Click"
+                            Background="#95A5A6"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontSize="13"
+                            Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="#95A5A6"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}" 
+                                                    CornerRadius="4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" 
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#7F8C8D"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    
+                    <Button Content="Bottom Window" 
+                            Padding="12,8" 
+                            Margin="0,0,0,10"
+                            Click="CreateBottomWindow_Click"
+                            Background="#E74C3C"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontSize="13"
+                            Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="#E74C3C"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}" 
+                                                    CornerRadius="4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" 
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#C0392B"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    
+                    <Separator Margin="0,10"/>
+                    
+                    <Button Content="Refresh List" 
+                            Padding="12,8" 
+                            Margin="0,10,0,10"
+                            Click="RefreshList_Click"
+                            Background="#34495E"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontSize="13"
+                            Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="#34495E"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}" 
+                                                    CornerRadius="4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" 
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#2C3E50"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    
+                    <Button Content="Hide to Tray" 
+                            Padding="12,8" 
+                            Margin="0,0,0,0"
+                            Click="HideToTray_Click"
+                            Background="#7F8C8D"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontSize="13"
+                            Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="#7F8C8D"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}" 
+                                                    CornerRadius="4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" 
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#6C7A7B"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,0 +1,218 @@
+﻿<Window x:Class="YASN.FloatingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Floating Window" 
+        Height="300" 
+        Width="400"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ResizeMode="CanResizeWithGrip"
+        Loaded="Window_Loaded"
+        Activated="Window_Activated"
+        Deactivated="Window_Deactivated">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40" GlassFrameThickness="-1" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+    
+    <Window.Resources>
+        <Style x:Key="RichTextBoxStyle" TargetType="RichTextBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#ECF0F1"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei"/>
+            <Setter Property="Padding" Value="15,8,15,15"/>
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="AcceptsReturn" Value="True"/>
+            <Setter Property="AcceptsTab" Value="False"/>
+        </Style>
+
+        <Style x:Key="TitleBarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#2C3E50"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontFamily" Value="Segoe UI Symbol"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#20000000"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#30000000"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CloseButtonStyle" TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E74C3C"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#C0392B"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="LevelButtonStyle" TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+        <Style x:Key="FormatButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#50FFFFFF"/>
+            <Setter Property="Foreground" Value="#2C3E50"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#70FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#90FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <Storyboard x:Key="CollapseTitleBar">
+            <DoubleAnimation Storyboard.TargetName="TitleBar" 
+                           Storyboard.TargetProperty="Height"
+                           To="4" Duration="0:0:0.2"/>
+            <DoubleAnimation Storyboard.TargetName="TitleBar" 
+                           Storyboard.TargetProperty="Opacity"
+                           To="0.3" Duration="0:0:0.2"/>
+        </Storyboard>
+        
+        <Storyboard x:Key="ExpandTitleBar">
+            <DoubleAnimation Storyboard.TargetName="TitleBar" 
+                           Storyboard.TargetProperty="Height"
+                           To="40" Duration="0:0:0.2"/>
+            <DoubleAnimation Storyboard.TargetName="TitleBar" 
+                           Storyboard.TargetProperty="Opacity"
+                           To="1" Duration="0:0:0.2"/>
+        </Storyboard>
+    </Window.Resources>
+    
+    <Border x:Name="MainBorder" 
+            BorderThickness="1" 
+            CornerRadius="8" 
+            Background="#C81E1E1E" 
+            BorderBrush="#60808080"
+            MouseEnter="MainBorder_MouseEnter"
+            MouseLeave="MainBorder_MouseLeave">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Border x:Name="TitleBar" 
+                    Grid.Row="0" 
+                    Height="40" 
+                    Background="#E6D4C5E0" 
+                    CornerRadius="5,5,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="40"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0" Content="=" ToolTip="显示主窗口" Style="{StaticResource TitleBarButtonStyle}" Click="ShowMainWindow_Click"/>
+                    <Border Grid.Column="1" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                        <TextBlock x:Name="StatusText" 
+                                   Text="Note #1"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   Foreground="#2C3E50"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"/>
+                    </Border>
+                    <Button Grid.Column="2" Content="..." ToolTip="更多选项" Style="{StaticResource TitleBarButtonStyle}" Click="MoreOptions_Click"/>
+                    <Button x:Name="PinButton" Grid.Column="3" Content="P" ToolTip="置顶" Style="{StaticResource TitleBarButtonStyle}" Click="PinButton_Click"/>
+                    <Button Grid.Column="4" Content="v" ToolTip="置底" Style="{StaticResource LevelButtonStyle}" Click="SendToBottom_Click"/>
+                    <Button Grid.Column="5" Content="X" ToolTip="关闭" Style="{StaticResource CloseButtonStyle}" Click="CloseButton_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Format Toolbar -->
+            <Border x:Name="FormatToolbar" 
+                    Grid.Row="1" 
+                    Background="#40000000" 
+                    Padding="5,3">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                    <Button Content="B" ToolTip="粗体 (Ctrl+B)" FontWeight="Bold" Style="{StaticResource FormatButtonStyle}" Click="Bold_Click"/>
+                    <Button Content="I" ToolTip="斜体 (Ctrl+I)" FontStyle="Italic" Style="{StaticResource FormatButtonStyle}" Click="Italic_Click"/>
+                    <Button ToolTip="下划线 (Ctrl+U)" Style="{StaticResource FormatButtonStyle}" Click="Underline_Click">
+                        <TextBlock Text="U" TextDecorations="Underline"/>
+                    </Button>
+                    <Button ToolTip="删除线" Style="{StaticResource FormatButtonStyle}" Click="Strikethrough_Click">
+                        <TextBlock Text="S" TextDecorations="Strikethrough"/>
+                    </Button>
+                    <Separator Width="1" Background="#50FFFFFF" Margin="5,2"/>
+                    <ComboBox x:Name="FontSizeCombo" Width="55" Height="28" Margin="2,0" ToolTip="字体大小" SelectionChanged="FontSize_Changed">
+                        <ComboBoxItem Content="10" Tag="10"/>
+                        <ComboBoxItem Content="12" Tag="12"/>
+                        <ComboBoxItem Content="14" Tag="14" IsSelected="True"/>
+                        <ComboBoxItem Content="16" Tag="16"/>
+                        <ComboBoxItem Content="18" Tag="18"/>
+                        <ComboBoxItem Content="20" Tag="20"/>
+                        <ComboBoxItem Content="24" Tag="24"/>
+                    </ComboBox>
+                    <Separator Width="1" Background="#50FFFFFF" Margin="5,2"/>
+                    <Button Content="🖼" ToolTip="插入图片" Style="{StaticResource FormatButtonStyle}" Click="InsertImage_Click" FontSize="16"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Rich Text Editor -->
+            <RichTextBox x:Name="ContentRichTextBox" 
+                         Grid.Row="2"
+                         Style="{StaticResource RichTextBoxStyle}"
+                         TextChanged="ContentRichTextBox_TextChanged"/>
+        </Grid>
+    </Border>
+</Window>

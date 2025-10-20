@@ -1,0 +1,761 @@
+﻿using System;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Interop;
+using System.Runtime.InteropServices;
+using System.Windows.Media.Animation;
+using System.Windows.Controls;
+using System.IO;
+using System.Windows.Documents;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using WpfButton = System.Windows.Controls.Button;
+using WpfComboBoxItem = System.Windows.Controls.ComboBoxItem;
+using WpfImage = System.Windows.Controls.Image;
+using WpfOpenFileDialog = Microsoft.Win32.OpenFileDialog;
+using WpfDragEventArgs = System.Windows.DragEventArgs;
+using WpfDataFormats = System.Windows.DataFormats;
+using WpfDragDropEffects = System.Windows.DragDropEffects;
+using WpfMessageBox = System.Windows.MessageBox;
+
+namespace YASN
+{
+    public enum WindowLevel
+    {
+        Normal,
+        TopMost,
+        BottomMost
+    }
+
+    public partial class FloatingWindow : Window
+    {
+        private static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        private IntPtr _hwnd;
+        private System.Windows.Threading.DispatcherTimer _timer;
+        private Storyboard _collapseTitleBar;
+        private Storyboard _expandTitleBar;
+
+        public NoteData NoteData { get; private set; }
+
+        private string _imageDirectory;
+        
+        // 静态变量跟踪 BottomMost 窗口数量
+        private static int _bottomMostWindowCount = 0;
+        private static readonly object _bottomMostLock = new object();
+        private bool _isFirstBottomMostWindow = false;
+
+        public FloatingWindow(NoteData noteData)
+        {
+            InitializeComponent();
+            
+            NoteData = noteData;
+            NoteData.Window = this;
+            NoteData.IsOpen = true;
+
+            // Create images directory for this note
+            _imageDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "NoteImages", noteData.Id.ToString());
+            if (!Directory.Exists(_imageDirectory))
+            {
+                Directory.CreateDirectory(_imageDirectory);
+            }
+
+            // Apply saved position and size
+            if (noteData.Left > 0 && noteData.Top > 0)
+            {
+                Left = noteData.Left;
+                Top = noteData.Top;
+            }
+            if (noteData.Width > 0 && noteData.Height > 0)
+            {
+                Width = noteData.Width;
+                Height = noteData.Height;
+            }
+
+            UpdateStatusText();
+            UpdatePinButton();
+            
+            // Load content from RTF or plain text
+            LoadContent(noteData.Content);
+            
+            _timer = new System.Windows.Threading.DispatcherTimer();
+            _timer.Interval = TimeSpan.FromMilliseconds(100);
+            _timer.Tick += Timer_Tick;
+            
+            _collapseTitleBar = (Storyboard)FindResource("CollapseTitleBar");
+            _expandTitleBar = (Storyboard)FindResource("ExpandTitleBar");
+
+            // Save position when moved or resized
+            LocationChanged += (s, e) => SavePosition();
+            SizeChanged += (s, e) =>
+            {
+                SaveSize();
+                UpdateImageWidths(); // 窗口大小改变时更新图片宽度
+            };
+            
+            // Enable drag and drop
+            ContentRichTextBox.AllowDrop = true;
+            ContentRichTextBox.PreviewDragOver += ContentRichTextBox_PreviewDragOver;
+            ContentRichTextBox.PreviewDrop += ContentRichTextBox_PreviewDrop;
+        }
+
+        private void LoadContent(string content)
+        {
+            if (string.IsNullOrEmpty(content))
+            {
+                ContentRichTextBox.Document = new FlowDocument(new Paragraph(new Run("")));
+                return;
+            }
+
+            try
+            {
+                // Try to load as RTF
+                var document = new FlowDocument();
+                var textRange = new TextRange(document.ContentStart, document.ContentEnd);
+                
+                using (var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content)))
+                {
+                    textRange.Load(stream, WpfDataFormats.Rtf);
+                }
+                
+                // 修复加载后的图片尺寸
+                FixImageSizes(document);
+                
+                ContentRichTextBox.Document = document;
+            }
+            catch
+            {
+                // Fallback to plain text
+                ContentRichTextBox.Document = new FlowDocument(new Paragraph(new Run(content)));
+            }
+        }
+        
+        private void FixImageSizes(FlowDocument document)
+        {
+            var availableWidth = ContentRichTextBox.ActualWidth > 0 
+                ? ContentRichTextBox.ActualWidth - ContentRichTextBox.Padding.Left - ContentRichTextBox.Padding.Right - 20
+                : 360;
+            
+            if (document.PageWidth > 0)
+            {
+                availableWidth = document.PageWidth - document.PagePadding.Left - document.PagePadding.Right;
+            }
+            
+            foreach (var block in document.Blocks)
+            {
+                if (block is BlockUIContainer container && container.Child is WpfImage image)
+                {
+                    // reset image width
+                    image.Stretch = Stretch.Uniform;
+                    image.Width = availableWidth;
+                    
+                    if (image.Source is BitmapImage bitmapImage && bitmapImage.UriSource != null)
+                    {
+                        var newBitmap = new BitmapImage();
+                        newBitmap.BeginInit();
+                        newBitmap.UriSource = bitmapImage.UriSource;
+                        newBitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        newBitmap.EndInit();
+                        image.Source = newBitmap;
+                    }
+
+                    container.Margin = new Thickness(0, 5, 0, 5);
+                }
+            }
+        }
+        
+        private void UpdateImageWidths()
+        {
+            var availableWidth = ContentRichTextBox.ActualWidth - ContentRichTextBox.Padding.Left - ContentRichTextBox.Padding.Right - 20;
+            
+            if (availableWidth <= 0)
+                return;
+            
+            foreach (var block in ContentRichTextBox.Document.Blocks)
+            {
+                if (block is BlockUIContainer container && container.Child is WpfImage image)
+                {
+                    image.Width = availableWidth;
+                }
+            }
+        }
+
+        private string GetContent()
+        {
+            try
+            {
+                var textRange = new TextRange(ContentRichTextBox.Document.ContentStart, ContentRichTextBox.Document.ContentEnd);
+                
+                using (var stream = new MemoryStream())
+                {
+                    textRange.Save(stream, WpfDataFormats.Rtf);
+                    return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+                }
+            }
+            catch
+            {
+                return new TextRange(ContentRichTextBox.Document.ContentStart, ContentRichTextBox.Document.ContentEnd).Text;
+            }
+        }
+
+        private void ContentRichTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            SaveContent();
+        }
+
+        private void Bold_Click(object sender, RoutedEventArgs e)
+        {
+            var selection = ContentRichTextBox.Selection;
+            if (!selection.IsEmpty)
+            {
+                var currentWeight = selection.GetPropertyValue(TextElement.FontWeightProperty);
+                selection.ApplyPropertyValue(TextElement.FontWeightProperty, 
+                    currentWeight.Equals(FontWeights.Bold) ? FontWeights.Normal : FontWeights.Bold);
+            }
+        }
+
+        private void Italic_Click(object sender, RoutedEventArgs e)
+        {
+            var selection = ContentRichTextBox.Selection;
+            if (!selection.IsEmpty)
+            {
+                var currentStyle = selection.GetPropertyValue(TextElement.FontStyleProperty);
+                selection.ApplyPropertyValue(TextElement.FontStyleProperty, 
+                    currentStyle.Equals(FontStyles.Italic) ? FontStyles.Normal : FontStyles.Italic);
+            }
+        }
+
+        private void Underline_Click(object sender, RoutedEventArgs e)
+        {
+            var selection = ContentRichTextBox.Selection;
+            if (!selection.IsEmpty)
+            {
+                var currentDecoration = selection.GetPropertyValue(Inline.TextDecorationsProperty);
+                selection.ApplyPropertyValue(Inline.TextDecorationsProperty, 
+                    currentDecoration == TextDecorations.Underline ? null : TextDecorations.Underline);
+            }
+        }
+
+        private void Strikethrough_Click(object sender, RoutedEventArgs e)
+        {
+            var selection = ContentRichTextBox.Selection;
+            if (!selection.IsEmpty)
+            {
+                var currentDecoration = selection.GetPropertyValue(Inline.TextDecorationsProperty);
+                selection.ApplyPropertyValue(Inline.TextDecorationsProperty, 
+                    currentDecoration == TextDecorations.Strikethrough ? null : TextDecorations.Strikethrough);
+            }
+        }
+
+        private void FontSize_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (ContentRichTextBox == null)
+                return;
+                
+            if (FontSizeCombo?.SelectedItem is WpfComboBoxItem item && item.Tag != null)
+            {
+                var fontSize = double.Parse(item.Tag.ToString());
+                var selection = ContentRichTextBox.Selection;
+                if (!selection.IsEmpty)
+                {
+                    selection.ApplyPropertyValue(TextElement.FontSizeProperty, fontSize);
+                }
+            }
+        }
+
+        private void InsertImage_Click(object sender, RoutedEventArgs e)
+        {
+            var openFileDialog = new WpfOpenFileDialog
+            {
+                Filter = "Image File|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp",
+                Title = "Select Image to Insert"
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                InsertImage(openFileDialog.FileName);
+            }
+        }
+
+        private void ContentRichTextBox_PreviewDragOver(object sender, WpfDragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(WpfDataFormats.FileDrop))
+            {
+                var files = (string[])e.Data.GetData(WpfDataFormats.FileDrop);
+                if (files != null && files.Length > 0 && IsImageFile(files[0]))
+                {
+                    e.Effects = WpfDragDropEffects.Copy;
+                    e.Handled = true;
+                    return;
+                }
+            }
+            e.Effects = WpfDragDropEffects.None;
+            e.Handled = true;
+        }
+
+        private void ContentRichTextBox_PreviewDrop(object sender, WpfDragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(WpfDataFormats.FileDrop))
+            {
+                var files = (string[])e.Data.GetData(WpfDataFormats.FileDrop);
+                if (files != null && files.Length > 0 && IsImageFile(files[0]))
+                {
+                    InsertImage(files[0]);
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private bool IsImageFile(string filePath)
+        {
+            var extension = Path.GetExtension(filePath).ToLowerInvariant();
+            return extension == ".png" || extension == ".jpg" || extension == ".jpeg" || 
+                   extension == ".gif" || extension == ".bmp" || extension == ".webp";
+        }
+
+        private void InsertImage(string sourceFilePath)
+        {
+            string destPath = null;
+            try
+            {
+                // Copy image to note's image directory
+                var fileName = $"{Guid.NewGuid()}{Path.GetExtension(sourceFilePath)}";
+                destPath = Path.Combine(_imageDirectory, fileName);
+                File.Copy(sourceFilePath, destPath, true);
+
+                // Insert image into RichTextBox
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.UriSource = new Uri(destPath, UriKind.Absolute);
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.EndInit();
+
+                var image = new WpfImage
+                {
+                    Source = bitmap,
+                    Stretch = Stretch.Uniform
+                };
+                
+                image.Width = ContentRichTextBox.Document.PageWidth > 0 
+                    ? ContentRichTextBox.Document.PageWidth - ContentRichTextBox.Document.PagePadding.Left - ContentRichTextBox.Document.PagePadding.Right
+                    : ContentRichTextBox.ActualWidth - ContentRichTextBox.Padding.Left - ContentRichTextBox.Padding.Right - 20;
+
+                var container = new BlockUIContainer(image)
+                {
+                    Margin = new Thickness(0, 5, 0, 5)
+                };
+                
+                ContentRichTextBox.BeginChange();
+                try
+                {
+                    var insertPosition = ContentRichTextBox.CaretPosition;
+                    
+                    if (insertPosition != null)
+                    {
+                        var currentParagraph = insertPosition.Paragraph;
+                        if (currentParagraph != null)
+                        {
+                            ContentRichTextBox.Document.Blocks.InsertAfter(currentParagraph, container);
+                            
+                            ContentRichTextBox.Document.Blocks.InsertAfter(container, new Paragraph(new Run("")));
+                        }
+                        else
+                        {
+                            ContentRichTextBox.Document.Blocks.Add(container);
+                            ContentRichTextBox.Document.Blocks.Add(new Paragraph(new Run("")));
+                        }
+                    }
+                    else
+                    {
+                        ContentRichTextBox.Document.Blocks.Add(container);
+                        ContentRichTextBox.Document.Blocks.Add(new Paragraph(new Run("")));
+                    }
+                }
+                finally
+                {
+                    ContentRichTextBox.EndChange();
+                }
+                
+                SaveContent();
+            }
+            catch (Exception ex)
+            {
+
+                if (destPath != null && File.Exists(destPath))
+                {
+                    try
+                    {
+                        File.Delete(destPath);
+                    }
+                    catch
+                    {
+
+                    }
+                }
+                
+                WpfMessageBox.Show($"Fail to insert image: {ex.Message}", "Error", 
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void SavePosition()
+        {
+            if (NoteData != null && WindowState == WindowState.Normal)
+            {
+                NoteData.Left = Left;
+                NoteData.Top = Top;
+                NoteManager.Instance.UpdateNote(NoteData);
+            }
+        }
+
+        private void SaveSize()
+        {
+            if (NoteData != null && WindowState == WindowState.Normal)
+            {
+                NoteData.Width = Width;
+                NoteData.Height = Height;
+                NoteManager.Instance.UpdateNote(NoteData);
+            }
+        }
+
+        private void SaveContent()
+        {
+            if (NoteData != null)
+            {
+                NoteData.Content = GetContent();
+                NoteManager.Instance.UpdateNote(NoteData);
+            }
+        }
+
+        private void Timer_Tick(object sender, EventArgs e)
+        {
+            // 只有第一个 BottomMost 窗口才执行定时器任务
+            if (NoteData.Level == WindowLevel.BottomMost && _hwnd != IntPtr.Zero && _isFirstBottomMostWindow)
+            {
+                SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            _hwnd = new WindowInteropHelper(this).Handle;
+            ApplyWindowLevel();
+        }
+
+        private void Window_Activated(object sender, EventArgs e)
+        {
+            _expandTitleBar?.Begin();
+        }
+
+        private void Window_Deactivated(object sender, EventArgs e)
+        {
+            _collapseTitleBar?.Begin();
+        }
+
+        private void MainBorder_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            _expandTitleBar?.Begin();
+        }
+
+        private void MainBorder_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (!IsActive)
+            {
+                _collapseTitleBar?.Begin();
+            }
+        }
+
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            }
+            else
+            {
+                try
+                {
+                    this.DragMove();
+                }
+                catch { }
+                
+                if (NoteData.Level == WindowLevel.BottomMost)
+                {
+                    ApplyWindowLevel();
+                }
+            }
+        }
+
+        private void ShowMainWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as WpfButton;
+            if (button != null)
+            {
+                var contextMenu = new ContextMenu();
+                
+                var showMainWindowItem = new MenuItem { Header = "显示主窗口" };
+                showMainWindowItem.Click += (s, args) =>
+                {
+                    var app = System.Windows.Application.Current as App;
+                    if (app?.MainWindow != null)
+                    {
+                        app.MainWindow.Show();
+                        app.MainWindow.WindowState = WindowState.Normal;
+                        app.MainWindow.Activate();
+                    }
+                };
+                
+                var createNoteItem = new MenuItem { Header = "新建便签" };
+                createNoteItem.Click += (s, args) =>
+                {
+                    var newNote = NoteManager.Instance.CreateNote();
+                    var newWindow = new FloatingWindow(newNote);
+                    newWindow.Show();
+                };
+                
+                var createTopMostNoteItem = new MenuItem { Header = "新建置顶便签" };
+                createTopMostNoteItem.Click += (s, args) =>
+                {
+                    var newNote = NoteManager.Instance.CreateNote(WindowLevel.TopMost);
+                    var newWindow = new FloatingWindow(newNote);
+                    newWindow.Show();
+                };
+                
+                contextMenu.Items.Add(showMainWindowItem);
+                contextMenu.Items.Add(new Separator());
+                contextMenu.Items.Add(createNoteItem);
+                contextMenu.Items.Add(createTopMostNoteItem);
+                
+                contextMenu.PlacementTarget = button;
+                contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                contextMenu.IsOpen = true;
+            }
+        }
+
+        private void MoreOptions_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as WpfButton;
+            if (button != null)
+            {
+                var contextMenu = new ContextMenu();
+                
+                var deleteNoteItem = new MenuItem { Header = "Del the Note" };
+                deleteNoteItem.Click += (s, args) =>
+                {
+                    var result = WpfMessageBox.Show(
+                        "确定要删除这个便签吗？",
+                        "确认删除",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        NoteManager.Instance.DeleteNote(NoteData);
+                        this.Close();
+                    }
+                };
+                
+                var clearContentItem = new MenuItem { Header = "清空内容" };
+                clearContentItem.Click += (s, args) =>
+                {
+                    var result = WpfMessageBox.Show(
+                        "确定要清空便签内容吗？",
+                        "确认清空",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        ContentRichTextBox.Document = new FlowDocument(new Paragraph(new Run("")));
+                        SaveContent();
+                    }
+                };
+                
+                var aboutItem = new MenuItem { Header = "关于" };
+                aboutItem.Click += (s, args) =>
+                {
+                    WpfMessageBox.Show(
+                        "YASN - Yet Another Sticky Notes\n版本 1.0\n\n一个简洁的便签应用程序",
+                        "关于 YASN",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                };
+                
+                contextMenu.Items.Add(deleteNoteItem);
+                contextMenu.Items.Add(clearContentItem);
+                contextMenu.Items.Add(new Separator());
+                contextMenu.Items.Add(aboutItem);
+                
+                contextMenu.PlacementTarget = button;
+                contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                contextMenu.IsOpen = true;
+            }
+        }
+
+        private void PinButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (NoteData.Level == WindowLevel.TopMost)
+            {
+                SetWindowLevel(WindowLevel.Normal);
+            }
+            else
+            {
+                SetWindowLevel(WindowLevel.TopMost);
+            }
+        }
+
+        private void SendToBottom_Click(object sender, RoutedEventArgs e)
+        {
+            SetWindowLevel(WindowLevel.BottomMost);
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            _timer?.Stop();
+            this.Close();
+        }
+
+        private void SetWindowLevel(WindowLevel level)
+        {
+            NoteData.Level = level;
+            
+            UpdateStatusText();
+            UpdatePinButton();
+            NoteManager.Instance.UpdateNote(NoteData);
+            
+            if (_hwnd != IntPtr.Zero)
+            {
+                ApplyWindowLevel();
+            }
+        }
+
+        private void UpdatePinButton()
+        {
+            if (NoteData.Level == WindowLevel.TopMost)
+            {
+                PinButton.Content = "^";
+                PinButton.ToolTip = "Unpin from Top";
+            }
+            else
+            {
+                PinButton.Content = "P";
+                PinButton.ToolTip = "Pin to Top";
+            }
+        }
+
+        private void UpdateStatusText()
+        {
+            string levelPrefix = NoteData.Level switch
+            {
+                WindowLevel.TopMost => "[T] ",
+                WindowLevel.BottomMost => "[B] ",
+                _ => ""
+            };
+            
+            StatusText.Text = $"{levelPrefix}{NoteData.Title}";
+        }
+
+        private void ApplyWindowLevel()
+        {
+            if (_hwnd == IntPtr.Zero)
+                return;
+
+            // 先停止定时器
+            _timer?.Stop();
+            
+            // 如果之前是第一个 BottomMost 窗口，现在要改变级别，需要递减计数
+            if (_isFirstBottomMostWindow && NoteData.Level != WindowLevel.BottomMost)
+            {
+                lock (_bottomMostLock)
+                {
+                    _bottomMostWindowCount--;
+                    _isFirstBottomMostWindow = false;
+                }
+            }
+
+            switch (NoteData.Level)
+            {
+                case WindowLevel.TopMost:
+                    this.Topmost = true;
+                    break;
+
+                case WindowLevel.BottomMost:
+                    this.Topmost = false;
+                    
+                    // 检查是否是第一个 BottomMost 窗口
+                    lock (_bottomMostLock)
+                    {
+                        if (_bottomMostWindowCount == 0)
+                        {
+                            _isFirstBottomMostWindow = true;
+                        }
+                        _bottomMostWindowCount++;
+                    }
+                    
+                    // 设置窗口到底层
+                    SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    
+                    // 只有第一个 BottomMost 窗口启动定时器
+                    if (_isFirstBottomMostWindow)
+                    {
+                        _timer?.Start();
+                    }
+                    break;
+
+                case WindowLevel.Normal:
+                default:
+                    this.Topmost = false;
+                    SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    break;
+            }
+        }
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            _hwnd = new WindowInteropHelper(this).Handle;
+        }
+
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            if (NoteData.Level == WindowLevel.BottomMost && _hwnd != IntPtr.Zero)
+            {
+                Dispatcher.BeginInvoke(new Action(() => ApplyWindowLevel()), 
+                    System.Windows.Threading.DispatcherPriority.Background);
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _timer?.Stop();
+            NoteData.IsOpen = false;
+            NoteData.Window = null;
+            NoteManager.Instance.UpdateNote(NoteData);
+            
+            lock (_bottomMostLock)
+            {
+                if (NoteData.Level == WindowLevel.BottomMost && _bottomMostWindowCount > 0)
+                {
+                    _bottomMostWindowCount--;
+                }
+            }
+            
+            base.OnClosed(e);
+        }
+    }
+}

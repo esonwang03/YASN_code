@@ -1,0 +1,148 @@
+﻿<Window x:Class="YASN.FloatingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Floating Window" 
+        Height="300" 
+        Width="400"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ResizeMode="CanResizeWithGrip"
+        Loaded="Window_Loaded"
+        Activated="Window_Activated"
+        Deactivated="Window_Deactivated">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40" GlassFrameThickness="-1" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+    
+    <Window.Resources>
+        <Style x:Key="ContentTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#ECF0F1"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei"/>
+            <Setter Property="Padding" Value="15,8,15,15"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="AcceptsReturn" Value="True"/>
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="CaretBrush" Value="#3498DB"/>
+        </Style>
+
+        <Style x:Key="TitleBarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#2C3E50"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontFamily" Value="Segoe UI Symbol"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#20000000"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#30000000"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CloseButtonStyle" TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E74C3C"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#C0392B"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="LevelButtonStyle" TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+        
+        <Storyboard x:Key="CollapseTitleBar">
+            <DoubleAnimation Storyboard.TargetName="TitleBar" 
+                           Storyboard.TargetProperty="Height"
+                           To="4" Duration="0:0:0.2"/>
+            <DoubleAnimation Storyboard.TargetName="TitleBar" 
+                           Storyboard.TargetProperty="Opacity"
+                           To="0.3" Duration="0:0:0.2"/>
+        </Storyboard>
+        
+        <Storyboard x:Key="ExpandTitleBar">
+            <DoubleAnimation Storyboard.TargetName="TitleBar" 
+                           Storyboard.TargetProperty="Height"
+                           To="40" Duration="0:0:0.2"/>
+            <DoubleAnimation Storyboard.TargetName="TitleBar" 
+                           Storyboard.TargetProperty="Opacity"
+                           To="1" Duration="0:0:0.2"/>
+        </Storyboard>
+    </Window.Resources>
+    
+    <Border x:Name="MainBorder" BorderThickness="1" CornerRadius="8" Background="#C81E1E1E" BorderBrush="#60808080">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Border x:Name="TitleBar" Grid.Row="0" Height="40" Background="#E6D4C5E0" CornerRadius="5,5,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="40"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0" Content="=" ToolTip="Show Main Window" Style="{StaticResource TitleBarButtonStyle}" Click="ShowMainWindow_Click"/>
+                    <Border Grid.Column="1" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                        <TextBlock x:Name="StatusText" 
+                                   Text="Note #1"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   Foreground="#2C3E50"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"/>
+                    </Border>
+                    <Button Grid.Column="5" Content="..." ToolTip="More Options" Style="{StaticResource TitleBarButtonStyle}" Click="MoreOptions_Click"/>
+                    <Button x:Name="PinButton" Grid.Column="3" Content="P" ToolTip="Pin to Top" Style="{StaticResource TitleBarButtonStyle}" Click="PinButton_Click"/>
+                    <Button Grid.Column="4" Content="v" ToolTip="Send to Bottom" Style="{StaticResource LevelButtonStyle}" Click="SendToBottom_Click"/>
+                    <Button Grid.Column="6" Content="X" ToolTip="Close" Style="{StaticResource CloseButtonStyle}" Click="CloseButton_Click"/>
+                </Grid>
+            </Border>
+
+            <TextBox x:Name="ContentTextBox" Grid.Row="1" Style="{StaticResource ContentTextBoxStyle}"/>
+        </Grid>
+    </Border>
+</Window>

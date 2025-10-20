@@ -1,0 +1,477 @@
+﻿using System;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Interop;
+using System.Runtime.InteropServices;
+using System.Windows.Media.Animation;
+using System.Windows.Controls;
+using System.IO;
+using System.Windows.Documents;
+using Markdig.Wpf;
+
+namespace YASN
+{
+    public enum WindowLevel
+    {
+        Normal,
+        TopMost,
+        BottomMost
+    }
+
+    public partial class FloatingWindow : Window
+    {
+        private static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        private IntPtr _hwnd;
+        private System.Windows.Threading.DispatcherTimer _timer;
+        private Storyboard _collapseTitleBar;
+        private Storyboard _expandTitleBar;
+
+        public NoteData NoteData { get; private set; }
+
+        private string _imageDirectory;
+
+        public FloatingWindow(NoteData noteData)
+        {
+            InitializeComponent();
+            
+            NoteData = noteData;
+            NoteData.Window = this;
+            NoteData.IsOpen = true;
+
+            // Create images directory for this note
+            _imageDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "NoteImages", noteData.Id.ToString());
+            if (!Directory.Exists(_imageDirectory))
+            {
+                Directory.CreateDirectory(_imageDirectory);
+            }
+
+            // Apply saved position and size
+            if (noteData.Left > 0 && noteData.Top > 0)
+            {
+                Left = noteData.Left;
+                Top = noteData.Top;
+            }
+            if (noteData.Width > 0 && noteData.Height > 0)
+            {
+                Width = noteData.Width;
+                Height = noteData.Height;
+            }
+
+            UpdateStatusText();
+            UpdatePinButton();
+            
+            ContentTextBox.Text = noteData.Content;
+            
+            // Start in view mode
+            NoteData.IsEditMode = false;
+            UpdateContentDisplay();
+            
+            _timer = new System.Windows.Threading.DispatcherTimer();
+            _timer.Interval = TimeSpan.FromMilliseconds(100);
+            _timer.Tick += Timer_Tick;
+            
+            _collapseTitleBar = (Storyboard)FindResource("CollapseTitleBar");
+            _expandTitleBar = (Storyboard)FindResource("ExpandTitleBar");
+
+            // Save position when moved or resized
+            LocationChanged += (s, e) => SavePosition();
+            SizeChanged += (s, e) => SaveSize();
+            ContentTextBox.TextChanged += (s, e) => SaveContent();
+            
+            // Enable drag and drop
+            MarkdownViewer.AllowDrop = true;
+            MarkdownViewer.PreviewDragOver += MarkdownViewer_PreviewDragOver;
+            MarkdownViewer.PreviewDrop += MarkdownViewer_PreviewDrop;
+            
+            ContentTextBox.AllowDrop = true;
+            ContentTextBox.PreviewDragOver += ContentTextBox_PreviewDragOver;
+            ContentTextBox.PreviewDrop += ContentTextBox_PreviewDrop;
+        }
+
+        private void UpdateContentDisplay()
+        {
+            if (NoteData.IsEditMode)
+            {
+                ContentTextBox.Visibility = Visibility.Visible;
+                MarkdownViewer.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                ContentTextBox.Visibility = Visibility.Collapsed;
+                MarkdownViewer.Visibility = Visibility.Visible;
+                RenderMarkdown();
+            }
+        }
+
+        private void RenderMarkdown()
+        {
+            try
+            {
+                var markdown = ContentTextBox.Text ?? string.Empty;
+                var document = Markdig.Wpf.Markdown.ToFlowDocument(markdown, 
+                    new Markdig.MarkdownPipelineBuilder().UseAdvancedExtensions().Build());
+                
+                MarkdownViewer.Document = document;
+            }
+            catch
+            {
+                // Fallback to plain text if markdown parsing fails
+                var document = new FlowDocument();
+                document.Blocks.Add(new Paragraph(new Run(ContentTextBox.Text ?? string.Empty)));
+                MarkdownViewer.Document = document;
+            }
+        }
+
+        private void MarkdownViewer_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            NoteData.IsEditMode = true;
+            UpdateContentDisplay();
+            ContentTextBox.Focus();
+            ContentTextBox.CaretIndex = ContentTextBox.Text.Length;
+        }
+
+        private void ContentTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (NoteData.IsEditMode)
+            {
+                NoteData.IsEditMode = false;
+                UpdateContentDisplay();
+            }
+        }
+
+        private void MarkdownViewer_PreviewDragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                if (files != null && files.Length > 0 && IsImageFile(files[0]))
+                {
+                    e.Effects = DragDropEffects.Copy;
+                    e.Handled = true;
+                    return;
+                }
+            }
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        private void MarkdownViewer_PreviewDrop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                if (files != null && files.Length > 0 && IsImageFile(files[0]))
+                {
+                    InsertImage(files[0]);
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private void ContentTextBox_PreviewDragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                if (files != null && files.Length > 0 && IsImageFile(files[0]))
+                {
+                    e.Effects = DragDropEffects.Copy;
+                    e.Handled = true;
+                    return;
+                }
+            }
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        private void ContentTextBox_PreviewDrop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                if (files != null && files.Length > 0 && IsImageFile(files[0]))
+                {
+                    InsertImage(files[0]);
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private bool IsImageFile(string filePath)
+        {
+            var extension = Path.GetExtension(filePath).ToLowerInvariant();
+            return extension == ".png" || extension == ".jpg" || extension == ".jpeg" || 
+                   extension == ".gif" || extension == ".bmp" || extension == ".webp";
+        }
+
+        private void InsertImage(string sourceFilePath)
+        {
+            try
+            {
+                // Copy image to note's image directory
+                var fileName = $"{Guid.NewGuid()}{Path.GetExtension(sourceFilePath)}";
+                var destPath = Path.Combine(_imageDirectory, fileName);
+                File.Copy(sourceFilePath, destPath, true);
+
+                // Create relative path for markdown
+                var relativePath = Path.Combine("NoteImages", NoteData.Id.ToString(), fileName);
+                var markdownImage = $"![image]({relativePath})";
+
+                // Insert at cursor position or append
+                if (NoteData.IsEditMode)
+                {
+                    int caretIndex = ContentTextBox.CaretIndex;
+                    ContentTextBox.Text = ContentTextBox.Text.Insert(caretIndex, markdownImage + "\n");
+                    ContentTextBox.CaretIndex = caretIndex + markdownImage.Length + 1;
+                }
+                else
+                {
+                    // Switch to edit mode, insert at end
+                    NoteData.IsEditMode = true;
+                    UpdateContentDisplay();
+                    ContentTextBox.Text += "\n" + markdownImage + "\n";
+                    ContentTextBox.CaretIndex = ContentTextBox.Text.Length;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to insert image: {ex.Message}", "Error", 
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void SavePosition()
+        {
+            if (NoteData != null && WindowState == WindowState.Normal)
+            {
+                NoteData.Left = Left;
+                NoteData.Top = Top;
+                NoteManager.Instance.UpdateNote(NoteData);
+            }
+        }
+
+        private void SaveSize()
+        {
+            if (NoteData != null && WindowState == WindowState.Normal)
+            {
+                NoteData.Width = Width;
+                NoteData.Height = Height;
+                NoteManager.Instance.UpdateNote(NoteData);
+            }
+        }
+
+        private void SaveContent()
+        {
+            if (NoteData != null)
+            {
+                NoteData.Content = ContentTextBox.Text;
+                NoteManager.Instance.UpdateNote(NoteData);
+            }
+        }
+
+        private void Timer_Tick(object sender, EventArgs e)
+        {
+            if (NoteData.Level == WindowLevel.BottomMost && _hwnd != IntPtr.Zero)
+            {
+                SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            _hwnd = new WindowInteropHelper(this).Handle;
+            ApplyWindowLevel();
+        }
+
+        private void Window_Activated(object sender, EventArgs e)
+        {
+            _expandTitleBar?.Begin();
+        }
+
+        private void Window_Deactivated(object sender, EventArgs e)
+        {
+            _collapseTitleBar?.Begin();
+        }
+
+        private void MainBorder_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            _expandTitleBar?.Begin();
+        }
+
+        private void MainBorder_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (!IsActive)
+            {
+                _collapseTitleBar?.Begin();
+            }
+        }
+
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            }
+            else
+            {
+                try
+                {
+                    this.DragMove();
+                }
+                catch { }
+                
+                if (NoteData.Level == WindowLevel.BottomMost)
+                {
+                    ApplyWindowLevel();
+                }
+            }
+        }
+
+        private void ShowMainWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var app = System.Windows.Application.Current as App;
+            if (app?.MainWindow != null)
+            {
+                app.MainWindow.Show();
+                app.MainWindow.WindowState = WindowState.Normal;
+                app.MainWindow.Activate();
+            }
+        }
+
+        private void MoreOptions_Click(object sender, RoutedEventArgs e)
+        {
+            System.Windows.MessageBox.Show("More options coming soon!", "YASN", 
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void PinButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (NoteData.Level == WindowLevel.TopMost)
+            {
+                SetWindowLevel(WindowLevel.Normal);
+            }
+            else
+            {
+                SetWindowLevel(WindowLevel.TopMost);
+            }
+        }
+
+        private void SendToBottom_Click(object sender, RoutedEventArgs e)
+        {
+            SetWindowLevel(WindowLevel.BottomMost);
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            _timer?.Stop();
+            this.Close();
+        }
+
+        private void SetWindowLevel(WindowLevel level)
+        {
+            NoteData.Level = level;
+            
+            UpdateStatusText();
+            UpdatePinButton();
+            NoteManager.Instance.UpdateNote(NoteData);
+            
+            if (_hwnd != IntPtr.Zero)
+            {
+                ApplyWindowLevel();
+            }
+        }
+
+        private void UpdatePinButton()
+        {
+            if (NoteData.Level == WindowLevel.TopMost)
+            {
+                PinButton.Content = "^";
+                PinButton.ToolTip = "Unpin from Top";
+            }
+            else
+            {
+                PinButton.Content = "P";
+                PinButton.ToolTip = "Pin to Top";
+            }
+        }
+
+        private void UpdateStatusText()
+        {
+            string levelPrefix = NoteData.Level switch
+            {
+                WindowLevel.TopMost => "[T] ",
+                WindowLevel.BottomMost => "[B] ",
+                _ => ""
+            };
+            
+            StatusText.Text = $"{levelPrefix}{NoteData.Title}";
+        }
+
+        private void ApplyWindowLevel()
+        {
+            if (_hwnd == IntPtr.Zero)
+                return;
+
+            _timer.Stop();
+
+            switch (NoteData.Level)
+            {
+                case WindowLevel.TopMost:
+                    this.Topmost = true;
+                    break;
+
+                case WindowLevel.BottomMost:
+                    this.Topmost = false;
+                    SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    _timer.Start();
+                    break;
+
+                case WindowLevel.Normal:
+                default:
+                    this.Topmost = false;
+                    SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    break;
+            }
+        }
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            _hwnd = new WindowInteropHelper(this).Handle;
+        }
+
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            if (NoteData.Level == WindowLevel.BottomMost && _hwnd != IntPtr.Zero)
+            {
+                Dispatcher.BeginInvoke(new Action(() => ApplyWindowLevel()), 
+                    System.Windows.Threading.DispatcherPriority.Background);
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _timer?.Stop();
+            NoteData.IsOpen = false;
+            NoteData.Window = null;
+            NoteManager.Instance.UpdateNote(NoteData);
+            base.OnClosed(e);
+        }
+    }
+}

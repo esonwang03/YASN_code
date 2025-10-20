@@ -1,0 +1,88 @@
+﻿using System.Configuration;
+using System.Data;
+using System.Windows;
+using System.Drawing;
+using System.Windows.Forms;
+using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
+
+namespace YASN
+{
+    /// <summary>
+    /// Interaction logic for App.xaml
+    /// </summary>
+    public partial class App : Application
+    {
+        private NotifyIcon? _notifyIcon;
+
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            base.OnStartup(e);
+
+            // 隐藏主窗口，只显示托盘图标
+            MainWindow = new MainWindow();
+            MainWindow.Hide();
+
+            // 创建托盘图标
+            _notifyIcon = new NotifyIcon();
+            
+            // 使用默认图标（可以后续替换为自定义图标）
+            _notifyIcon.Icon = SystemIcons.Application;
+            _notifyIcon.Visible = true;
+            _notifyIcon.Text = "YASN - 窗口管理器";
+
+            // 创建右键菜单
+            var contextMenu = new ContextMenuStrip();
+            
+            var topMostMenuItem = new ToolStripMenuItem("创建顶层窗口");
+            topMostMenuItem.Click += (s, args) => CreateTopMostWindow();
+            
+            var bottomMostMenuItem = new ToolStripMenuItem("创建底层窗口");
+            bottomMostMenuItem.Click += (s, args) => CreateBottomMostWindow();
+            
+            var separatorMenuItem = new ToolStripSeparator();
+            
+            var exitMenuItem = new ToolStripMenuItem("退出");
+            exitMenuItem.Click += (s, args) => ExitApplication();
+
+            contextMenu.Items.Add(topMostMenuItem);
+            contextMenu.Items.Add(bottomMostMenuItem);
+            contextMenu.Items.Add(separatorMenuItem);
+            contextMenu.Items.Add(exitMenuItem);
+
+            _notifyIcon.ContextMenuStrip = contextMenu;
+
+            // 双击托盘图标显示主窗口
+            _notifyIcon.DoubleClick += (s, args) =>
+            {
+                MainWindow.Show();
+                MainWindow.WindowState = WindowState.Normal;
+                MainWindow.Activate();
+            };
+        }
+
+        private void CreateTopMostWindow()
+        {
+            var topWindow = new TopMostWindow();
+            topWindow.Show();
+        }
+
+        private void CreateBottomMostWindow()
+        {
+            var bottomWindow = new BottomMostWindow();
+            bottomWindow.Show();
+        }
+
+        private void ExitApplication()
+        {
+            _notifyIcon?.Dispose();
+            Current.Shutdown();
+        }
+
+        protected override void OnExit(ExitEventArgs e)
+        {
+            _notifyIcon?.Dispose();
+            base.OnExit(e);
+        }
+    }
+}

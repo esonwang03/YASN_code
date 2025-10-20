@@ -1,0 +1,33 @@
+{
+  "runtimeOptions": {
+    "tfm": "net8.0",
+    "frameworks": [
+      {
+        "name": "Microsoft.NETCore.App",
+        "version": "8.0.19"
+      },
+      {
+        "name": "Microsoft.WindowsDesktop.App",
+        "version": "8.0.19"
+      }
+    ],
+    "additionalProbingPaths": [
+      "C:\\Users\\28405\\.dotnet\\store\\|arch|\\|tfm|",
+      "C:\\Users\\28405\\.nuget\\packages",
+      "D:\\VSshared\\NuGetPackages"
+    ],
+    "configProperties": {
+      "System.Drawing.Design.UITypeEditor.IsSupported": false,
+      "System.Runtime.Serialization.EnableUnsafeBinaryFormatterSerialization": true,
+      "System.Windows.Forms.ActiveXImpl.IsSupported": false,
+      "System.Windows.Forms.Binding.IsSupported": false,
+      "System.Windows.Forms.Control.AreDesignTimeFeaturesSupported": false,
+      "System.Windows.Forms.Control.UseComponentModelRegisteredTypes": true,
+      "System.Windows.Forms.ImageIndexConverter.IsSupported": false,
+      "System.Windows.Forms.MdiWindowDialog.IsSupported": false,
+      "System.Windows.Forms.Primitives.TypeConverterHelper.UseComponentModelRegisteredTypes": true,
+      "CSWINRT_USE_WINDOWS_UI_XAML_PROJECTIONS": false,
+      "Microsoft.NETCore.DotNetHostPolicy.SetAppPaths": true
+    }
+  }
+}

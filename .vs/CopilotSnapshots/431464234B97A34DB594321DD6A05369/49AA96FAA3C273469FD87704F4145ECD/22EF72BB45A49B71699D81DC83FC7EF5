@@ -1,0 +1,192 @@
+﻿using System;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Interop;
+using System.Runtime.InteropServices;
+
+namespace YASN
+{
+    public enum WindowLevel
+    {
+        Normal,
+        TopMost,
+        BottomMost
+    }
+
+    public partial class FloatingWindow : Window
+    {
+        private static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        private IntPtr _hwnd;
+        private System.Windows.Threading.DispatcherTimer _timer;
+        private WindowLevel _currentLevel = WindowLevel.Normal;
+        private static int _windowCounter = 0;
+
+        public FloatingWindow() : this(WindowLevel.Normal)
+        {
+        }
+
+        public FloatingWindow(WindowLevel level)
+        {
+            InitializeComponent();
+            _windowCounter++;
+            
+            _currentLevel = level;
+            UpdateWindowAppearance();
+            
+            ContentTextBox.Text = $"Note #{_windowCounter}\n\nEnter your text here...\n\nRight-click for options.";
+            
+            _timer = new System.Windows.Threading.DispatcherTimer();
+            _timer.Interval = TimeSpan.FromMilliseconds(100);
+            _timer.Tick += Timer_Tick;
+        }
+
+        private void Timer_Tick(object sender, EventArgs e)
+        {
+            if (_currentLevel == WindowLevel.BottomMost && _hwnd != IntPtr.Zero)
+            {
+                SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            _hwnd = new WindowInteropHelper(this).Handle;
+            ApplyWindowLevel();
+        }
+
+        private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // Only drag if not clicking on TextBox
+            if (e.OriginalSource is System.Windows.Controls.TextBox)
+                return;
+                
+            if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                try
+                {
+                    this.DragMove();
+                }
+                catch { }
+                
+                if (_currentLevel == WindowLevel.BottomMost)
+                {
+                    ApplyWindowLevel();
+                }
+            }
+        }
+
+        private void MenuClose_Click(object sender, RoutedEventArgs e)
+        {
+            _timer?.Stop();
+            this.Close();
+        }
+
+        private void MenuTopmost_Click(object sender, RoutedEventArgs e)
+        {
+            SetWindowLevel(WindowLevel.TopMost);
+        }
+
+        private void MenuNormal_Click(object sender, RoutedEventArgs e)
+        {
+            SetWindowLevel(WindowLevel.Normal);
+        }
+
+        private void MenuBottom_Click(object sender, RoutedEventArgs e)
+        {
+            SetWindowLevel(WindowLevel.BottomMost);
+        }
+
+        private void SetWindowLevel(WindowLevel level)
+        {
+            _currentLevel = level;
+            
+            MenuTopmost.IsChecked = (level == WindowLevel.TopMost);
+            MenuNormal.IsChecked = (level == WindowLevel.Normal);
+            MenuBottom.IsChecked = (level == WindowLevel.BottomMost);
+            
+            UpdateWindowAppearance();
+            
+            if (_hwnd != IntPtr.Zero)
+            {
+                ApplyWindowLevel();
+            }
+        }
+
+        private void UpdateWindowAppearance()
+        {
+            string borderColor = _currentLevel switch
+            {
+                WindowLevel.TopMost => "#3498DB",      // Blue
+                WindowLevel.BottomMost => "#E74C3C",   // Red
+                _ => "#95A5A6"                          // Gray
+            };
+            
+            MainBorder.BorderBrush = new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(borderColor));
+        }
+
+        private void ApplyWindowLevel()
+        {
+            if (_hwnd == IntPtr.Zero)
+                return;
+
+            _timer.Stop();
+
+            switch (_currentLevel)
+            {
+                case WindowLevel.TopMost:
+                    this.Topmost = true;
+                    break;
+
+                case WindowLevel.BottomMost:
+                    this.Topmost = false;
+                    SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    _timer.Start();
+                    break;
+
+                case WindowLevel.Normal:
+                default:
+                    this.Topmost = false;
+                    SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    break;
+            }
+        }
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            _hwnd = new WindowInteropHelper(this).Handle;
+        }
+
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            if (_currentLevel == WindowLevel.BottomMost && _hwnd != IntPtr.Zero)
+            {
+                Dispatcher.BeginInvoke(new Action(() => ApplyWindowLevel()), 
+                    System.Windows.Threading.DispatcherPriority.Background);
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _timer?.Stop();
+            base.OnClosed(e);
+        }
+    }
+}

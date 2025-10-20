@@ -1,0 +1,286 @@
+﻿using System;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Interop;
+using System.Runtime.InteropServices;
+using System.Windows.Media.Animation;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+
+namespace YASN
+{
+    public enum WindowLevel
+    {
+        Normal,
+        TopMost,
+        BottomMost
+    }
+
+    public partial class FloatingWindow : Window, INotifyPropertyChanged
+    {
+        private static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        private IntPtr _hwnd;
+        private System.Windows.Threading.DispatcherTimer _timer;
+        private WindowLevel _currentLevel = WindowLevel.Normal;
+        private static int _windowCounter = 0;
+        private Storyboard _collapseTitleBar;
+        private Storyboard _expandTitleBar;
+        private int _windowId;
+
+        public static ObservableCollection<FloatingWindow> AllWindows { get; } = new ObservableCollection<FloatingWindow>();
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        public int WindowId => _windowId;
+        
+        public string WindowTitle => StatusText?.Text ?? $"Note #{_windowId}";
+        
+        public WindowLevel Level 
+        { 
+            get => _currentLevel;
+            private set
+            {
+                if (_currentLevel != value)
+                {
+                    _currentLevel = value;
+                    OnPropertyChanged(nameof(Level));
+                    OnPropertyChanged(nameof(WindowTitle));
+                }
+            }
+        }
+
+        protected void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        public FloatingWindow() : this(WindowLevel.Normal)
+        {
+        }
+
+        public FloatingWindow(WindowLevel level)
+        {
+            InitializeComponent();
+            _windowCounter++;
+            _windowId = _windowCounter;
+            
+            _currentLevel = level;
+            UpdateStatusText();
+            UpdatePinButton();
+            
+            ContentTextBox.Text = $"Enter your text here...";
+            
+            _timer = new System.Windows.Threading.DispatcherTimer();
+            _timer.Interval = TimeSpan.FromMilliseconds(100);
+            _timer.Tick += Timer_Tick;
+            
+            _collapseTitleBar = (Storyboard)FindResource("CollapseTitleBar");
+            _expandTitleBar = (Storyboard)FindResource("ExpandTitleBar");
+
+            AllWindows.Add(this);
+        }
+
+        private void Timer_Tick(object sender, EventArgs e)
+        {
+            if (_currentLevel == WindowLevel.BottomMost && _hwnd != IntPtr.Zero)
+            {
+                SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            _hwnd = new WindowInteropHelper(this).Handle;
+            ApplyWindowLevel();
+        }
+
+        private void Window_Activated(object sender, EventArgs e)
+        {
+            _expandTitleBar?.Begin();
+        }
+
+        private void Window_Deactivated(object sender, EventArgs e)
+        {
+            _collapseTitleBar?.Begin();
+        }
+
+        private void MainBorder_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            _expandTitleBar?.Begin();
+        }
+
+        private void MainBorder_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (!IsActive)
+            {
+                _collapseTitleBar?.Begin();
+            }
+        }
+
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            }
+            else
+            {
+                try
+                {
+                    this.DragMove();
+                }
+                catch { }
+                
+                if (_currentLevel == WindowLevel.BottomMost)
+                {
+                    ApplyWindowLevel();
+                }
+            }
+        }
+
+        private void ShowMainWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var app = System.Windows.Application.Current as App;
+            if (app?.MainWindow != null)
+            {
+                app.MainWindow.Show();
+                app.MainWindow.WindowState = WindowState.Normal;
+                app.MainWindow.Activate();
+            }
+        }
+
+        private void MoreOptions_Click(object sender, RoutedEventArgs e)
+        {
+            System.Windows.MessageBox.Show("More options coming soon!", "YASN", 
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void PinButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentLevel == WindowLevel.TopMost)
+            {
+                SetWindowLevel(WindowLevel.Normal);
+            }
+            else
+            {
+                SetWindowLevel(WindowLevel.TopMost);
+            }
+        }
+
+        private void SendToBottom_Click(object sender, RoutedEventArgs e)
+        {
+            SetWindowLevel(WindowLevel.BottomMost);
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            _timer?.Stop();
+            this.Close();
+        }
+
+        private void SetWindowLevel(WindowLevel level)
+        {
+            Level = level;
+            
+            UpdateStatusText();
+            UpdatePinButton();
+            
+            if (_hwnd != IntPtr.Zero)
+            {
+                ApplyWindowLevel();
+            }
+        }
+
+        private void UpdatePinButton()
+        {
+            if (_currentLevel == WindowLevel.TopMost)
+            {
+                PinButton.Content = "^";
+                PinButton.ToolTip = "Unpin from Top";
+            }
+            else
+            {
+                PinButton.Content = "P";
+                PinButton.ToolTip = "Pin to Top";
+            }
+        }
+
+        private void UpdateStatusText()
+        {
+            string levelPrefix = _currentLevel switch
+            {
+                WindowLevel.TopMost => "[T] ",
+                WindowLevel.BottomMost => "[B] ",
+                _ => ""
+            };
+            
+            StatusText.Text = $"{levelPrefix}Note #{_windowId}";
+            OnPropertyChanged(nameof(WindowTitle));
+        }
+
+        private void ApplyWindowLevel()
+        {
+            if (_hwnd == IntPtr.Zero)
+                return;
+
+            _timer.Stop();
+
+            switch (_currentLevel)
+            {
+                case WindowLevel.TopMost:
+                    this.Topmost = true;
+                    break;
+
+                case WindowLevel.BottomMost:
+                    this.Topmost = false;
+                    SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    _timer.Start();
+                    break;
+
+                case WindowLevel.Normal:
+                default:
+                    this.Topmost = false;
+                    SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    break;
+            }
+        }
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            _hwnd = new WindowInteropHelper(this).Handle;
+        }
+
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            if (_currentLevel == WindowLevel.BottomMost && _hwnd != IntPtr.Zero)
+            {
+                Dispatcher.BeginInvoke(new Action(() => ApplyWindowLevel()), 
+                    System.Windows.Threading.DispatcherPriority.Background);
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _timer?.Stop();
+            AllWindows.Remove(this);
+            base.OnClosed(e);
+        }
+    }
+}

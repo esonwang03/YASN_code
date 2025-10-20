@@ -1,0 +1,126 @@
+﻿# YASN - Yet Another Sticky Notes (Window Manager)
+
+一个基于WPF的系统托盘应用程序，可以创建始终在顶层或底层的无边框窗口。
+
+## 功能特性
+
+### 系统托盘
+- 应用启动后会最小化到系统托盘
+- 右键托盘图标显示菜单：
+  - **Create Top Window** - 创建始终在最顶层的无边框窗口
+  - **Create Bottom Window** - 创建始终在最底层的无边框窗口
+  - **Exit** - 退出应用程序
+- 双击托盘图标显示主窗口
+
+### 顶层窗口 (Top Most Window)
+- 始终显示在所有其他窗口之上
+- 无边框半透明设计
+- 蓝色主题
+- 可拖动移动
+- 可调整大小
+- 点击右上角 X 按钮关闭
+- 不在任务栏显示图标
+
+### 底层窗口 (Bottom Most Window)
+- 始终显示在所有其他窗口之下
+- 无边框半透明设计
+- 红色主题
+- 可拖动移动
+- 可调整大小
+- 点击右上角 X 按钮关闭
+- 使用Windows API和定时器确保窗口始终保持在底层
+- 不在任务栏显示图标
+
+**注意**: 底层窗口使用了以下技术确保稳定性：
+- Windows API `SetWindowPos` 将窗口置于 HWND_BOTTOM
+- 定时器（100ms间隔）持续监控并保持底层位置
+- 窗口激活时自动重新置于底层
+- 拖动后自动恢复底层位置
+
+### 主窗口
+- 提供应用说明
+- 快捷按钮创建顶层/底层窗口
+- 关闭时隐藏到托盘而不是退出
+
+## 技术实现
+
+- **.NET 8.0** - 目标框架
+- **WPF** - UI框架
+- **Windows Forms** - 系统托盘支持 (NotifyIcon)
+- **Windows API** - 底层窗口实现 (SetWindowPos, HWND_BOTTOM)
+- **DispatcherTimer** - 底层窗口位置维护
+
+## 使用方法
+
+1. 运行应用程序
+2. 应用会最小化到系统托盘（在任务栏右下角）
+3. 右键点击托盘图标选择创建窗口类型
+4. 双击托盘图标显示主窗口
+
+## 常见问题
+
+### Q: 底层窗口为什么会"消失"？
+A: 这通常是因为以下原因：
+1. 其他全屏应用程序覆盖了底层窗口
+2. 桌面刷新导致窗口被遮挡
+3. 解决方案：当前实现使用定时器持续维护窗口位置
+
+### Q: 底层窗口能否穿透鼠标点击？
+A: 当前实现不支持鼠标穿透。如需此功能，可以使用 WS_EX_TRANSPARENT 样式。
+
+### Q: 如何关闭底层窗口？
+A: 点击窗口右上角的 X 按钮，或从主窗口管理。
+
+## 项目结构
+
+```
+YASN/
+├── App.xaml                    # 应用程序定义
+├── App.xaml.cs                 # 托盘图标管理
+├── MainWindow.xaml             # 主窗口UI
+├── MainWindow.xaml.cs          # 主窗口逻辑
+├── TopMostWindow.xaml          # 顶层窗口UI
+├── TopMostWindow.xaml.cs       # 顶层窗口逻辑
+├── BottomMostWindow.xaml       # 底层窗口UI
+├── BottomMostWindow.xaml.cs    # 底层窗口逻辑（包含Windows API调用和定时器）
+└── YASN.csproj                 # 项目文件
+```
+
+## 依赖包
+
+- System.Drawing.Common (9.0.10) - 用于系统图标支持
+
+## 构建和运行
+
+```bash
+dotnet build
+dotnet run
+```
+
+或在Visual Studio中直接按F5运行。
+
+## 技术细节
+
+### 底层窗口实现原理
+
+底层窗口的实现使用了多重保障机制：
+
+1. **SetWindowPos API**: 使用 `HWND_BOTTOM` 常量将窗口置于Z-order的底部
+2. **定时器维护**: 每100ms检查并重置窗口位置，防止被其他窗口顶上来
+3. **事件响应**: 在窗口激活、拖动等事件后自动恢复底层位置
+4. **透明背景**: 使用半透明设计，即使被遮挡也能看到部分内容
+
+```csharp
+// 关键代码片段
+SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+```
+
+## 未来改进方向
+
+- [ ] 添加窗口内容编辑功能（便签文本）
+- [ ] 支持保存和恢复窗口位置
+- [ ] 添加多种主题和颜色选项
+- [ ] 支持窗口透明度调节
+- [ ] 添加窗口管理面板
+- [ ] 支持便签内容持久化

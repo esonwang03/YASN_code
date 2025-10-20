@@ -1,0 +1,81 @@
+﻿using System.Configuration;
+using System.Data;
+
+namespace YASN
+{
+    /// <summary>
+    /// Interaction logic for App.xaml
+    /// </summary>
+    public partial class App : System.Windows.Application
+    {
+        private System.Windows.Forms.NotifyIcon? _notifyIcon;
+
+        protected override void OnStartup(System.Windows.StartupEventArgs e)
+        {
+            base.OnStartup(e);
+
+            // Hide main window, only show tray icon
+            MainWindow = new MainWindow();
+            MainWindow.Hide();
+
+            // Create tray icon
+            _notifyIcon = new System.Windows.Forms.NotifyIcon();
+            
+            // Use default icon
+            _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+            _notifyIcon.Visible = true;
+            _notifyIcon.Text = "YASN - Window Manager";
+
+            // Create context menu
+            var contextMenu = new System.Windows.Forms.ContextMenuStrip();
+            
+            var newWindowMenuItem = new System.Windows.Forms.ToolStripMenuItem("新建窗口(&N)");
+            newWindowMenuItem.DropDownItems.Add("普通窗口(&P)", null, (s, args) => CreateFloatingWindow(WindowLevel.Normal));
+            newWindowMenuItem.DropDownItems.Add("置顶窗口(&T)", null, (s, args) => CreateFloatingWindow(WindowLevel.TopMost));
+            newWindowMenuItem.DropDownItems.Add("置底窗口(&B)", null, (s, args) => CreateFloatingWindow(WindowLevel.BottomMost));
+            
+            var separatorMenuItem = new System.Windows.Forms.ToolStripSeparator();
+            
+            var showMainMenuItem = new System.Windows.Forms.ToolStripMenuItem("显示主窗口(&S)");
+            showMainMenuItem.Click += (s, args) => ShowMainWindow();
+            
+            var exitMenuItem = new System.Windows.Forms.ToolStripMenuItem("退出(&X)");
+            exitMenuItem.Click += (s, args) => ExitApplication();
+
+            contextMenu.Items.Add(newWindowMenuItem);
+            contextMenu.Items.Add(separatorMenuItem);
+            contextMenu.Items.Add(showMainMenuItem);
+            contextMenu.Items.Add(exitMenuItem);
+
+            _notifyIcon.ContextMenuStrip = contextMenu;
+
+            // Double-click to show main window
+            _notifyIcon.DoubleClick += (s, args) => ShowMainWindow();
+        }
+
+        private void CreateFloatingWindow(WindowLevel level)
+        {
+            var window = new FloatingWindow(level);
+            window.Show();
+        }
+
+        private void ShowMainWindow()
+        {
+            MainWindow.Show();
+            MainWindow.WindowState = System.Windows.WindowState.Normal;
+            MainWindow.Activate();
+        }
+
+        private void ExitApplication()
+        {
+            _notifyIcon?.Dispose();
+            Current.Shutdown();
+        }
+
+        protected override void OnExit(System.Windows.ExitEventArgs e)
+        {
+            _notifyIcon?.Dispose();
+            base.OnExit(e);
+        }
+    }
+}

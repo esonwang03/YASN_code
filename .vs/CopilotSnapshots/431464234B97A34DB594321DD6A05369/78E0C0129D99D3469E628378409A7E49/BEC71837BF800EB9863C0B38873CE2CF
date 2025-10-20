@@ -1,0 +1,92 @@
+﻿using System.Windows;
+using System.Windows.Input;
+using System.Runtime.InteropServices;
+using System;
+using System.Windows.Interop;
+
+namespace YASN
+{
+    /// <summary>
+    /// Alternative implementation for BottomMostWindow
+    /// This version uses a simpler approach that's more reliable
+    /// </summary>
+    public partial class BottomMostWindowAlt : Window
+    {
+        private static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOACTIVATE = 0x0010;
+
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        private IntPtr _hwnd;
+
+        public BottomMostWindowAlt()
+        {
+            InitializeComponent();
+            this.Topmost = false;
+        }
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            _hwnd = new WindowInteropHelper(this).Handle;
+            
+            // 添加窗口消息钩子
+            HwndSource source = HwndSource.FromHwnd(_hwnd);
+            source.AddHook(WndProc);
+            
+            SendToBottom();
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            const int WM_WINDOWPOSCHANGING = 0x0046;
+            
+            if (msg == WM_WINDOWPOSCHANGING)
+            {
+                // 每当窗口位置改变时，确保它在底层
+                System.Threading.Tasks.Task.Run(async () =>
+                {
+                    await System.Threading.Tasks.Task.Delay(50);
+                    Dispatcher.Invoke(() => SendToBottom());
+                });
+            }
+            
+            return IntPtr.Zero;
+        }
+
+        private void SendToBottom()
+        {
+            if (_hwnd != IntPtr.Zero)
+            {
+                SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            SendToBottom();
+        }
+
+        private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                try
+                {
+                    this.DragMove();
+                }
+                catch { }
+                SendToBottom();
+            }
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.Close();
+        }
+    }
+}

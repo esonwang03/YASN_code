@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>YASN</id>
+    <version>1.0.0</version>
+    <authors>YASN</authors>
+    <description>Package Description</description>
+    <repository type="git" />
+    <dependencies>
+      <group targetFramework="net8.0-windows10.0.19041">
+        <dependency id="System.Drawing.Common" version="9.0.10" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+    <frameworkReferences>
+      <group targetFramework="net8.0-windows10.0.19041">
+        <frameworkReference name="Microsoft.WindowsDesktop.App" />
+      </group>
+    </frameworkReferences>
+    <contentFiles>
+      <files include="any/net8.0-windows10.0.19041/Resources/favicon.ico" buildAction="Content" />
+    </contentFiles>
+  </metadata>
+  <files>
+    <file src="D:\LocalWorkdock\YASN\bin\Release\net8.0-windows10.0.19041.0\YASN.runtimeconfig.json" target="lib\net8.0-windows10.0.19041\YASN.runtimeconfig.json" />
+    <file src="D:\LocalWorkdock\YASN\bin\Release\net8.0-windows10.0.19041.0\YASN.dll" target="lib\net8.0-windows10.0.19041\YASN.dll" />
+    <file src="D:\LocalWorkdock\YASN\Resources\favicon.ico" target="content\Resources\favicon.ico" />
+    <file src="D:\LocalWorkdock\YASN\Resources\favicon.ico" target="contentFiles\any\net8.0-windows10.0.19041\Resources\favicon.ico" />
+  </files>
+</package>

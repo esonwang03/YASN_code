@@ -1,0 +1,209 @@
+﻿# YASN - Yet Another Sticky Notes (Window Manager)
+
+一个基于WPF的系统托盘应用程序，提供统一的浮动窗口组件，支持动态切换窗口层级（顶层/正常/底层）。
+
+## 功能特性
+
+### 系统托盘
+- 应用启动后会最小化到系统托盘
+- 右键托盘图标显示菜单：
+  - **New Window** - 子菜单可选择创建三种层级的窗口
+    - Normal Window - 普通窗口
+    - Top Window - 始终在最顶层
+    - Bottom Window - 始终在最底层
+  - **Show Main Window** - 显示主窗口
+  - **Exit** - 退出应用程序
+- 双击托盘图标显示主窗口
+
+### 统一浮动窗口 (FloatingWindow)
+
+**核心特性：**
+- 🎨 **动态层级切换** - 右键菜单可实时切换窗口层级
+- 📝 **文本编辑** - 内置文本框，可作为便签使用
+- 🎯 **无边框设计** - 半透明背景，现代化界面
+- 🖱️ **拖动调整** - 可拖动移动，可从边角调整大小
+- ❌ **不显示在任务栏** - 保持桌面整洁
+
+**三种窗口层级：**
+
+1. **顶层窗口 (Top Most)**
+   - 绿色边框，蓝色标题栏
+   - 始终显示在所有窗口之上
+   - 适合重要提醒和快速访问信息
+
+2. **正常窗口 (Normal)**
+   - 灰色边框，灰色标题栏
+   - 正常的窗口层级
+   - 可被其他窗口覆盖或覆盖其他窗口
+
+3. **底层窗口 (Bottom Most)**
+   - 红色边框，红色标题栏
+   - 始终显示在所有窗口之下
+   - 使用定时器持续维护底层位置
+   - 适合桌面装饰或背景信息显示
+
+### 右键菜单
+
+在任何浮动窗口上点击右键可以：
+- **Window Level** - 切换窗口层级
+  - ☑️ Always on Top - 置顶
+  - ☐ Normal - 正常
+  - ☐ Always on Bottom - 置底
+- **Close Window** - 关闭窗口
+
+### 主窗口
+- 提供应用说明
+- 快捷按钮创建各层级窗口
+- 关闭时隐藏到托盘而不是退出
+
+## 技术实现
+
+- **.NET 8.0** - 目标框架
+- **WPF** - UI框架
+- **Windows Forms** - 系统托盘支持 (NotifyIcon)
+- **Windows API** - 窗口层级管理 (SetWindowPos, HWND_BOTTOM)
+- **DispatcherTimer** - 底层窗口位置维护
+
+## 使用方法
+
+### 创建窗口
+1. 运行应用程序
+2. 右键点击系统托盘图标
+3. 选择 "New Window" → 选择层级类型
+4. 或双击托盘图标打开主窗口，使用按钮创建
+
+### 切换窗口层级
+1. 在任何浮动窗口上点击右键
+2. 选择 "Window Level" → 选择新的层级
+3. 窗口颜色和标题会自动更新
+
+### 使用便签功能
+- 直接在窗口内输入文字
+- 支持多行文本
+- 支持文本换行
+- 可调整窗口大小以显示更多内容
+
+## 设计特点
+
+### 统一组件架构
+相比之前的分离设计（TopMostWindow + BottomMostWindow），新架构使用单一的 `FloatingWindow` 组件：
+
+**优势：**
+- ✅ 代码复用性高
+- ✅ 维护成本低
+- ✅ 用户体验一致
+- ✅ 运行时动态切换层级
+- ✅ 统一的外观和行为
+
+### 颜色编码系统
+- 🟢 **绿色边框 + 蓝色标题栏** = 顶层窗口
+- ⚪ **灰色边框 + 灰色标题栏** = 正常窗口
+- 🔴 **红色边框 + 红色标题栏** = 底层窗口
+
+### 底层窗口技术
+底层窗口使用多重保障机制确保稳定性：
+1. **SetWindowPos API** - 使用 `HWND_BOTTOM` 将窗口置于Z-order底部
+2. **定时器维护** - 每100ms检查并重置窗口位置
+3. **事件响应** - 窗口激活、拖动后自动恢复底层位置
+4. **双步设置** - 先取消置顶，再置于底层
+
+## 项目结构
+
+```
+YASN/
+├── App.xaml                    # 应用程序定义
+├── App.xaml.cs                 # 托盘图标管理
+├── MainWindow.xaml             # 主窗口UI
+├── MainWindow.xaml.cs          # 主窗口逻辑
+├── FloatingWindow.xaml         # 统一浮动窗口UI
+├── FloatingWindow.xaml.cs      # 浮动窗口逻辑和层级管理
+├── TopMostWindow.xaml          # (已弃用，保留向后兼容)
+├── TopMostWindow.xaml.cs       # (已弃用，保留向后兼容)
+├── BottomMostWindow.xaml       # (已弃用，保留向后兼容)
+├── BottomMostWindow.xaml.cs    # (已弃用，保留向后兼容)
+└── YASN.csproj                 # 项目文件
+```
+
+## 依赖包
+
+- System.Drawing.Common (9.0.10) - 用于系统图标支持
+
+## 构建和运行
+
+```bash
+dotnet build
+dotnet run
+```
+
+或在Visual Studio中直接按F5运行。
+
+## 常见问题
+
+### Q: 如何在创建后改变窗口层级？
+A: 右键点击窗口，在菜单中选择 "Window Level"，然后选择新的层级。窗口会立即应用新的层级并更新外观。
+
+### Q: 底层窗口为什么有时候看不见？
+A: 底层窗口被设计为始终在最下层，所有其他窗口都会覆盖它。如果你打开了很多窗口或使用了全屏应用，底层窗口可能被完全遮挡。
+
+### Q: 窗口内容会自动保存吗？
+A: 当前版本不支持自动保存。关闭窗口后内容会丢失。这是未来的改进方向。
+
+### Q: 可以同时打开多个窗口吗？
+A: 可以！你可以创建任意数量的浮动窗口，每个窗口都可以独立设置层级。
+
+### Q: 如何完全退出应用？
+A: 右键系统托盘图标，选择 "Exit"。或者打开主窗口后关闭它（会隐藏到托盘），然后从托盘退出。
+
+## 技术细节
+
+### WindowLevel 枚举
+```csharp
+public enum WindowLevel
+{
+    Normal,      // 正常层级
+    TopMost,     // 始终在顶
+    BottomMost   // 始终在底
+}
+```
+
+### 关键实现
+```csharp
+// 动态切换层级
+private void SetWindowLevel(WindowLevel level)
+{
+    _currentLevel = level;
+    UpdateWindowAppearance();  // 更新颜色和标题
+    ApplyWindowLevel();        // 应用窗口位置
+}
+
+// 底层窗口维护
+private void Timer_Tick(object sender, EventArgs e)
+{
+    if (_currentLevel == WindowLevel.BottomMost)
+    {
+        SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+}
+```
+
+## 未来改进方向
+
+- [ ] 窗口内容自动保存和恢复
+- [ ] 支持富文本格式（粗体、斜体、颜色）
+- [ ] 自定义窗口颜色和主题
+- [ ] 窗口透明度调节滑块
+- [ ] 窗口位置和大小记忆
+- [ ] 多显示器支持优化
+- [ ] 导入/导出便签
+- [ ] 便签分类和标签系统
+- [ ] 快捷键支持
+- [ ] 搜索功能
+
+## 许可证
+
+[根据需要添加许可证信息]
+
+## 贡献
+
+欢迎提交问题报告和功能建议！

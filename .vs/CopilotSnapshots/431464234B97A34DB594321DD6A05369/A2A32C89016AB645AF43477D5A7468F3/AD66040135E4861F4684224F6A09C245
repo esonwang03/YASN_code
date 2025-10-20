@@ -1,0 +1,109 @@
+﻿using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+using System.Linq;
+
+namespace YASN
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        public MainWindow()
+        {
+            InitializeComponent();
+            FloatingWindow.AllWindows.CollectionChanged += AllWindows_CollectionChanged;
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            RefreshWindowList();
+        }
+
+        private void AllWindows_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            Dispatcher.Invoke(() => RefreshWindowList());
+        }
+
+        private void RefreshWindowList()
+        {
+            WindowListView.ItemsSource = null;
+            WindowListView.ItemsSource = FloatingWindow.AllWindows.ToList();
+            
+            NoWindowsText.Visibility = FloatingWindow.AllWindows.Count == 0 
+                ? Visibility.Visible 
+                : Visibility.Collapsed;
+        }
+
+        private void CreateTopWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new FloatingWindow(WindowLevel.TopMost);
+            window.Show();
+        }
+
+        private void CreateBottomWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new FloatingWindow(WindowLevel.BottomMost);
+            window.Show();
+        }
+
+        private void CreateNormalWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new FloatingWindow(WindowLevel.Normal);
+            window.Show();
+        }
+
+        private void HideToTray_Click(object sender, RoutedEventArgs e)
+        {
+            this.Hide();
+        }
+
+        private void RefreshList_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshWindowList();
+        }
+
+        private void WindowListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // Optional: Handle selection changes
+        }
+
+        private void FocusWindow_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button && button.Tag is FloatingWindow window)
+            {
+                window.Show();
+                window.WindowState = WindowState.Normal;
+                window.Activate();
+            }
+        }
+
+        private void CloseWindow_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button && button.Tag is FloatingWindow window)
+            {
+                window.Close();
+            }
+        }
+
+        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+        {
+            e.Cancel = true;
+            this.Hide();
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            FloatingWindow.AllWindows.CollectionChanged -= AllWindows_CollectionChanged;
+            base.OnClosed(e);
+        }
+    }
+}

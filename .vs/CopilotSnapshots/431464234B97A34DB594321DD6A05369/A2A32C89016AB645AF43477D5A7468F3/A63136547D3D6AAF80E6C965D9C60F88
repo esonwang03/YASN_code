@@ -1,0 +1,54 @@
+﻿using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace YASN
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        public MainWindow()
+        {
+            InitializeComponent();
+        }
+
+        private void CreateTopWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new FloatingWindow(WindowLevel.TopMost);
+            window.Show();
+        }
+
+        private void CreateBottomWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new FloatingWindow(WindowLevel.BottomMost);
+            window.Show();
+        }
+
+        private void CreateNormalWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new FloatingWindow(WindowLevel.Normal);
+            window.Show();
+        }
+
+        private void HideToTray_Click(object sender, RoutedEventArgs e)
+        {
+            this.Hide();
+        }
+
+        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+        {
+            // Hide to tray instead of closing
+            e.Cancel = true;
+            this.Hide();
+        }
+    }
+}

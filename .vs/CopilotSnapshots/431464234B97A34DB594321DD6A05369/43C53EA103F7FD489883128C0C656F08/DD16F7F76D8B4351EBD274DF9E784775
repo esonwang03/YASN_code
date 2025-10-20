@@ -1,0 +1,225 @@
+﻿using System;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Interop;
+using System.Runtime.InteropServices;
+
+namespace YASN
+{
+    public enum WindowLevel
+    {
+        Normal,
+        TopMost,
+        BottomMost
+    }
+
+    /// <summary>
+    /// Unified floating window with adjustable Z-order
+    /// </summary>
+    public partial class FloatingWindow : Window
+    {
+        private static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        private IntPtr _hwnd;
+        private System.Windows.Threading.DispatcherTimer _timer;
+        private WindowLevel _currentLevel = WindowLevel.Normal;
+        private static int _windowCounter = 0;
+
+        public FloatingWindow() : this(WindowLevel.Normal)
+        {
+        }
+
+        public FloatingWindow(WindowLevel level)
+        {
+            InitializeComponent();
+            _windowCounter++;
+            
+            SetWindowLevel(level);
+            UpdateWindowAppearance();
+            
+            // 设置默认标题
+            TitleText.Text = $"Floating Window #{_windowCounter}";
+            ContentTextBox.Text = "Enter your notes here...\n\nRight-click on the title bar or anywhere on the window to access options.";
+            
+            // 初始化定时器（用于底层窗口）
+            _timer = new System.Windows.Threading.DispatcherTimer();
+            _timer.Interval = TimeSpan.FromMilliseconds(100);
+            _timer.Tick += Timer_Tick;
+        }
+
+        private void Timer_Tick(object sender, EventArgs e)
+        {
+            if (_currentLevel == WindowLevel.BottomMost && _hwnd != IntPtr.Zero)
+            {
+                SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            _hwnd = new WindowInteropHelper(this).Handle;
+            ApplyWindowLevel();
+        }
+
+        private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                try
+                {
+                    this.DragMove();
+                }
+                catch { }
+                
+                if (_currentLevel == WindowLevel.BottomMost)
+                {
+                    ApplyWindowLevel();
+                }
+            }
+        }
+
+        private void TitleBar_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // 显示右键菜单
+            MainBorder.ContextMenu.IsOpen = true;
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            _timer?.Stop();
+            this.Close();
+        }
+
+        private void MenuClose_Click(object sender, RoutedEventArgs e)
+        {
+            _timer?.Stop();
+            this.Close();
+        }
+
+        private void MenuTopmost_Click(object sender, RoutedEventArgs e)
+        {
+            SetWindowLevel(WindowLevel.TopMost);
+        }
+
+        private void MenuNormal_Click(object sender, RoutedEventArgs e)
+        {
+            SetWindowLevel(WindowLevel.Normal);
+        }
+
+        private void MenuBottom_Click(object sender, RoutedEventArgs e)
+        {
+            SetWindowLevel(WindowLevel.BottomMost);
+        }
+
+        private void SetWindowLevel(WindowLevel level)
+        {
+            _currentLevel = level;
+            
+            // 更新菜单选中状态
+            MenuTopmost.IsChecked = (level == WindowLevel.TopMost);
+            MenuNormal.IsChecked = (level == WindowLevel.Normal);
+            MenuBottom.IsChecked = (level == WindowLevel.BottomMost);
+            
+            // 更新窗口外观
+            UpdateWindowAppearance();
+            
+            // 应用窗口层级
+            if (_hwnd != IntPtr.Zero)
+            {
+                ApplyWindowLevel();
+            }
+        }
+
+        private void UpdateWindowAppearance()
+        {
+            switch (_currentLevel)
+            {
+                case WindowLevel.TopMost:
+                    MainBorder.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 255, 0)); // Green
+                    TitleBar.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(204, 30, 144, 255)); // Blue
+                    TitleText.Text = TitleText.Text.Replace("(Normal)", "").Replace("(Bottom)", "").Trim() + " (Top)";
+                    break;
+                    
+                case WindowLevel.BottomMost:
+                    MainBorder.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 99, 71)); // Red
+                    TitleBar.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(204, 255, 99, 71)); // Tomato
+                    TitleText.Text = TitleText.Text.Replace("(Top)", "").Replace("(Normal)", "").Trim() + " (Bottom)";
+                    break;
+                    
+                case WindowLevel.Normal:
+                default:
+                    MainBorder.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(128, 128, 128)); // Gray
+                    TitleBar.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(204, 128, 128, 128)); // Gray
+                    TitleText.Text = TitleText.Text.Replace("(Top)", "").Replace("(Bottom)", "").Trim() + " (Normal)";
+                    break;
+            }
+        }
+
+        private void ApplyWindowLevel()
+        {
+            if (_hwnd == IntPtr.Zero)
+                return;
+
+            _timer.Stop();
+
+            switch (_currentLevel)
+            {
+                case WindowLevel.TopMost:
+                    this.Topmost = true;
+                    break;
+
+                case WindowLevel.BottomMost:
+                    this.Topmost = false;
+                    // 先取消置顶
+                    SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    // 然后置于底层
+                    SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    // 启动定时器维护底层位置
+                    _timer.Start();
+                    break;
+
+                case WindowLevel.Normal:
+                default:
+                    this.Topmost = false;
+                    SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    break;
+            }
+        }
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            _hwnd = new WindowInteropHelper(this).Handle;
+        }
+
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            if (_currentLevel == WindowLevel.BottomMost && _hwnd != IntPtr.Zero)
+            {
+                Dispatcher.BeginInvoke(new Action(() => ApplyWindowLevel()), 
+                    System.Windows.Threading.DispatcherPriority.Background);
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _timer?.Stop();
+            base.OnClosed(e);
+        }
+    }
+}

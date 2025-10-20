@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "/gydc3Wjbk4=",
+  "success": true,
+  "projectFilePath": "D:\\LocalWorkdock\\YASN\\YASN.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\28405\\.nuget\\packages\\microsoft.win32.systemevents\\9.0.10\\microsoft.win32.systemevents.9.0.10.nupkg.sha512",
+    "C:\\Users\\28405\\.nuget\\packages\\system.drawing.common\\9.0.10\\system.drawing.common.9.0.10.nupkg.sha512",
+    "C:\\Users\\28405\\.nuget\\packages\\microsoft.windows.sdk.net.ref\\10.0.19041.57\\microsoft.windows.sdk.net.ref.10.0.19041.57.nupkg.sha512"
+  ],
+  "logs": []
+}
