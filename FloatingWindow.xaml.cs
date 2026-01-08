@@ -45,8 +45,8 @@ namespace YASN
 
         private IntPtr _hwnd;
         private System.Windows.Threading.DispatcherTimer _timer;
-        private Storyboard _collapseTitleBar;
-        private Storyboard _expandTitleBar;
+        private Storyboard _collapseEditBar;
+        private Storyboard _expandEditBar;
 
         public NoteData NoteData { get; private set; }
 
@@ -87,11 +87,11 @@ namespace YASN
             UpdateStatusText();
             UpdatePinButton();
             
+            // Apply theme BEFORE loading content to ensure correct foreground color
+            ApplyTheme(noteData.IsDarkMode);
+            
             // Load content from RTF or plain text
             LoadContent(noteData.Content);
-            
-            // Apply theme
-            ApplyTheme(noteData.IsDarkMode);
             
             // Apply title bar color
             ApplyTitleBarColor(noteData.TitleBarColor);
@@ -100,15 +100,15 @@ namespace YASN
             _timer.Interval = TimeSpan.FromMilliseconds(100);
             _timer.Tick += Timer_Tick;
             
-            _collapseTitleBar = (Storyboard)FindResource("CollapseTitleBar");
-            _expandTitleBar = (Storyboard)FindResource("ExpandTitleBar");
+            _collapseEditBar = (Storyboard)FindResource("CollapseEditBar");
+            _expandEditBar = (Storyboard)FindResource("ExpandEditBar");
 
             // Save position when moved or resized
             LocationChanged += (s, e) => SavePosition();
             SizeChanged += (s, e) =>
             {
                 SaveSize();
-                UpdateImageWidths(); // 窗口大小改变时更新图片宽度
+                UpdateImageWidths();
             };
             
             // Enable drag and drop
@@ -463,24 +463,24 @@ namespace YASN
 
         private void Window_Activated(object sender, EventArgs e)
         {
-            _expandTitleBar?.Begin();
+            _expandEditBar?.Begin();
         }
 
         private void Window_Deactivated(object sender, EventArgs e)
         {
-            _collapseTitleBar?.Begin();
+            _collapseEditBar?.Begin();
         }
 
         private void MainBorder_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            _expandTitleBar?.Begin();
+            _expandEditBar?.Begin();
         }
 
         private void MainBorder_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
         {
             if (!IsActive)
             {
-                _collapseTitleBar?.Begin();
+                _collapseEditBar?.Begin();
             }
         }
 
