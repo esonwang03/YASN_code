@@ -17,6 +17,8 @@ namespace YASN
         private bool _isEditMode;
         private bool _isDarkMode;
         private string _titleBarColor;
+        private string _backgroundImagePath;
+        private double _backgroundImageOpacity;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -189,6 +191,32 @@ namespace YASN
                 {
                     _titleBarColor = value;
                     OnPropertyChanged(nameof(TitleBarColor));
+                }
+            }
+        }
+
+        public string BackgroundImagePath
+        {
+            get => _backgroundImagePath;
+            set
+            {
+                if (_backgroundImagePath != value)
+                {
+                    _backgroundImagePath = value;
+                    OnPropertyChanged(nameof(BackgroundImagePath));
+                }
+            }
+        }
+
+        public double BackgroundImageOpacity
+        {
+            get => _backgroundImageOpacity > 0 ? _backgroundImageOpacity : 0.15;
+            set
+            {
+                if (Math.Abs(_backgroundImageOpacity - value) > 0.01)
+                {
+                    _backgroundImageOpacity = value;
+                    OnPropertyChanged(nameof(BackgroundImageOpacity));
                 }
             }
         }

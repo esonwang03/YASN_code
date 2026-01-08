@@ -97,7 +97,9 @@ namespace YASN
                     n.Width,
                     n.Height,
                     n.IsDarkMode,
-                    n.TitleBarColor
+                    n.TitleBarColor,
+                    n.BackgroundImagePath,
+                    n.BackgroundImageOpacity
                 }), options);
 
                 File.WriteAllText(SaveFileName, json);
@@ -133,6 +135,8 @@ namespace YASN
                                 Height = item.Height,
                                 IsDarkMode = item.IsDarkMode,
                                 TitleBarColor = item.TitleBarColor,
+                                BackgroundImagePath = item.BackgroundImagePath,
+                                BackgroundImageOpacity = item.BackgroundImageOpacity,
                                 IsOpen = false
                             };
                             Notes.Add(note);
@@ -163,6 +167,8 @@ namespace YASN
             public double Height { get; set; }
             public bool IsDarkMode { get; set; }
             public string TitleBarColor { get; set; }
+            public string BackgroundImagePath { get; set; }
+            public double BackgroundImageOpacity { get; set; }
         }
     }
 }

@@ -169,79 +169,100 @@
             MouseEnter="MainBorder_MouseEnter"
             MouseLeave="MainBorder_MouseLeave">
         <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-
-            <Border x:Name="TitleBar" 
-                    Grid.Row="0" 
-                    Height="40" 
-                    Background="#E6D4C5E0" 
-                    CornerRadius="5,5,0,0">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="40"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="40"/>
-                        <ColumnDefinition Width="40"/>
-                        <ColumnDefinition Width="40"/>
-                        <ColumnDefinition Width="40"/>
-                    </Grid.ColumnDefinitions>
-
-                    <Button Grid.Column="0" Content="=" ToolTip="显示主窗口" Style="{StaticResource TitleBarButtonStyle}" Click="ShowMainWindow_Click"/>
-                    <Border Grid.Column="1" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                        <TextBlock x:Name="StatusText" 
-                                   Text="Note #1"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   Foreground="#2C3E50"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"/>
-                    </Border>
-                    <Button Grid.Column="2" Content="..." ToolTip="更多选项" Style="{StaticResource TitleBarButtonStyle}" Click="MoreOptions_Click"/>
-                    <Button x:Name="PinButton" Grid.Column="3" Content="P" ToolTip="置顶" Style="{StaticResource TitleBarButtonStyle}" Click="PinButton_Click"/>
-                    <Button Grid.Column="4" Content="v" ToolTip="置底" Style="{StaticResource LevelButtonStyle}" Click="SendToBottom_Click"/>
-                    <Button Grid.Column="5" Content="X" ToolTip="关闭" Style="{StaticResource CloseButtonStyle}" Click="CloseButton_Click"/>
-                </Grid>
+            <Border x:Name="BackgroundImageBorder" 
+                    CornerRadius="8"
+                    Opacity="0.15">
+                <Border.Background>
+                    <ImageBrush x:Name="BackgroundImageBrush" 
+                                Stretch="UniformToFill"
+                                AlignmentX="Center"
+                                AlignmentY="Center"/>
+                </Border.Background>
             </Border>
+            
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-            <!-- Format Toolbar -->
-            <Border x:Name="FormatToolbar" 
-                    Grid.Row="1"
-                    Height="28"
-                    Background="#40000000" 
-                    Padding="5,3">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                    <Button Content="B" ToolTip="Bold (Ctrl+B)" FontWeight="Bold" Style="{StaticResource FormatButtonStyle}" Click="Bold_Click"/>
-                    <Button Content="I" ToolTip="Italic (Ctrl+I)" FontStyle="Italic" Style="{StaticResource FormatButtonStyle}" Click="Italic_Click"/>
-                    <Button ToolTip="Underline (Ctrl+U)" Style="{StaticResource FormatButtonStyle}" Click="Underline_Click">
-                        <TextBlock Text="U" TextDecorations="Underline"/>
-                    </Button>
-                    <Button ToolTip="DelLine" Style="{StaticResource FormatButtonStyle}" Click="Strikethrough_Click">
-                        <TextBlock Text="S" TextDecorations="Strikethrough"/>
-                    </Button>
-                    <Separator Width="1" Background="#50FFFFFF" Margin="5,2"/>
-                    <ComboBox x:Name="FontSizeCombo" Width="55" Height="20" Margin="2,0" ToolTip="字体大小" SelectionChanged="FontSize_Changed">
-                        <ComboBoxItem Content="10" Tag="10"/>
-                        <ComboBoxItem Content="12" Tag="12"/>
-                        <ComboBoxItem Content="14" Tag="14" IsSelected="True"/>
-                        <ComboBoxItem Content="16" Tag="16"/>
-                        <ComboBoxItem Content="18" Tag="18"/>
-                        <ComboBoxItem Content="20" Tag="20"/>
-                        <ComboBoxItem Content="24" Tag="24"/>
-                    </ComboBox>
-                    <Separator Width="1" Background="#50FFFFFF" Margin="5,2"/>
-                    <Button Content="🖼" ToolTip="Insert Image" Style="{StaticResource FormatButtonStyle}" Click="InsertImage_Click" FontSize="12"/>
-                </StackPanel>
-            </Border>
+                <Border x:Name="TitleBar" 
+                        Grid.Row="0" 
+                        Height="40" 
+                        Background="#E6D4C5E0" 
+                        CornerRadius="5,5,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="40"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="40"/>
+                            <ColumnDefinition Width="40"/>
+                            <ColumnDefinition Width="40"/>
+                            <ColumnDefinition Width="40"/>
+                        </Grid.ColumnDefinitions>
 
-            <!-- Rich Text Editor -->
-            <RichTextBox x:Name="ContentRichTextBox" 
-                         Grid.Row="2"
-                         Style="{StaticResource RichTextBoxStyle}"
-                         TextChanged="ContentRichTextBox_TextChanged"/>
+                        <Button Grid.Column="0" Content="=" ToolTip="显示主窗口" Style="{StaticResource TitleBarButtonStyle}" Click="ShowMainWindow_Click"/>
+                        <Border Grid.Column="1" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                            <TextBlock x:Name="StatusText" 
+                                       Text="Note #1"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       Foreground="#2C3E50"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"/>
+                        </Border>
+                        <Button Grid.Column="2" Content="..." ToolTip="更多选项" Style="{StaticResource TitleBarButtonStyle}" Click="MoreOptions_Click"/>
+                        <Button x:Name="PinButton" Grid.Column="3" Content="P" ToolTip="置顶" Style="{StaticResource TitleBarButtonStyle}" Click="PinButton_Click"/>
+                        <Button Grid.Column="4" Content="v" ToolTip="置底" Style="{StaticResource LevelButtonStyle}" Click="SendToBottom_Click"/>
+                        <Button Grid.Column="5" Content="X" ToolTip="关闭" Style="{StaticResource CloseButtonStyle}" Click="CloseButton_Click"/>
+                    </Grid>
+                </Border>
+
+                <!-- Format Toolbar -->
+                <Border x:Name="FormatToolbar" 
+                        Grid.Row="1"
+                        Height="28"
+                        Background="#40000000" 
+                        Padding="5,3">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                        <Button Content="B" ToolTip="Bold (Ctrl+B)" FontWeight="Bold" Style="{StaticResource FormatButtonStyle}" Click="Bold_Click"/>
+                        <Button Content="I" ToolTip="Italic (Ctrl+I)" FontStyle="Italic" Style="{StaticResource FormatButtonStyle}" Click="Italic_Click"/>
+                        <Button ToolTip="Underline (Ctrl+U)" Style="{StaticResource FormatButtonStyle}" Click="Underline_Click">
+                            <TextBlock Text="U" TextDecorations="Underline"/>
+                        </Button>
+                        <Button ToolTip="DelLine" Style="{StaticResource FormatButtonStyle}" Click="Strikethrough_Click">
+                            <TextBlock Text="S" TextDecorations="Strikethrough"/>
+                        </Button>
+                        <Separator Width="1" Background="#50FFFFFF" Margin="5,2"/>
+                        <ComboBox x:Name="FontSizeCombo" Width="55" Height="20" Margin="2,0" ToolTip="字体大小" SelectionChanged="FontSize_Changed">
+                            <ComboBoxItem Content="10" Tag="10"/>
+                            <ComboBoxItem Content="12" Tag="12"/>
+                            <ComboBoxItem Content="14" Tag="14" IsSelected="True"/>
+                            <ComboBoxItem Content="16" Tag="16"/>
+                            <ComboBoxItem Content="18" Tag="18"/>
+                            <ComboBoxItem Content="20" Tag="20"/>
+                            <ComboBoxItem Content="24" Tag="24"/>
+                        </ComboBox>
+                        <Button x:Name="TextColorButton" ToolTip="Text Color" Style="{StaticResource FormatButtonStyle}" Click="TextColor_Click">
+                            <Grid>
+                                <TextBlock Text="A" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                <Rectangle x:Name="TextColorIndicator" Height="2" Width="28" VerticalAlignment="Bottom" 
+                                           Fill="#2C3E50" Margin="0,0,0,2"/>
+                            </Grid>
+                        </Button>
+                        <Separator Width="1" Background="#50FFFFFF" Margin="5,2"/>
+                        <Button Content="🖼" ToolTip="Insert Image" Style="{StaticResource FormatButtonStyle}" Click="InsertImage_Click" FontSize="12"/>
+                        <Button Content="🖌" ToolTip="Set Background Image" Style="{StaticResource FormatButtonStyle}" Click="SetBackgroundImage_Click" FontSize="12"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Rich Text Editor -->
+                <RichTextBox x:Name="ContentRichTextBox" 
+                             Grid.Row="2"
+                             Style="{StaticResource RichTextBoxStyle}"
+                             TextChanged="ContentRichTextBox_TextChanged"/>
+            </Grid>
         </Grid>
     </Border>
 </Window>

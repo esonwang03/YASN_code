@@ -56,6 +56,14 @@ namespace YASN
         private static FloatingWindow _currentBottomMostWindow = null;
         private static readonly object _bottomMostLock = new object();
         private bool _isFirstBottomMostWindow = false;
+        
+        private string _backgroundImageDirectory;
+        
+        // Track current text color
+        private WpfColor _currentTextColor = WpfColor.FromRgb(0x2C, 0x3E, 0x50);
+        
+        // Flag to indicate if user has explicitly set a color
+        private bool _hasExplicitColorSet = false;
 
         public FloatingWindow(NoteData noteData)
         {
@@ -70,6 +78,13 @@ namespace YASN
             if (!Directory.Exists(_imageDirectory))
             {
                 Directory.CreateDirectory(_imageDirectory);
+            }
+
+            // Create background images directory for this note
+            _backgroundImageDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "NoteBackgrounds", noteData.Id.ToString());
+            if (!Directory.Exists(_backgroundImageDirectory))
+            {
+                Directory.CreateDirectory(_backgroundImageDirectory);
             }
 
             // Apply saved position and size
@@ -95,6 +110,12 @@ namespace YASN
             
             // Apply title bar color
             ApplyTitleBarColor(noteData.TitleBarColor);
+            
+            // Apply background image if exists
+            ApplyBackgroundImage(noteData.BackgroundImagePath);
+            
+            // Apply background image opacity
+            BackgroundImageBorder.Opacity = noteData.BackgroundImageOpacity;
 
             _timer = new System.Windows.Threading.DispatcherTimer();
             _timer.Interval = TimeSpan.FromMilliseconds(100);
@@ -115,6 +136,15 @@ namespace YASN
             ContentRichTextBox.AllowDrop = true;
             ContentRichTextBox.PreviewDragOver += ContentRichTextBox_PreviewDragOver;
             ContentRichTextBox.PreviewDrop += ContentRichTextBox_PreviewDrop;
+            
+            // Handle selection changes to track current text color
+            ContentRichTextBox.SelectionChanged += ContentRichTextBox_SelectionChanged;
+            
+            // Handle PreviewTextInput to ensure color is applied for all input including IME
+            ContentRichTextBox.PreviewTextInput += ContentRichTextBox_PreviewTextInput;
+            
+            // Handle TextInput event which fires after IME composition
+            ContentRichTextBox.TextInput += ContentRichTextBox_TextInput;
         }
 
         private void LoadContent(string content)
@@ -221,6 +251,89 @@ namespace YASN
             SaveContent();
         }
 
+        private void ContentRichTextBox_SelectionChanged(object sender, RoutedEventArgs e)
+        {
+            // Don't update color indicator if user has explicitly set a color and hasn't typed yet
+            if (_hasExplicitColorSet)
+            {
+                return;
+            }
+            
+            // Update current text color based on selection or caret position
+            var selection = ContentRichTextBox.Selection;
+            if (!selection.IsEmpty)
+            {
+                var foreground = selection.GetPropertyValue(TextElement.ForegroundProperty);
+                if (foreground is SolidColorBrush brush)
+                {
+                    _currentTextColor = brush.Color;
+                    TextColorIndicator.Fill = brush;
+                }
+            }
+            else
+            {
+                // Get color at caret position
+                var caretPosition = ContentRichTextBox.CaretPosition;
+                var foreground = caretPosition.GetAdjacentElement(LogicalDirection.Forward)?.GetValue(TextElement.ForegroundProperty);
+                
+                if (foreground == null)
+                {
+                    foreground = caretPosition.GetAdjacentElement(LogicalDirection.Backward)?.GetValue(TextElement.ForegroundProperty);
+                }
+                
+                if (foreground is SolidColorBrush brush)
+                {
+                    _currentTextColor = brush.Color;
+                    TextColorIndicator.Fill = brush;
+                }
+            }
+        }
+
+        private void ContentRichTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            // This event fires for all text input including IME (Chinese input)
+            // Apply the current text color to ensure new text uses the selected color
+            if (_currentTextColor != default(WpfColor))
+            {
+                var brush = new SolidColorBrush(_currentTextColor);
+                ContentRichTextBox.Selection.ApplyPropertyValue(TextElement.ForegroundProperty, brush);
+            }
+        }
+
+        private void ContentRichTextBox_TextInput(object sender, TextCompositionEventArgs e)
+        {
+            // This event fires after text is actually inserted (including after IME composition)
+            // Re-apply the color to ensure it sticks even after IME processing
+            if (_currentTextColor != default(WpfColor) && !string.IsNullOrEmpty(e.Text))
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        var caretPosition = ContentRichTextBox.CaretPosition;
+                        if (caretPosition != null)
+                        {
+                            // Get the text that was just inserted
+                            var start = caretPosition.GetPositionAtOffset(-e.Text.Length, LogicalDirection.Backward);
+                            if (start != null)
+                            {
+                                var range = new TextRange(start, caretPosition);
+                                var brush = new SolidColorBrush(_currentTextColor);
+                                range.ApplyPropertyValue(TextElement.ForegroundProperty, brush);
+                            }
+                        }
+                        
+                        // Clear the explicit color flag after text is actually typed
+                        _hasExplicitColorSet = false;
+                    }
+                    catch
+                    {
+                        // Ignore any errors
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Background);
+            }
+        }
+
         private void Bold_Click(object sender, RoutedEventArgs e)
         {
             var selection = ContentRichTextBox.Selection;
@@ -278,6 +391,117 @@ namespace YASN
                 {
                     selection.ApplyPropertyValue(TextElement.FontSizeProperty, fontSize);
                 }
+            }
+        }
+
+        private void TextColor_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as WpfButton;
+            if (button != null)
+            {
+                var contextMenu = new ContextMenu();
+                
+                var presetColors = new[]
+                {
+                    ("#000000", "黑色"),
+                    ("#FF0000", "红色"),
+                    ("#00FF00", "绿色"),
+                    ("#0000FF", "蓝色"),
+                    ("#FFFF00", "黄色"),
+                    ("#FF00FF", "品红"),
+                    ("#00FFFF", "青色"),
+                    ("#FFA500", "橙色"),
+                    ("#800080", "紫色"),
+                    ("#808080", "灰色"),
+                    ("#A52A2A", "棕色")
+                };
+                
+                foreach (var (colorHex, colorName) in presetColors)
+                {
+                    var menuItem = new MenuItem { Header = colorName };
+                    
+                    // Create a small color preview rectangle
+                    var colorRect = new System.Windows.Shapes.Rectangle
+                    {
+                        Width = 16,
+                        Height = 16,
+                        Fill = new SolidColorBrush((WpfColor)WpfColorConverter.ConvertFromString(colorHex)),
+                        Margin = new Thickness(0, 0, 5, 0)
+                    };
+                    
+                    var stackPanel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+                    stackPanel.Children.Add(colorRect);
+                    stackPanel.Children.Add(new TextBlock { Text = colorName, VerticalAlignment = VerticalAlignment.Center });
+                    
+                    menuItem.Header = stackPanel;
+                    menuItem.Tag = colorHex;
+                    
+                    menuItem.Click += (s, args) =>
+                    {
+                        var selectedColor = (s as MenuItem)?.Tag as string;
+                        if (selectedColor != null)
+                        {
+                            ApplyTextColor(selectedColor);
+                        }
+                    };
+                    
+                    contextMenu.Items.Add(menuItem);
+                }
+                
+                contextMenu.PlacementTarget = button;
+                contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                contextMenu.IsOpen = true;
+            }
+        }
+        
+        private void ApplyTextColor(string colorHex)
+        {
+            try
+            {
+                var color = (WpfColor)WpfColorConverter.ConvertFromString(colorHex);
+                var brush = new SolidColorBrush(color);
+                
+                // Update current text color
+                _currentTextColor = color;
+                
+                // Update the color indicator in the toolbar
+                TextColorIndicator.Fill = brush;
+                
+                var selection = ContentRichTextBox.Selection;
+                if (!selection.IsEmpty)
+                {
+                    // Apply to selected text only
+                    selection.ApplyPropertyValue(TextElement.ForegroundProperty, brush);
+                    
+                    // Don't set the flag when modifying existing text
+                    _hasExplicitColorSet = false;
+                }
+                else
+                {
+                    // When no text is selected, set the typing attributes directly
+                    // Use the BeginChange/EndChange to make this an atomic operation
+                    ContentRichTextBox.BeginChange();
+                    try
+                    {
+                        // Apply the color to the current selection (even though it's empty)
+                        // This sets the typing format for the next character
+                        ContentRichTextBox.Selection.ApplyPropertyValue(TextElement.ForegroundProperty, brush);
+                    }
+                    finally
+                    {
+                        ContentRichTextBox.EndChange();
+                    }
+                    
+                    // Set flag to indicate user has explicitly chosen a color
+                    _hasExplicitColorSet = true;
+                }
+                
+                // Focus back to the text box
+                ContentRichTextBox.Focus();
+            }
+            catch
+            {
+                // If color conversion fails, ignore
             }
         }
 
@@ -738,7 +962,7 @@ namespace YASN
                 default:
                     this.Topmost = false;
                     
-                    // 如果当前窗口是 BottomMost 窗口，清空引用
+                    // 如果当前窗口是 BottomMost 窈口，清空引用
                     lock (_bottomMostLock)
                     {
                         if (_currentBottomMostWindow == this)
@@ -797,7 +1021,55 @@ namespace YASN
         {
             NoteData.IsDarkMode = !NoteData.IsDarkMode;
             ApplyTheme(NoteData.IsDarkMode);
+            
+            // Update text colors for black text when switching themes
+            UpdateTextColorsForTheme(NoteData.IsDarkMode);
+            
             NoteManager.Instance.UpdateNote(NoteData);
+        }
+        
+        private void UpdateTextColorsForTheme(bool isDarkMode)
+        {
+            // Get the color to replace (black in light mode, white in dark mode)
+            var oldColor = isDarkMode ? Colors.Black : Colors.White;
+            var newColor = isDarkMode ? Colors.White : Colors.Black;
+            
+            // Iterate through all blocks in the document
+            foreach (var block in ContentRichTextBox.Document.Blocks)
+            {
+                if (block is Paragraph paragraph)
+                {
+                    UpdateInlineColors(paragraph.Inlines, oldColor, newColor);
+                }
+            }
+            
+            // Save the updated content
+            SaveContent();
+        }
+        
+        private void UpdateInlineColors(InlineCollection inlines, WpfColor oldColor, WpfColor newColor)
+        {
+            foreach (var inline in inlines)
+            {
+                if (inline is Run run)
+                {
+                    if (run.Foreground is SolidColorBrush brush && brush.Color == oldColor)
+                    {
+                        run.Foreground = new SolidColorBrush(newColor);
+                    }
+                }
+                else if (inline is Span span)
+                {
+                    // Recursively update nested inlines
+                    UpdateInlineColors(span.Inlines, oldColor, newColor);
+                    
+                    // Also check the span itself
+                    if (span.Foreground is SolidColorBrush brush && brush.Color == oldColor)
+                    {
+                        span.Foreground = new SolidColorBrush(newColor);
+                    }
+                }
+            }
         }
         
         private void ApplyTheme(bool isDarkMode)
@@ -926,6 +1198,199 @@ namespace YASN
             
             colorPickerWindow.Content = stackPanel;
             colorPickerWindow.ShowDialog();
+        }
+        
+        private void SetBackgroundImage_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as WpfButton;
+            if (button != null)
+            {
+                var contextMenu = new ContextMenu();
+                
+                var selectImageItem = new MenuItem { Header = "选择背景图片" };
+                selectImageItem.Click += (s, args) =>
+                {
+                    var openFileDialog = new WpfOpenFileDialog
+                    {
+                        Filter = "Image File|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp",
+                        Title = "Select Background Image"
+                    };
+
+                    if (openFileDialog.ShowDialog() == true)
+                    {
+                        SetBackgroundImage(openFileDialog.FileName);
+                    }
+                };
+                
+                var clearBackgroundItem = new MenuItem { Header = "清除背景图片" };
+                clearBackgroundItem.Click += (s, args) =>
+                {
+                    ClearBackgroundImage();
+                };
+                
+                var adjustOpacityItem = new MenuItem { Header = "调整透明度" };
+                adjustOpacityItem.Click += (s, args) =>
+                {
+                    ShowOpacityAdjuster();
+                };
+                
+                contextMenu.Items.Add(selectImageItem);
+                contextMenu.Items.Add(clearBackgroundItem);
+                contextMenu.Items.Add(adjustOpacityItem);
+                
+                contextMenu.PlacementTarget = button;
+                contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                contextMenu.IsOpen = true;
+            }
+        }
+        
+        private void SetBackgroundImage(string sourceFilePath)
+        {
+            string destPath = null;
+            try
+            {
+                // Copy image to note's background image directory
+                var fileName = $"background{Path.GetExtension(sourceFilePath)}";
+                destPath = Path.Combine(_backgroundImageDirectory, fileName);
+                
+                // Delete old background image if exists
+                if (File.Exists(destPath))
+                {
+                    File.Delete(destPath);
+                }
+                
+                File.Copy(sourceFilePath, destPath, true);
+                
+                // Update note data and apply background
+                NoteData.BackgroundImagePath = destPath;
+                ApplyBackgroundImage(destPath);
+                NoteManager.Instance.UpdateNote(NoteData);
+            }
+            catch (Exception ex)
+            {
+                if (destPath != null && File.Exists(destPath))
+                {
+                    try
+                    {
+                        File.Delete(destPath);
+                    }
+                    catch
+                    {
+                    }
+                }
+                
+                WpfMessageBox.Show($"Fail to set background image: {ex.Message}", "Error", 
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        
+        private void ApplyBackgroundImage(string imagePath)
+        {
+            if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath))
+            {
+                BackgroundImageBrush.ImageSource = null;
+                return;
+            }
+            
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.EndInit();
+                
+                BackgroundImageBrush.ImageSource = bitmap;
+            }
+            catch
+            {
+                BackgroundImageBrush.ImageSource = null;
+            }
+        }
+        
+        private void ClearBackgroundImage()
+        {
+            NoteData.BackgroundImagePath = null;
+            BackgroundImageBrush.ImageSource = null;
+            NoteManager.Instance.UpdateNote(NoteData);
+            
+            // Optionally delete the background image file
+            if (Directory.Exists(_backgroundImageDirectory))
+            {
+                try
+                {
+                    var files = Directory.GetFiles(_backgroundImageDirectory);
+                    foreach (var file in files)
+                    {
+                        try
+                        {
+                            File.Delete(file);
+                        }
+                        catch
+                        {
+                        }
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+        
+        private void ShowOpacityAdjuster()
+        {
+            var opacityWindow = new Window
+            {
+                Title = "调整背景图片透明度",
+                Width = 300,
+                Height = 200,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            
+            var stackPanel = new StackPanel { Margin = new Thickness(20) };
+            
+            stackPanel.Children.Add(new TextBlock 
+            { 
+                Text = "背景图片透明度：", 
+                FontWeight = FontWeights.Bold,
+                Margin = new Thickness(0, 0, 0, 10)
+            });
+            
+            var slider = new Slider
+            {
+                Minimum = 0.05,
+                Maximum = 1.0,
+                Value = BackgroundImageBorder.Opacity,
+                TickFrequency = 0.05,
+                IsSnapToTickEnabled = true,
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+            
+            var valueText = new TextBlock
+            {
+                Text = $"当前值: {BackgroundImageBorder.Opacity:F2}",
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+            
+            slider.ValueChanged += (s, e) =>
+            {
+                BackgroundImageBorder.Opacity = slider.Value;
+                valueText.Text = $"当前值: {slider.Value:F2}";
+                
+                // Save the opacity value to NoteData immediately
+                NoteData.BackgroundImageOpacity = slider.Value;
+                NoteManager.Instance.UpdateNote(NoteData);
+            };
+            
+            stackPanel.Children.Add(slider);
+            stackPanel.Children.Add(valueText);
+            
+            opacityWindow.Content = stackPanel;
+            opacityWindow.ShowDialog();
         }
     }
 }
