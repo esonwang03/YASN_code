@@ -11,6 +11,12 @@ namespace YASN
         private static NoteManager _instance;
         private static readonly object _lock = new object();
         private const string SaveFileName = "notes.json";
+        
+        // 获取保存文件的完整路径
+        private static string SaveFilePath => Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory, 
+            SaveFileName
+        );
 
         public static NoteManager Instance
         {
@@ -99,10 +105,12 @@ namespace YASN
                     n.IsDarkMode,
                     n.TitleBarColor,
                     n.BackgroundImagePath,
-                    n.BackgroundImageOpacity
+                    n.BackgroundImageOpacity,
+                    n.IsOpen
                 }), options);
 
-                File.WriteAllText(SaveFileName, json);
+                File.WriteAllText(SaveFilePath, json);
+                System.Diagnostics.Debug.WriteLine($"Saved {Notes.Count} notes to {SaveFilePath}");
             }
             catch (Exception ex)
             {
@@ -114,13 +122,17 @@ namespace YASN
         {
             try
             {
-                if (File.Exists(SaveFileName))
+                if (File.Exists(SaveFilePath))
                 {
-                    var json = File.ReadAllText(SaveFileName);
+                    System.Diagnostics.Debug.WriteLine($"Loading notes from {SaveFilePath}");
+                    var json = File.ReadAllText(SaveFilePath);
+                    System.Diagnostics.Debug.WriteLine($"JSON content length: {json.Length}");
+                    
                     var items = JsonSerializer.Deserialize<NoteDataDto[]>(json);
 
                     if (items != null)
                     {
+                        System.Diagnostics.Debug.WriteLine($"Deserialized {items.Length} notes");
                         foreach (var item in items)
                         {
                             var note = new NoteData
@@ -137,9 +149,10 @@ namespace YASN
                                 TitleBarColor = item.TitleBarColor,
                                 BackgroundImagePath = item.BackgroundImagePath,
                                 BackgroundImageOpacity = item.BackgroundImageOpacity,
-                                IsOpen = false
+                                IsOpen = item.IsOpen
                             };
                             Notes.Add(note);
+                            System.Diagnostics.Debug.WriteLine($"Loaded note: Id={note.Id}, Title={note.Title}, IsOpen={note.IsOpen}");
 
                             if (item.Id >= _nextId)
                             {
@@ -148,11 +161,62 @@ namespace YASN
                         }
                     }
                 }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Notes file not found at {SaveFilePath}");
+                }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to load notes: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Failed to load notes: {ex.Message}\nStack trace: {ex.StackTrace}");
             }
+        }
+        
+        /// <summary>
+        /// 自动打开之前打开的便签窗口
+        /// </summary>
+        public void RestoreOpenNotes()
+        {
+            System.Diagnostics.Debug.WriteLine($"RestoreOpenNotes called. Total notes: {Notes.Count}");
+            
+            var openNotes = Notes.Where(n => n.IsOpen).ToList();
+            System.Diagnostics.Debug.WriteLine($"Notes marked as open: {openNotes.Count}");
+            
+            foreach (var note in openNotes)
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine($"Restoring note: Id={note.Id}, Title={note.Title}, IsOpen={note.IsOpen}");
+                    var window = new FloatingWindow(note);
+                    window.Show();
+                    System.Diagnostics.Debug.WriteLine($"Note {note.Id} window created and shown successfully");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to restore note window {note.Id}: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reload notes from file (for sync purposes)
+        /// </summary>
+        public void ReloadNotes()
+        {
+            // Close all open windows
+            foreach (var note in Notes.Where(n => n.IsOpen).ToList())
+            {
+                note.Window?.Close();
+            }
+
+            // Clear current notes
+            Notes.Clear();
+
+            // Reload from file
+            Load();
+
+            // Restore open notes
+            RestoreOpenNotes();
         }
 
         private class NoteDataDto
@@ -169,6 +233,7 @@ namespace YASN
             public string TitleBarColor { get; set; }
             public string BackgroundImagePath { get; set; }
             public double BackgroundImageOpacity { get; set; }
+            public bool IsOpen { get; set; }
         }
     }
 }

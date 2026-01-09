@@ -64,7 +64,15 @@ namespace YASN
         
         // Flag to indicate if user has explicitly set a color
         private bool _hasExplicitColorSet = false;
-
+        
+        // Flag to indicate if application is shutting down
+        private static bool _isApplicationShuttingDown = false;
+        
+        public static void SetApplicationShuttingDown()
+        {
+            _isApplicationShuttingDown = true;
+        }
+        
         public FloatingWindow(NoteData noteData)
         {
             InitializeComponent();
@@ -1011,7 +1019,12 @@ namespace YASN
                 }
             }
             
-            NoteData.IsOpen = false;
+            // Only set IsOpen to false if this is a user-initiated close, not application shutdown
+            if (!_isApplicationShuttingDown)
+            {
+                NoteData.IsOpen = false;
+            }
+            
             NoteData.Window = null;
             NoteManager.Instance.UpdateNote(NoteData);
             base.OnClosed(e);

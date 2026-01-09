@@ -6,10 +6,14 @@
     public partial class App : System.Windows.Application
     {
         private System.Windows.Forms.NotifyIcon? _notifyIcon;
+        public static WebDavSyncManager SyncManager { get; private set; }
 
         protected override void OnStartup(System.Windows.StartupEventArgs e)
         {
             base.OnStartup(e);
+
+            // Initialize WebDAV sync manager
+            SyncManager = new WebDavSyncManager();
 
             // Hide main window, only show tray icon
             MainWindow = new MainWindow();
@@ -17,7 +21,27 @@
 
             // Create tray icon
             _notifyIcon = new System.Windows.Forms.NotifyIcon();
-            _notifyIcon.Icon = YASN.Properties.Resources.bitbug_favicon;
+            
+            // Load icon from the same icon file used by the EXE
+            try
+            {
+                var iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "favicon.ico");
+                if (System.IO.File.Exists(iconPath))
+                {
+                    _notifyIcon.Icon = new System.Drawing.Icon(iconPath);
+                }
+                else
+                {
+                    // Fallback to embedded resource
+                    _notifyIcon.Icon = YASN.Properties.Resources.bitbug_favicon;
+                }
+            }
+            catch
+            {
+                // Fallback to embedded resource
+                _notifyIcon.Icon = YASN.Properties.Resources.bitbug_favicon;
+            }
+            
             _notifyIcon.Visible = true;
             _notifyIcon.Text = "YASN - Window Manager";
 
@@ -46,6 +70,13 @@
 
             // Double-click to show main window
             _notifyIcon.DoubleClick += (s, args) => ShowMainWindow();
+            
+            // Restore previously opened notes after a short delay to ensure everything is initialized
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                System.Diagnostics.Debug.WriteLine("App startup: calling RestoreOpenNotes");
+                NoteManager.Instance.RestoreOpenNotes();
+            }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
         private void CreateTopWindowMenuItem_Click(object sender, System.EventArgs e)
@@ -88,12 +119,21 @@
 
         private void ExitApplication()
         {
+            // Notify all floating windows that application is shutting down
+            FloatingWindow.SetApplicationShuttingDown();
+            
             _notifyIcon?.Dispose();
             Current.Shutdown();
         }
 
         protected override void OnExit(System.Windows.ExitEventArgs e)
         {
+            // Ensure flag is set even if ExitApplication wasn't called
+            FloatingWindow.SetApplicationShuttingDown();
+            
+            // Dispose sync manager
+            SyncManager?.Dispose();
+            
             _notifyIcon?.Dispose();
             base.OnExit(e);
         }
