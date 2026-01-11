@@ -5,8 +5,8 @@
     /// </summary>
     public partial class App : System.Windows.Application
     {
-        private System.Windows.Forms.NotifyIcon? _notifyIcon;
-        public static WebDavSyncManager SyncManager { get; private set; }
+        private NotifyIcon? _notifyIcon;
+        public static WebDavSyncManager? SyncManager { get; private set; }
 
         protected override void OnStartup(System.Windows.StartupEventArgs e)
         {
@@ -20,7 +20,7 @@
             MainWindow.Hide();
 
             // Create tray icon
-            _notifyIcon = new System.Windows.Forms.NotifyIcon();
+            _notifyIcon = new NotifyIcon();
             
             // Load icon from the same icon file used by the EXE
             try
@@ -28,7 +28,7 @@
                 var iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "favicon.ico");
                 if (System.IO.File.Exists(iconPath))
                 {
-                    _notifyIcon.Icon = new System.Drawing.Icon(iconPath);
+                    _notifyIcon.Icon = new Icon(iconPath);
                 }
                 else
                 {
@@ -46,19 +46,19 @@
             _notifyIcon.Text = "YASN - Window Manager";
 
             // Create context menu
-            var contextMenu = new System.Windows.Forms.ContextMenuStrip();
+            var contextMenu = new ContextMenuStrip();
             
-            var newWindowMenuItem = new System.Windows.Forms.ToolStripMenuItem("NewNote(&N)");
+            var newWindowMenuItem = new ToolStripMenuItem("NewNote(&N)");
             newWindowMenuItem.DropDownItems.Add("Normal(&P)", null, CreateNormalWindowMenuItem_Click);
             newWindowMenuItem.DropDownItems.Add("TopMost(&T)", null, CreateTopWindowMenuItem_Click);
             newWindowMenuItem.DropDownItems.Add("BottomMost(&B)", null, CreateBottomWindowMenuItem_Click);
             
-            var separatorMenuItem = new System.Windows.Forms.ToolStripSeparator();
+            var separatorMenuItem = new ToolStripSeparator();
             
-            var showMainMenuItem = new System.Windows.Forms.ToolStripMenuItem("Main(&S)");
+            var showMainMenuItem = new ToolStripMenuItem("Main(&S)");
             showMainMenuItem.Click += (s, args) => ShowMainWindow();
             
-            var exitMenuItem = new System.Windows.Forms.ToolStripMenuItem("Exit(&X)");
+            var exitMenuItem = new ToolStripMenuItem("Exit(&X)");
             exitMenuItem.Click += (s, args) => ExitApplication();
 
             contextMenu.Items.Add(newWindowMenuItem);
