@@ -73,7 +73,6 @@ $RECYCLE.BIN/
 *.g.*
 *.g.i.*
 *.baml
-*.xaml.cs
 *.xaml.vb
 
 # Local app settings
