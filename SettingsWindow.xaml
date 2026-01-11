@@ -3,107 +3,221 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:YASN"
+        xmlns:settings="clr-namespace:YASN.Settings"
         mc:Ignorable="d"
-        Title="Settings - YASN" 
-        Height="400" 
-        Width="500"
+        Title="Settings - YASN"
+        Height="520"
+        Width="780"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
         Background="#F5F5F5">
-    
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
         <!-- Title Bar -->
-        <Border Grid.Row="0" Background="#2C3E50" Padding="20,15">
-            <TextBlock Text="Application Settings" 
-                       FontSize="20" 
-                       FontWeight="Bold" 
+        <Border Grid.Row="0"
+                Grid.ColumnSpan="2"
+                Background="#2C3E50"
+                Padding="20,15">
+            <TextBlock Text="Application Settings"
+                       FontSize="20"
+                       FontWeight="Bold"
                        Foreground="White"/>
         </Border>
 
-        <!-- Settings Content -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="20">
+        <!-- Navigation -->
+        <Border Grid.Row="1"
+                Grid.Column="0"
+                Margin="20"
+                Background="White"
+                BorderBrush="#DDD"
+                BorderThickness="1"
+                CornerRadius="8">
             <StackPanel>
-                <!-- General Settings -->
-                <Border Background="White" 
-                        BorderBrush="#DDD" 
-                        BorderThickness="1" 
-                        CornerRadius="5" 
-                        Padding="20"
-                        Margin="0,0,0,15">
-                    <StackPanel>
-                        <TextBlock Text="General Settings" 
-                                   FontSize="16" 
-                                   FontWeight="Bold" 
-                                   Margin="0,0,0,15"
-                                   Foreground="#2C3E50"/>
-                        
-                        <!-- Auto Start -->
-                        <Grid Margin="0,0,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="Auto Start on Windows Startup" 
-                                           FontSize="14" 
-                                           FontWeight="SemiBold"
-                                           Foreground="#34495E"/>
-                                <TextBlock Text="Automatically run YASN when Windows starts" 
-                                           FontSize="12" 
-                                           Foreground="#7F8C8D"
-                                           TextWrapping="Wrap"
-                                           Margin="0,4,0,0"/>
-                            </StackPanel>
-                            
-                            <CheckBox x:Name="AutoStartCheckBox" 
-                                      Grid.Column="1" 
-                                      VerticalAlignment="Center"
-                                      Checked="AutoStartCheckBox_Changed"
-                                      Unchecked="AutoStartCheckBox_Changed"
-                                      Margin="10,0,0,0"/>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
-                <!-- Cloud Sync Settings -->
-                <Border Background="White" 
-                        BorderBrush="#DDD" 
-                        BorderThickness="1" 
-                        CornerRadius="5" 
-                        Padding="20">
-                    <StackPanel>
-                        <TextBlock Text="Cloud Sync (WebDAV)" 
-                                   FontSize="16" 
-                                   FontWeight="Bold" 
-                                   Margin="0,0,0,15"
-                                   Foreground="#2C3E50"/>
-                        
-                        <!-- WebDAV Config Button -->
-                        <Button Content="Configure WebDAV Sync" 
-                                Click="ConfigureWebDav_Click"
-                                Padding="15,10"
-                                Background="#3498DB"
-                                Foreground="White"
-                                BorderThickness="0"
-                                FontSize="13"
-                                Cursor="Hand"
-                                HorizontalAlignment="Left"/>
-                        
-                        <TextBlock Text="Sync your notes across devices using WebDAV" 
-                                   FontSize="11" 
-                                   Foreground="#7F8C8D"
-                                   TextWrapping="Wrap"
-                                   Margin="0,10,0,0"/>
-                    </StackPanel>
-                </Border>
+                <TextBlock Text="快速跳转"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="#2C3E50"
+                           Margin="16,16,16,8"/>
+                <ListBox x:Name="NavList"
+                         ItemsSource="{Binding Modules}"
+                         DisplayMemberPath="Title"
+                         SelectedIndex="0"
+                         SelectionChanged="NavList_SelectionChanged"
+                         BorderThickness="0"
+                         Background="Transparent">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="16,10"/>
+                            <Setter Property="Margin" Value="8,4"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="#34495E"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="NavBorder"
+                                                CornerRadius="6"
+                                                Background="{TemplateBinding Background}">
+                                            <ContentPresenter Margin="10,6"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="NavBorder" Property="Background" Value="#E8F4FD"/>
+                                                <Setter Property="Foreground" Value="#1B75BB"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="NavBorder" Property="Background" Value="#F2F6F9"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
             </StackPanel>
+        </Border>
+
+        <!-- Content -->
+        <ScrollViewer x:Name="ModuleScrollViewer"
+                      Grid.Row="1"
+                      Grid.Column="1"
+                      Margin="0,20,20,20"
+                      VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="ModuleItemsControl" ItemsSource="{Binding Modules}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type settings:SettingModule}">
+                        <Border x:Name="ModuleRoot"
+                                Tag="{Binding Key}"
+                                Background="White"
+                                BorderBrush="#DDD"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="20"
+                                Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Title}"
+                                           FontSize="18"
+                                           FontWeight="Bold"
+                                           Foreground="#2C3E50"/>
+                                <TextBlock Text="{Binding Description}"
+                                           FontSize="12"
+                                           Foreground="#7F8C8D"
+                                           Margin="0,4,0,16"
+                                           TextWrapping="Wrap"/>
+
+                                <ItemsControl ItemsSource="{Binding Fields}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type settings:SettingField}">
+                                            <Border BorderBrush="#EEE"
+                                                    BorderThickness="0,0,0,1"
+                                                    Padding="0,12,0,12">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="220"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                                        <TextBlock Text="{Binding Title}"
+                                                                   FontSize="14"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#34495E"/>
+                                                        <TextBlock Text="{Binding Description}"
+                                                                   FontSize="11"
+                                                                   Foreground="#7F8C8D"
+                                                                   TextWrapping="Wrap"
+                                                                   Margin="0,4,0,0"/>
+                                                    </StackPanel>
+
+                                                    <!-- Toggle -->
+                                                    <CheckBox Grid.Column="1"
+                                                              VerticalAlignment="Center"
+                                                              IsChecked="{Binding BoolValue, Mode=TwoWay}">
+                                                        <CheckBox.Style>
+                                                            <Style TargetType="CheckBox">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding FieldType}" Value="{x:Static settings:SettingFieldType.Toggle}">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </CheckBox.Style>
+                                                    </CheckBox>
+                                                    <!-- Text -->
+                                                    <TextBox Grid.Column="1"
+                                                             VerticalAlignment="Center"
+                                                             Padding="8"
+                                                             Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                        <TextBox.Style>
+                                                            <Style TargetType="TextBox">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding FieldType}" Value="{x:Static settings:SettingFieldType.Text}">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBox.Style>
+                                                    </TextBox>
+                                                    <!-- Password -->
+                                                    <PasswordBox x:Name="PasswordBox"
+                                                                 Grid.Column="1"
+                                                                 VerticalAlignment="Center"
+                                                                 Padding="8"
+                                                                 PasswordChanged="PasswordBox_PasswordChanged"
+                                                                 Loaded="PasswordBox_Loaded">
+                                                        <PasswordBox.Style>
+                                                            <Style TargetType="PasswordBox">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding FieldType}" Value="{x:Static settings:SettingFieldType.Password}">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </PasswordBox.Style>
+                                                    </PasswordBox>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <StackPanel Margin="0,12,0,0">
+                                    <ItemsControl ItemsSource="{Binding Actions}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type settings:SettingAction}">
+                                                <Button Content="{Binding Label}"
+                                                        Tag="{Binding}"
+                                                        Click="ActionButton_Click"
+                                                        Margin="0,0,10,8"
+                                                        Padding="14,8"
+                                                        HorizontalAlignment="Left"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="{Binding Status}"
+                                               FontSize="12"
+                                               Foreground="#1B75BB"
+                                               Margin="0,6,0,0"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </ScrollViewer>
     </Grid>
 </Window>

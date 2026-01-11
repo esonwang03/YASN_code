@@ -6,14 +6,14 @@
     public partial class App : System.Windows.Application
     {
         private NotifyIcon? _notifyIcon;
-        public static WebDavSyncManager? SyncManager { get; private set; }
+        public static Sync.SyncManager? SyncManager { get; private set; }
 
         protected override void OnStartup(System.Windows.StartupEventArgs e)
         {
             base.OnStartup(e);
 
             // Initialize WebDAV sync manager
-            SyncManager = new WebDavSyncManager();
+            SyncManager = new Sync.SyncManager();
 
             // Hide main window, only show tray icon
             MainWindow = new MainWindow();
