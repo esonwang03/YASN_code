@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Timers;
 using YASN;
@@ -15,7 +16,7 @@ namespace YASN.Sync
         private ISyncClient _client;
         private bool _isEnabled;
         private string _remoteDirectory = string.Empty;
-        private readonly string _localNotesPath;
+        private readonly string[] _syncFiles;
 
         public bool IsEnabled => _isEnabled;
         public bool IsConfigured => _client != null;
@@ -24,7 +25,11 @@ namespace YASN.Sync
 
         public SyncManager()
         {
-            _localNotesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "notes.json");
+            _syncFiles = new[]
+            {
+                AppPaths.NotesFilePath,
+                AppPaths.SyncSettingsPath
+            };
             _syncTimer = new System.Timers.Timer
             {
                 Interval = TimeSpan.FromMinutes(5).TotalMilliseconds,
@@ -57,7 +62,7 @@ namespace YASN.Sync
             return true;
         }
 
-        public void EnableAutoSync()
+        private void EnableAutoSync()
         {
             if (_client == null)
             {
@@ -68,13 +73,13 @@ namespace YASN.Sync
             _syncTimer.Start();
         }
 
-        public void DisableAutoSync()
+        private void DisableAutoSync()
         {
             _isEnabled = false;
             _syncTimer.Stop();
         }
 
-        public async Task<SyncResult> SyncAsync()
+        private async Task<SyncResult> SyncAsync()
         {
             if (_client == null || !_isEnabled)
             {
@@ -85,52 +90,64 @@ namespace YASN.Sync
 
             try
             {
-                if (!File.Exists(_localNotesPath))
+                var existingFiles = _syncFiles.Where(File.Exists).ToList();
+                if (!existingFiles.Any())
                 {
                     result.Success = false;
-                    result.Message = "Notes file not found";
+                    result.Message = "No syncable files found";
                     return result;
                 }
 
-                var remoteFilePath = BuildRemotePath("notes.json");
+                var messages = new System.Collections.Generic.List<string>();
 
-                var remoteExists = await _client.FileExistsAsync(remoteFilePath);
-                if (remoteExists)
+                foreach (var filePath in existingFiles)
                 {
-                    var remoteLastModified = await _client.GetFileLastModifiedAsync(remoteFilePath);
-                    var localLastModified = File.GetLastWriteTime(_localNotesPath);
+                    var fileName = Path.GetFileName(filePath);
+                    var remoteFilePath = BuildRemotePath(fileName);
+                    var isNotesFile = string.Equals(fileName, "notes.json", StringComparison.OrdinalIgnoreCase);
 
-                    if (remoteLastModified.HasValue && remoteLastModified.Value > localLastModified)
+                    var remoteExists = await _client.FileExistsAsync(remoteFilePath);
+                    if (remoteExists)
                     {
-                        if (await _client.DownloadFileAsync(remoteFilePath, _localNotesPath))
+                        var remoteLastModified = await _client.GetFileLastModifiedAsync(remoteFilePath);
+                        var localLastModified = File.GetLastWriteTime(filePath);
+
+                        if (remoteLastModified.HasValue && remoteLastModified.Value > localLastModified)
                         {
-                            result.Message = "Downloaded from cloud";
-                            result.FilesDownloaded = 1;
-                            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                            if (await _client.DownloadFileAsync(remoteFilePath, filePath))
                             {
-                                NoteManager.Instance.ReloadNotes();
-                            });
+                                messages.Add($"{fileName} downloaded");
+                                result.FilesDownloaded += 1;
+                                if (isNotesFile)
+                                {
+                                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                                    {
+                                        NoteManager.Instance.ReloadNotes();
+                                    });
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (await _client.UploadFileAsync(filePath, remoteFilePath))
+                            {
+                                messages.Add($"{fileName} uploaded");
+                                result.FilesUploaded += 1;
+                            }
                         }
                     }
                     else
                     {
-                        if (await _client.UploadFileAsync(_localNotesPath, remoteFilePath))
+                        if (await _client.UploadFileAsync(filePath, remoteFilePath))
                         {
-                            result.Message = "Uploaded to cloud";
-                            result.FilesUploaded = 1;
+                            messages.Add($"{fileName} initial upload");
+                            result.FilesUploaded += 1;
                         }
-                    }
-                }
-                else
-                {
-                    if (await _client.UploadFileAsync(_localNotesPath, remoteFilePath))
-                    {
-                        result.Message = "Initial upload to cloud";
-                        result.FilesUploaded = 1;
                     }
                 }
 
                 LastSyncTime = DateTime.Now;
+                result.Message = messages.Count > 0 ? string.Join("; ", messages) : "No changes";
             }
             catch (Exception ex)
             {
@@ -144,13 +161,19 @@ namespace YASN.Sync
 
         public async Task<bool> ForceUploadAsync()
         {
-            if (_client == null || !File.Exists(_localNotesPath))
+            if (_client == null)
             {
                 return false;
             }
 
-            var remoteFilePath = BuildRemotePath("notes.json");
-            return await _client.UploadFileAsync(_localNotesPath, remoteFilePath);
+            var anyUploaded = false;
+            foreach (var filePath in _syncFiles.Where(File.Exists))
+            {
+                var remoteFilePath = BuildRemotePath(Path.GetFileName(filePath));
+                anyUploaded |= await _client.UploadFileAsync(filePath, remoteFilePath);
+            }
+
+            return anyUploaded;
         }
 
         public async Task<bool> ForceDownloadAsync()
@@ -160,18 +183,24 @@ namespace YASN.Sync
                 return false;
             }
 
-            var remoteFilePath = BuildRemotePath("notes.json");
-            var downloaded = await _client.DownloadFileAsync(remoteFilePath, _localNotesPath);
-
-            if (downloaded)
+            var anyDownloaded = false;
+            foreach (var filePath in _syncFiles)
             {
-                await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                var remoteFilePath = BuildRemotePath(Path.GetFileName(filePath));
+                if (await _client.DownloadFileAsync(remoteFilePath, filePath))
                 {
-                    NoteManager.Instance.ReloadNotes();
-                });
+                    anyDownloaded = true;
+                    if (string.Equals(Path.GetFileName(filePath), "notes.json", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            NoteManager.Instance.ReloadNotes();
+                        });
+                    }
+                }
             }
 
-            return downloaded;
+            return anyDownloaded;
         }
 
         public void Dispose()

@@ -15,6 +15,7 @@ namespace YASN
 {
     public partial class SettingsWindow : Window
     {
+        private readonly SettingsStore _settingsStore = new SettingsStore();
         public SettingsViewModel ViewModel { get; } = new();
 
         public SettingsWindow()
@@ -32,6 +33,7 @@ namespace YASN
         private void BuildModules()
         {
             ViewModel.Modules.Clear();
+            var allFields = new System.Collections.Generic.List<SettingField>();
 
             var autoStartField = new SettingField
             {
@@ -40,8 +42,9 @@ namespace YASN
                 Description = "启动 Windows 时自动运行 YASN。",
                 FieldType = SettingFieldType.Toggle,
                 BoolValue = AutoStartManager.IsAutoStartEnabled(),
-                OnChanged = HandleAutoStartChanged
+                ShouldSync = false
             };
+            allFields.Add(autoStartField);
 
             var generalModule = new SettingModule
             {
@@ -57,24 +60,30 @@ namespace YASN
                 Title = "Server URL",
                 Description = "例如：https://dav.jianguoyun.com/dav/",
                 FieldType = SettingFieldType.Text,
-                Value = "https://dav.jianguoyun.com/dav/"
+                Value = "https://dav.jianguoyun.com/dav/",
+                ShouldSync = true
             };
+            allFields.Add(serverUrlField);
 
             var userField = new SettingField
             {
                 Key = "webdav.user",
                 Title = "用户名 / 邮箱",
                 Description = "用于认证的账户名。",
-                FieldType = SettingFieldType.Text
+                FieldType = SettingFieldType.Text,
+                ShouldSync = true
             };
+            allFields.Add(userField);
 
             var passwordField = new SettingField
             {
                 Key = "webdav.password",
                 Title = "密码 / App Token",
                 Description = "建议使用专用应用密码。",
-                FieldType = SettingFieldType.Password
+                FieldType = SettingFieldType.Password,
+                ShouldSync = true
             };
+            allFields.Add(passwordField);
 
             var remoteField = new SettingField
             {
@@ -82,8 +91,10 @@ namespace YASN
                 Title = "远程目录",
                 Description = "例如：/MyJianGuoYun/YASN",
                 FieldType = SettingFieldType.Text,
-                Value = "/MyJianGuoYun/YASN"
+                Value = "/MyJianGuoYun/YASN",
+                ShouldSync = true
             };
+            allFields.Add(remoteField);
 
             var autoSyncField = new SettingField
             {
@@ -91,8 +102,10 @@ namespace YASN
                 Title = "启用自动同步",
                 Description = "每 5 分钟自动同步一次。",
                 FieldType = SettingFieldType.Toggle,
-                BoolValue = App.SyncManager?.IsEnabled ?? false
+                BoolValue = App.SyncManager?.IsEnabled ?? false,
+                ShouldSync = true
             };
+            allFields.Add(autoSyncField);
 
             var webDavModule = new SettingModule
             {
@@ -106,6 +119,19 @@ namespace YASN
             webDavModule.Fields.Add(passwordField);
             webDavModule.Fields.Add(remoteField);
             webDavModule.Fields.Add(autoSyncField);
+
+            _settingsStore.ApplyValues(allFields);
+
+            autoStartField.OnChanged = field =>
+            {
+                HandleAutoStartChanged(field);
+                _settingsStore.PersistField(field);
+            };
+
+            foreach (var field in new[] { serverUrlField, userField, passwordField, remoteField, autoSyncField })
+            {
+                field.OnChanged = f => _settingsStore.PersistField(f);
+            }
 
             webDavModule.Actions.Add(new SettingAction
             {
@@ -254,15 +280,6 @@ namespace YASN
             if (sender is PasswordBox passwordBox && passwordBox.DataContext is SettingField field)
             {
                 passwordBox.Password = field.Value ?? string.Empty;
-            }
-        }
-
-        private void ModuleItemsControl_TargetUpdated(object sender, System.Windows.Data.DataTransferEventArgs e)
-        {
-            // Ensure first module content is visible when data refreshes
-            if (NavList.SelectedIndex < 0 && ViewModel.Modules.Any())
-            {
-                NavList.SelectedIndex = 0;
             }
         }
     }

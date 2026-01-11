@@ -19,6 +19,7 @@ namespace YASN.Settings
         public string Title { get; set; }
         public string Description { get; set; }
         public SettingFieldType FieldType { get; set; }
+        public bool ShouldSync { get; set; }
 
         private string _value;
         public string Value

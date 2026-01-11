@@ -12,11 +12,8 @@ namespace YASN
         private static readonly object _lock = new object();
         private const string SaveFileName = "notes.json";
         
-        // »ñÈ¡±£´æÎÄ¼þµÄÍêÕûÂ·¾¶
-        private static string SaveFilePath => Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory, 
-            SaveFileName
-        );
+        // ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â·ï¿½ï¿½
+        private static string SaveFilePath => AppPaths.NotesFilePath;
 
         public static NoteManager Instance
         {
@@ -109,6 +106,12 @@ namespace YASN
                     n.IsOpen
                 }), options);
 
+                var directory = Path.GetDirectoryName(SaveFilePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
                 File.WriteAllText(SaveFilePath, json);
                 System.Diagnostics.Debug.WriteLine($"Saved {Notes.Count} notes to {SaveFilePath}");
             }
@@ -122,6 +125,17 @@ namespace YASN
         {
             try
             {
+                var legacyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, SaveFileName);
+                if (!File.Exists(SaveFilePath) && File.Exists(legacyPath))
+                {
+                    var directory = Path.GetDirectoryName(SaveFilePath);
+                    if (!string.IsNullOrEmpty(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
+                    File.Copy(legacyPath, SaveFilePath, true);
+                }
+
                 if (File.Exists(SaveFilePath))
                 {
                     System.Diagnostics.Debug.WriteLine($"Loading notes from {SaveFilePath}");
@@ -173,7 +187,7 @@ namespace YASN
         }
         
         /// <summary>
-        /// ×Ô¶¯´ò¿ªÖ®Ç°´ò¿ªµÄ±ãÇ©´°¿Ú
+        /// ï¿½Ô¶ï¿½ï¿½ï¿½Ö®Ç°ï¿½ò¿ªµÄ±ï¿½Ç©ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         public void RestoreOpenNotes()
         {
@@ -237,3 +251,6 @@ namespace YASN
         }
     }
 }
+
+
+
