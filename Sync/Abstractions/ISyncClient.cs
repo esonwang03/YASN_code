@@ -17,5 +17,6 @@ namespace YASN.Sync
         Task<bool> DownloadFileAsync(string remoteFilePath, string localFilePath);
         Task<bool> FileExistsAsync(string remoteFilePath);
         Task<DateTime?> GetFileLastModifiedAsync(string remoteFilePath);
+        Task<string> GetFileHashAsync(string remoteFilePath);
     }
 }

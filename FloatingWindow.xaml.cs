@@ -52,7 +52,7 @@ namespace YASN
 
         private string _imageDirectory;
         
-        // ¾²Ì¬±äÁ¿¸ú×Ùµ±Ç°µÄ BottomMost ´°¿Ú
+        // Bottom most windows
         private static FloatingWindow _currentBottomMostWindow = null;
         private static readonly object _bottomMostLock = new object();
         private bool _isFirstBottomMostWindow = false;
@@ -174,7 +174,7 @@ namespace YASN
                     textRange.Load(stream, WpfDataFormats.Rtf);
                 }
                 
-                // ÐÞ¸´¼ÓÔØºóµÄÍ¼Æ¬³ß´ç
+                // ï¿½Þ¸ï¿½ï¿½ï¿½ï¿½Øºï¿½ï¿½Í¼Æ¬ï¿½ß´ï¿½
                 FixImageSizes(document);
                 
                 ContentRichTextBox.Document = document;
@@ -411,17 +411,17 @@ namespace YASN
                 
                 var presetColors = new[]
                 {
-                    ("#000000", "ºÚÉ«"),
-                    ("#FF0000", "ºìÉ«"),
-                    ("#00FF00", "ÂÌÉ«"),
-                    ("#0000FF", "À¶É«"),
-                    ("#FFFF00", "»ÆÉ«"),
-                    ("#FF00FF", "Æ·ºì"),
-                    ("#00FFFF", "ÇàÉ«"),
-                    ("#FFA500", "³ÈÉ«"),
-                    ("#800080", "×ÏÉ«"),
-                    ("#808080", "»ÒÉ«"),
-                    ("#A52A2A", "×ØÉ«")
+                    ("#000000", "Black"),
+                    ("#FF0000", "Red"),
+                    ("#00FF00", "Green"),
+                    ("#0000FF", "Blue"),
+                    ("#FFFF00", "Yellow"),
+                    ("#FF00FF", "Magenta"),
+                    ("#00FFFF", "Cyan"),
+                    ("#FFA500", "Orange"),
+                    ("#800080", "Purple"),
+                    ("#808080", "Gray"),
+                    ("#A52A2A", "Brown")
                 };
                 
                 foreach (var (colorHex, colorName) in presetColors)
@@ -679,7 +679,7 @@ namespace YASN
 
         private void Timer_Tick(object sender, EventArgs e)
         {
-            // Ö»ÓÐµ±Ç°µÄ BottomMost ´°¿Ú²ÅÖ´ÐÐ¶¨Ê±Æ÷ÈÎÎñ
+            
             if (NoteData.Level == WindowLevel.BottomMost && _hwnd != IntPtr.Zero && _currentBottomMostWindow == this)
             {
                 SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
@@ -744,7 +744,7 @@ namespace YASN
             {
                 var contextMenu = new ContextMenu();
                 
-                var showMainWindowItem = new MenuItem { Header = "ÏÔÊ¾Ö÷´°¿Ú" };
+                var showMainWindowItem = new MenuItem { Header = "ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½" };
                 showMainWindowItem.Click += (s, args) =>
                 {
                     var app = System.Windows.Application.Current as App;
@@ -756,7 +756,7 @@ namespace YASN
                     }
                 };
                 
-                var createNoteItem = new MenuItem { Header = "ÐÂ½¨±ãÇ©" };
+                var createNoteItem = new MenuItem { Header = "ï¿½Â½ï¿½ï¿½ï¿½Ç©" };
                 createNoteItem.Click += (s, args) =>
                 {
                     var newNote = NoteManager.Instance.CreateNote();
@@ -764,7 +764,7 @@ namespace YASN
                     newWindow.Show();
                 };
                 
-                var createTopMostNoteItem = new MenuItem { Header = "ÐÂ½¨ÖÃ¶¥±ãÇ©" };
+                var createTopMostNoteItem = new MenuItem { Header = "ï¿½Â½ï¿½ï¿½Ã¶ï¿½ï¿½ï¿½Ç©" };
                 createTopMostNoteItem.Click += (s, args) =>
                 {
                     var newNote = NoteManager.Instance.CreateNote(WindowLevel.TopMost);
@@ -794,8 +794,8 @@ namespace YASN
                 deleteNoteItem.Click += (s, args) =>
                 {
                     var result = WpfMessageBox.Show(
-                        "È·¶¨ÒªÉ¾³ýÕâ¸ö±ãÇ©Âð£¿",
-                        "È·ÈÏÉ¾³ý",
+                        "È·ï¿½ï¿½ÒªÉ¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç©ï¿½ï¿½",
+                        "È·ï¿½ï¿½É¾ï¿½ï¿½",
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Question);
                     
@@ -806,12 +806,12 @@ namespace YASN
                     }
                 };
                 
-                var clearContentItem = new MenuItem { Header = "Çå¿ÕÄÚÈÝ" };
+                var clearContentItem = new MenuItem { Header = "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½" };
                 clearContentItem.Click += (s, args) =>
                 {
                     var result = WpfMessageBox.Show(
-                        "È·¶¨ÒªÇå¿Õ±ãÇ©ÄÚÈÝÂð£¿",
-                        "È·ÈÏÇå¿Õ",
+                        "È·ï¿½ï¿½Òªï¿½ï¿½Õ±ï¿½Ç©ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½",
+                        "È·ï¿½ï¿½ï¿½ï¿½ï¿½",
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Question);
                     
@@ -822,23 +822,23 @@ namespace YASN
                     }
                 };
                 
-                var aboutItem = new MenuItem { Header = "¹ØÓÚ" };
+                var aboutItem = new MenuItem { Header = "ï¿½ï¿½ï¿½ï¿½" };
                 aboutItem.Click += (s, args) =>
                 {
                     WpfMessageBox.Show(
-                        "YASN - Yet Another Sticky Notes\n°æ±¾ 1.0\n\nÒ»¸ö¼ò½àµÄ±ãÇ©Ó¦ÓÃ³ÌÐò",
-                        "¹ØÓÚ YASN",
+                        "YASN - Yet Another Sticky Notes\nï¿½æ±¾ 1.0\n\nÒ»ï¿½ï¿½ï¿½ï¿½ï¿½Ä±ï¿½Ç©Ó¦ï¿½Ã³ï¿½ï¿½ï¿½",
+                        "ï¿½ï¿½ï¿½ï¿½ YASN",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                 };
                 
-                var toggleThemeItem = new MenuItem { Header = NoteData.IsDarkMode ? "ÇÐ»»µ½°×ÌìÄ£Ê½" : "ÇÐ»»µ½ºÚÒ¹Ä£Ê½" };
+                var toggleThemeItem = new MenuItem { Header = NoteData.IsDarkMode ? "ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½" : "ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½Ò¹Ä£Ê½" };
                 toggleThemeItem.Click += (s, args) =>
                 {
                     ToggleTheme();
                 };
                 
-                var changeTitleBarColorItem = new MenuItem { Header = "¸ü¸Ä±êÌâÀ¸ÑÕÉ«" };
+                var changeTitleBarColorItem = new MenuItem { Header = "ï¿½ï¿½ï¿½Ä±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É«" };
                 changeTitleBarColorItem.Click += (s, args) =>
                 {
                     ShowColorPicker();
@@ -925,7 +925,7 @@ namespace YASN
             if (_hwnd == IntPtr.Zero)
                 return;
 
-            // ÏÈÍ£Ö¹¶¨Ê±Æ÷
+            // ï¿½ï¿½Í£Ö¹ï¿½ï¿½Ê±ï¿½ï¿½
             _timer?.Stop();
 
             switch (NoteData.Level)
@@ -939,30 +939,30 @@ namespace YASN
                     
                     lock (_bottomMostLock)
                     {
-                        // Èç¹ûÒÑ¾­ÓÐÆäËû´°¿ÚÊÇ BottomMost£¬½«Æä¸ÄÎª Normal
+                        // ï¿½ï¿½ï¿½ï¿½Ñ¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ BottomMostï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îª Normal
                         if (_currentBottomMostWindow != null && _currentBottomMostWindow != this)
                         {
                             var previousWindow = _currentBottomMostWindow;
-                            _currentBottomMostWindow = null; // ÏÈÇå¿Õ£¬±ÜÃâµÝ¹é
+                            _currentBottomMostWindow = null; // ï¿½ï¿½ï¿½ï¿½Õ£ï¿½ï¿½ï¿½ï¿½ï¿½Ý¹ï¿½
                             
-                            // ½«Ö®Ç°µÄ BottomMost ´°¿Ú¸ÄÎª Normal
+                            // ï¿½ï¿½Ö®Ç°ï¿½ï¿½ BottomMost ï¿½ï¿½ï¿½Ú¸ï¿½Îª Normal
                             previousWindow.Dispatcher.Invoke(() =>
                             {
                                 previousWindow.SetWindowLevel(WindowLevel.Normal);
                             });
                         }
                         
-                        // ÉèÖÃµ±Ç°´°¿ÚÎª BottomMost
+                        // ï¿½ï¿½ï¿½Ãµï¿½Ç°ï¿½ï¿½ï¿½ï¿½Îª BottomMost
                         _currentBottomMostWindow = this;
                     }
                     
-                    // ÉèÖÃ´°¿Úµ½µ×²ã
+                    // ï¿½ï¿½ï¿½Ã´ï¿½ï¿½Úµï¿½ï¿½×²ï¿½
                     SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
                     SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
                     
-                    // Æô¶¯¶¨Ê±Æ÷
+                    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½
                     _timer?.Start();
                     break;
 
@@ -970,7 +970,7 @@ namespace YASN
                 default:
                     this.Topmost = false;
                     
-                    // Èç¹ûµ±Ç°´°¿ÚÊÇ BottomMost ñº¿Ú£¬Çå¿ÕÒýÓÃ
+                    // ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ BottomMost ï¿½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                     lock (_bottomMostLock)
                     {
                         if (_currentBottomMostWindow == this)
@@ -995,7 +995,7 @@ namespace YASN
         {
             base.OnActivated(e);
             
-            // Ö»ÓÐµ±Ç°µÄ BottomMost ´°¿Ú²ÅÖØÐÂÓ¦ÓÃ´°¿Ú¼¶±ð
+            // Ö»ï¿½Ðµï¿½Ç°ï¿½ï¿½ BottomMost ï¿½ï¿½ï¿½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½Ã´ï¿½ï¿½Ú¼ï¿½ï¿½ï¿½
             if (NoteData.Level == WindowLevel.BottomMost && _hwnd != IntPtr.Zero && _currentBottomMostWindow == this)
             {
                 Dispatcher.BeginInvoke(new Action(() => 
@@ -1010,7 +1010,7 @@ namespace YASN
         {
             _timer?.Stop();
             
-            // Èç¹ûµ±Ç°´°¿ÚÊÇ BottomMost ´°¿Ú£¬Çå¿ÕÒýÓÃ
+            // ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ BottomMost ï¿½ï¿½ï¿½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
             lock (_bottomMostLock)
             {
                 if (_currentBottomMostWindow == this)
@@ -1089,23 +1089,23 @@ namespace YASN
         {
             if (isDarkMode)
             {
-                // ºÚÒ¹Ä£Ê½£ººÚµ×°××Ö
-                MainBorder.Background = new SolidColorBrush(WpfColor.FromArgb(0xC8, 0x1E, 0x1E, 0x1E)); // Éî»ÒºÚÉ«
+                // ï¿½ï¿½Ò¹Ä£Ê½ï¿½ï¿½ï¿½Úµ×°ï¿½ï¿½ï¿½
+                MainBorder.Background = new SolidColorBrush(WpfColor.FromArgb(0xC8, 0x1E, 0x1E, 0x1E)); // ï¿½ï¿½Òºï¿½É«
                 MainBorder.BorderBrush = new SolidColorBrush(WpfColor.FromArgb(0x60, 0x80, 0x80, 0x80));
-                StatusText.Foreground = new SolidColorBrush(WpfColor.FromRgb(0xEC, 0xF0, 0xF1)); // Ç³É«ÎÄ×Ö
+                StatusText.Foreground = new SolidColorBrush(WpfColor.FromRgb(0xEC, 0xF0, 0xF1)); // Ç³É«ï¿½ï¿½ï¿½ï¿½
                 FormatToolbar.Background = new SolidColorBrush(WpfColor.FromArgb(0x40, 0x00, 0x00, 0x00));
-                ContentRichTextBox.Foreground = new SolidColorBrush(WpfColor.FromRgb(0xEC, 0xF0, 0xF1)); // °×É«ÎÄ×Ö
+                ContentRichTextBox.Foreground = new SolidColorBrush(WpfColor.FromRgb(0xEC, 0xF0, 0xF1)); // ï¿½ï¿½É«ï¿½ï¿½ï¿½ï¿½
             }
             else
             {
-                // °×ÌìÄ£Ê½£º°×µ×ºÚ×Ö
-                MainBorder.Background = new SolidColorBrush(WpfColor.FromArgb(0xF0, 0xFF, 0xFF, 0xF0)); // Ã×°×É«
+                // ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½ï¿½×µ×ºï¿½ï¿½ï¿½
+                MainBorder.Background = new SolidColorBrush(WpfColor.FromArgb(0xF0, 0xFF, 0xFF, 0xF0)); // ï¿½×°ï¿½É«
                 MainBorder.BorderBrush = new SolidColorBrush(WpfColor.FromArgb(0x60, 0xC0, 0xC0, 0xC0));
-                StatusText.Foreground = new SolidColorBrush(WpfColor.FromRgb(0x2C, 0x3E, 0x50)); // ÉîÉ«ÎÄ×Ö
-                FormatToolbar.Background = new SolidColorBrush(WpfColor.FromArgb(0x30, 0xE0, 0xE0, 0xE0)); // Ç³»ÒÉ«
-                ContentRichTextBox.Foreground = new SolidColorBrush(WpfColor.FromRgb(0x2C, 0x3E, 0x50)); // ÉîÉ«ÎÄ×Ö
+                StatusText.Foreground = new SolidColorBrush(WpfColor.FromRgb(0x2C, 0x3E, 0x50)); // ï¿½ï¿½É«ï¿½ï¿½ï¿½ï¿½
+                FormatToolbar.Background = new SolidColorBrush(WpfColor.FromArgb(0x30, 0xE0, 0xE0, 0xE0)); // Ç³ï¿½ï¿½É«
+                ContentRichTextBox.Foreground = new SolidColorBrush(WpfColor.FromRgb(0x2C, 0x3E, 0x50)); // ï¿½ï¿½É«ï¿½ï¿½ï¿½ï¿½
             }
-            // ±êÌâÀ¸ÑÕÉ«²»ÔÚÕâÀïÉèÖÃ£¬ÓÉ ApplyTitleBarColor ¶ÀÁ¢¹ÜÀí
+            // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½ï¿½ï¿½ ApplyTitleBarColor ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         }
         
         private void ApplyTitleBarColor(string colorHex)
@@ -1117,17 +1117,17 @@ namespace YASN
             }
             catch
             {
-                // Èç¹ûÑÕÉ«¸ñÊ½´íÎó£¬Ê¹ÓÃÄ¬ÈÏÑÕÉ«
+                // ï¿½ï¿½ï¿½ï¿½ï¿½É«ï¿½ï¿½Ê½ï¿½ï¿½ï¿½ï¿½Ê¹ï¿½ï¿½Ä¬ï¿½ï¿½ï¿½ï¿½É«
                 TitleBar.Background = new SolidColorBrush(WpfColor.FromArgb(0xE6, 0xD4, 0xC5, 0xE0));
             }
         }
         
         private void ShowColorPicker()
         {
-            // ´´½¨ÑÕÉ«Ñ¡Ôñ¶Ô»°¿ò
+            // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É«Ñ¡ï¿½ï¿½Ô»ï¿½ï¿½ï¿½
             var colorPickerWindow = new Window
             {
-                Title = "Ñ¡Ôñ±êÌâÀ¸ÑÕÉ«",
+                Title = "Ñ¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É«",
                 Width = 400,
                 Height = 450,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1138,7 +1138,7 @@ namespace YASN
             
             var stackPanel = new StackPanel { Margin = new Thickness(20) };
             
-            // Ô¤ÉèÑÕÉ«
+            // Ô¤ï¿½ï¿½ï¿½ï¿½É«
             var colorsGrid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 0, 0, 20) };
             colorsGrid.ColumnDefinitions.Add(new ColumnDefinition());
             colorsGrid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -1147,14 +1147,14 @@ namespace YASN
             
             var presetColors = new[]
             {
-                ("#E6D4C5E0", "µ­×ÏÉ«"),
-                ("#E6FFB6C1", "·ÛºìÉ«"),
-                ("#E6B0E0E6", "µ­À¶É«"),
-                ("#E6C8E6C9", "µ­ÂÌÉ«"),
-                ("#E6FFE4B5", "µ­»ÆÉ«"),
-                ("#E6F5DEB3", "Ð¡ÂóÉ«"),
-                ("#E6E6E6FA", "Þ¹ÒÂ²ÝÉ«"),
-                ("#E6FFE4E1", "Ãµ¹å°×")
+                ("#E6D4C5E0", "ï¿½ï¿½ï¿½ï¿½É«"),
+                ("#E6FFB6C1", "ï¿½Ûºï¿½É«"),
+                ("#E6B0E0E6", "ï¿½ï¿½ï¿½ï¿½É«"),
+                ("#E6C8E6C9", "ï¿½ï¿½ï¿½ï¿½É«"),
+                ("#E6FFE4B5", "ï¿½ï¿½ï¿½ï¿½É«"),
+                ("#E6F5DEB3", "Ð¡ï¿½ï¿½É«"),
+                ("#E6E6E6FA", "Þ¹ï¿½Â²ï¿½É«"),
+                ("#E6FFE4E1", "Ãµï¿½ï¿½ï¿½")
             };
             
             int row = 0;
@@ -1203,7 +1203,7 @@ namespace YASN
             
             stackPanel.Children.Add(new TextBlock 
             { 
-                Text = "Ñ¡ÔñÔ¤ÉèÑÕÉ«£º", 
+                Text = "Ñ¡ï¿½ï¿½Ô¤ï¿½ï¿½ï¿½ï¿½É«ï¿½ï¿½", 
                 FontWeight = FontWeights.Bold,
                 Margin = new Thickness(0, 0, 0, 10)
             });
@@ -1220,7 +1220,7 @@ namespace YASN
             {
                 var contextMenu = new ContextMenu();
                 
-                var selectImageItem = new MenuItem { Header = "Ñ¡Ôñ±³¾°Í¼Æ¬" };
+                var selectImageItem = new MenuItem { Header = "Ñ¡ï¿½ñ±³¾ï¿½Í¼Æ¬" };
                 selectImageItem.Click += (s, args) =>
                 {
                     var openFileDialog = new WpfOpenFileDialog
@@ -1235,13 +1235,13 @@ namespace YASN
                     }
                 };
                 
-                var clearBackgroundItem = new MenuItem { Header = "Çå³ý±³¾°Í¼Æ¬" };
+                var clearBackgroundItem = new MenuItem { Header = "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼Æ¬" };
                 clearBackgroundItem.Click += (s, args) =>
                 {
                     ClearBackgroundImage();
                 };
                 
-                var adjustOpacityItem = new MenuItem { Header = "µ÷ÕûÍ¸Ã÷¶È" };
+                var adjustOpacityItem = new MenuItem { Header = "ï¿½ï¿½ï¿½ï¿½Í¸ï¿½ï¿½ï¿½ï¿½" };
                 adjustOpacityItem.Click += (s, args) =>
                 {
                     ShowOpacityAdjuster();
@@ -1354,7 +1354,7 @@ namespace YASN
         {
             var opacityWindow = new Window
             {
-                Title = "µ÷Õû±³¾°Í¼Æ¬Í¸Ã÷¶È",
+                Title = "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼Æ¬Í¸ï¿½ï¿½ï¿½ï¿½",
                 Width = 300,
                 Height = 200,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1367,7 +1367,7 @@ namespace YASN
             
             stackPanel.Children.Add(new TextBlock 
             { 
-                Text = "±³¾°Í¼Æ¬Í¸Ã÷¶È£º", 
+                Text = "ï¿½ï¿½ï¿½ï¿½Í¼Æ¬Í¸ï¿½ï¿½ï¿½È£ï¿½", 
                 FontWeight = FontWeights.Bold,
                 Margin = new Thickness(0, 0, 0, 10)
             });
@@ -1384,7 +1384,7 @@ namespace YASN
             
             var valueText = new TextBlock
             {
-                Text = $"µ±Ç°Öµ: {BackgroundImageBorder.Opacity:F2}",
+                Text = $"ï¿½ï¿½Ç°Öµ: {BackgroundImageBorder.Opacity:F2}",
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 10)
             };
@@ -1392,7 +1392,7 @@ namespace YASN
             slider.ValueChanged += (s, e) =>
             {
                 BackgroundImageBorder.Opacity = slider.Value;
-                valueText.Text = $"µ±Ç°Öµ: {slider.Value:F2}";
+                valueText.Text = $"ï¿½ï¿½Ç°Öµ: {slider.Value:F2}";
                 
                 // Save the opacity value to NoteData immediately
                 NoteData.BackgroundImageOpacity = slider.Value;

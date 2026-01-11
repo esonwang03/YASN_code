@@ -14,6 +14,7 @@
 
             // Initialize WebDAV sync manager
             SyncManager = new Sync.SyncManager();
+            Logging.AppLogger.Info("YASN Started");
 
             // Hide main window, only show tray icon
             MainWindow = new MainWindow();
@@ -25,7 +26,7 @@
             // Load icon from the same icon file used by the EXE
             try
             {
-                var iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "favicon.ico");
+                var iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "amy.ico");
                 if (System.IO.File.Exists(iconPath))
                 {
                     _notifyIcon.Icon = new Icon(iconPath);

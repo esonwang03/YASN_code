@@ -16,6 +16,8 @@ namespace YASN
 
         public static string SyncSettingsPath { get; } = Path.Combine(DataDirectory, "settings.sync.json");
         public static string LocalSettingsPath { get; } = Path.Combine(BaseDirectory, "settings.local.json");
+        public static string LogFilePath { get; } = Path.Combine(BaseDirectory, "yasn_log.log");
+        public static string SignatureFilePath { get; } = Path.Combine(DataDirectory, "yasn.sig");
 
         static AppPaths()
         {

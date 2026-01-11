@@ -233,6 +233,30 @@ namespace YASN.Sync.WebDav
             }
         }
 
+        public async Task<string> GetFileHashAsync(string remoteFilePath)
+        {
+            var path = NormalizeRemotePath(remoteFilePath);
+
+            try
+            {
+                var response = await _client.GetRawFile(path);
+                if (!response.IsSuccessful || response.Stream == null)
+                {
+                    return null;
+                }
+
+                await using (response.Stream)
+                {
+                    return FileHashUtil.ComputeStreamHash(response.Stream);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"WebDAV hash failed: {ex.Message}");
+                return null;
+            }
+        }
+
         public void Dispose()
         {
             _client?.Dispose();

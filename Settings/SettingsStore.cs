@@ -81,7 +81,7 @@ namespace YASN.Settings
             return new Dictionary<string, string>();
         }
 
-        private void SaveDictionary(Dictionary<string, string> data, string path)
+        private static void SaveDictionary(Dictionary<string, string> data, string path)
         {
             try
             {

@@ -23,6 +23,7 @@ namespace YASN
             InitializeComponent();
             DataContext = ViewModel;
             Loaded += SettingsWindow_Loaded;
+            Logging.AppLogger.Debug("Settings window initialized");
         }
 
         private void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
@@ -54,6 +55,18 @@ namespace YASN
             };
             generalModule.Fields.Add(autoStartField);
 
+            var logSizeField = new SettingField
+            {
+                Key = "log.maxSizeKb",
+                Title = "最大日志大小 (KB)",
+                Description = "达到上限后自动轮转日志。",
+                FieldType = SettingFieldType.Text,
+                Value = "1024",
+                ShouldSync = true
+            };
+            allFields.Add(logSizeField);
+            generalModule.Fields.Add(logSizeField);
+
             var serverUrlField = new SettingField
             {
                 Key = "webdav.server",
@@ -61,7 +74,7 @@ namespace YASN
                 Description = "例如：https://dav.jianguoyun.com/dav/",
                 FieldType = SettingFieldType.Text,
                 Value = "https://dav.jianguoyun.com/dav/",
-                ShouldSync = true
+                ShouldSync = false
             };
             allFields.Add(serverUrlField);
 
@@ -71,7 +84,7 @@ namespace YASN
                 Title = "用户名 / 邮箱",
                 Description = "用于认证的账户名。",
                 FieldType = SettingFieldType.Text,
-                ShouldSync = true
+                ShouldSync = false
             };
             allFields.Add(userField);
 
@@ -79,9 +92,9 @@ namespace YASN
             {
                 Key = "webdav.password",
                 Title = "密码 / App Token",
-                Description = "建议使用专用应用密码。",
-                FieldType = SettingFieldType.Password,
-                ShouldSync = true
+                Description = "专用应用密码。",
+                FieldType = SettingFieldType.Text,
+                ShouldSync = false
             };
             allFields.Add(passwordField);
 
@@ -92,18 +105,29 @@ namespace YASN
                 Description = "例如：/MyJianGuoYun/YASN",
                 FieldType = SettingFieldType.Text,
                 Value = "/MyJianGuoYun/YASN",
-                ShouldSync = true
+                ShouldSync = false
             };
             allFields.Add(remoteField);
+
+            var syncIntervalField = new SettingField
+            {
+                Key = "webdav.syncIntervalSeconds",
+                Title = "同步间隔 (秒)",
+                Description = "自动同步的时间间隔，最小 10 秒。",
+                FieldType = SettingFieldType.Text,
+                Value = "300",
+                ShouldSync = false
+            };
+            allFields.Add(syncIntervalField);
 
             var autoSyncField = new SettingField
             {
                 Key = "webdav.autoSync",
                 Title = "启用自动同步",
-                Description = "每 5 分钟自动同步一次。",
+                Description = "显式开关控制是否执行云同步。",
                 FieldType = SettingFieldType.Toggle,
                 BoolValue = App.SyncManager?.IsEnabled ?? false,
-                ShouldSync = true
+                ShouldSync = false
             };
             allFields.Add(autoSyncField);
 
@@ -118,6 +142,7 @@ namespace YASN
             webDavModule.Fields.Add(userField);
             webDavModule.Fields.Add(passwordField);
             webDavModule.Fields.Add(remoteField);
+            webDavModule.Fields.Add(syncIntervalField);
             webDavModule.Fields.Add(autoSyncField);
 
             _settingsStore.ApplyValues(allFields);
@@ -128,10 +153,25 @@ namespace YASN
                 _settingsStore.PersistField(field);
             };
 
-            foreach (var field in new[] { serverUrlField, userField, passwordField, remoteField, autoSyncField })
+            logSizeField.OnChanged = field =>
+            {
+                ApplyLogSize(field.Value);
+                _settingsStore.PersistField(field);
+            };
+
+            foreach (var field in new[] { serverUrlField, userField, passwordField, remoteField, autoSyncField, syncIntervalField })
             {
                 field.OnChanged = f => _settingsStore.PersistField(f);
             }
+
+            syncIntervalField.OnChanged = f =>
+            {
+                _settingsStore.PersistField(f);
+                ApplySyncInterval(f.Value);
+            };
+
+            ApplyLogSize(logSizeField.Value);
+            ApplySyncInterval(syncIntervalField.Value);
 
             webDavModule.Actions.Add(new SettingAction
             {
@@ -160,7 +200,9 @@ namespace YASN
                     var options = BuildWebDavOptions(serverUrlField, userField, passwordField);
                     var client = new WebDavSyncClient(options);
                     var enabled = autoSyncField.BoolValue;
-                    var configured = await App.SyncManager.ConfigureAsync(client, NormalizeDirectory(remoteField.Value), enabled);
+                    var intervalSeconds = ParseSyncInterval(syncIntervalField.Value);
+                    ApplySyncInterval(syncIntervalField.Value);
+                    var configured = await App.SyncManager.ConfigureAsync(client, NormalizeDirectory(remoteField.Value), enabled, intervalSeconds);
                     return configured ? "WebDAV 已保存并生效。" : "WebDAV 配置失败。";
                 }
             });
@@ -195,8 +237,9 @@ namespace YASN
             if (!success)
             {
                 field.BoolValue = !enabled;
-                MessageBox.Show("更新开机自启动失败。", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            
+            Logging.AppLogger.Debug($"Auto-start {(field.BoolValue ? "enabled" : "disabled")}");
         }
 
         private async void ActionButton_Click(object sender, RoutedEventArgs e)
@@ -237,6 +280,38 @@ namespace YASN
         private SettingModule FindModuleForAction(SettingAction action)
         {
             return ViewModel.Modules.FirstOrDefault(m => m.Actions.Contains(action));
+        }
+
+        private void ApplyLogSize(string value)
+        {
+            if (int.TryParse(value, out var kb) && kb > 0)
+            {
+                Logging.AppLogger.SetMaxSizeKb(kb);
+                Logging.AppLogger.Debug($"日志大小限制设为 {kb} KB");
+            }
+            else
+            {
+                Logging.AppLogger.Warn("无效的日志大小，需为正整数 KB");
+            }
+        }
+
+        private void ApplySyncInterval(string value)
+        {
+            var seconds = ParseSyncInterval(value);
+            App.SyncManager?.SetIntervalSeconds(seconds);
+            Logging.AppLogger.Debug($"同步间隔设为 {seconds} 秒");
+        }
+
+        private int ParseSyncInterval(string value)
+        {
+            const int defaultSeconds = 300;
+            if (int.TryParse(value, out var seconds) && seconds > 0)
+            {
+                return Math.Max(10, seconds);
+            }
+
+            Logging.AppLogger.Warn("同步间隔需为正整数秒，已回落至默认值");
+            return defaultSeconds;
         }
 
         private void NavList_SelectionChanged(object sender, SelectionChangedEventArgs e)
