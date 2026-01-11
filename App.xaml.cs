@@ -7,9 +7,18 @@
     {
         private NotifyIcon? _notifyIcon;
         public static Sync.SyncManager? SyncManager { get; private set; }
+        private static System.Threading.Mutex? _singleInstanceMutex;
+        private const string MutexName = "Global\\YASN_SingleInstance";
 
         protected override void OnStartup(System.Windows.StartupEventArgs e)
         {
+            if (!EnsureSingleInstance())
+            {
+                System.Windows.MessageBox.Show("YASN 已在运行，无法启动多个实例。", "已在运行", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                Shutdown();
+                return;
+            }
+
             base.OnStartup(e);
 
             // Initialize WebDAV sync manager
@@ -80,6 +89,42 @@
             }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
+        protected override void OnExit(System.Windows.ExitEventArgs e)
+        {
+            // Ensure flag is set even if ExitApplication wasn't called
+            FloatingWindow.SetApplicationShuttingDown();
+            
+            // Dispose sync manager
+            SyncManager?.Dispose();
+            
+            _notifyIcon?.Dispose();
+            base.OnExit(e);
+            try
+            {
+                _singleInstanceMutex?.ReleaseMutex();
+                _singleInstanceMutex?.Dispose();
+                _singleInstanceMutex = null;
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        private bool EnsureSingleInstance()
+        {
+            try
+            {
+                bool createdNew;
+                _singleInstanceMutex = new System.Threading.Mutex(true, MutexName, out createdNew);
+                return createdNew;
+            }
+            catch
+            {
+                return true; // fail open to avoid blocking launch if mutex creation fails
+            }
+        }
+
         private void CreateTopWindowMenuItem_Click(object sender, System.EventArgs e)
         {
             var noteData = NoteManager.Instance.CreateNote(WindowLevel.TopMost);
@@ -125,18 +170,6 @@
             
             _notifyIcon?.Dispose();
             Current.Shutdown();
-        }
-
-        protected override void OnExit(System.Windows.ExitEventArgs e)
-        {
-            // Ensure flag is set even if ExitApplication wasn't called
-            FloatingWindow.SetApplicationShuttingDown();
-            
-            // Dispose sync manager
-            SyncManager?.Dispose();
-            
-            _notifyIcon?.Dispose();
-            base.OnExit(e);
         }
     }
 }
