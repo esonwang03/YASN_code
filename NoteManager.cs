@@ -49,7 +49,7 @@ namespace YASN
             {
                 Id = _nextId++,
                 Title = $"Note #{_nextId - 1}",
-                Content = "Enter your markdown here...",
+                Content = "Double Right Click to enter your markdown here...",
                 Level = level,
                 Left = 100,
                 Top = 100,

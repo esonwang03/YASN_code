@@ -1,9 +1,5 @@
-
-using System;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -14,7 +10,6 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Markdig;
 using Microsoft.Web.WebView2.Core;
-using Microsoft.Win32;
 using Application = System.Windows.Application;
 using Brushes = System.Windows.Media.Brushes;
 using Button = System.Windows.Controls.Button;
@@ -25,10 +20,12 @@ using DataFormats = System.Windows.DataFormats;
 using DragDropEffects = System.Windows.DragDropEffects;
 using DragEventArgs = System.Windows.DragEventArgs;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MenuItem = System.Windows.Controls.MenuItem;
 using MessageBox = ModernWpf.MessageBox;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
+using Point = System.Windows.Point;
 
 namespace YASN
 {
@@ -48,13 +45,30 @@ namespace YASN
         private const uint SWP_NOMOVE = 0x0002;
         private const uint SWP_NOACTIVATE = 0x0010;
         private const uint SWP_SHOWWINDOW = 0x0040;
+        private const string IconPin = "\uE718";
+        private const string IconUnpin = "\uE77A";
+        private const string IconArrowDown = "\uE74B";
+        private const string IconSun = "\uE706";
+        private const string IconMoon = "\uE708";
 
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+        [LibraryImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+        [LibraryImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool GetCursorPos(out NativePoint lpPoint);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativePoint
+        {
+            public int X;
+            public int Y;
+        }
 
         private IntPtr _hwnd;
         private readonly DispatcherTimer _bottomMostTimer = new();
         private readonly DispatcherTimer _previewDebounceTimer = new();
+        private readonly DispatcherTimer _chromeHoverTimer = new();
         private readonly MarkdownPipeline _markdownPipeline;
         private Storyboard _collapseEditBar;
         private Storyboard _expandEditBar;
@@ -65,6 +79,8 @@ namespace YASN
 
         private bool _previewReady;
         private bool _isPreviewInitInProgress;
+        private bool _isChromeExpanded = true;
+        private DateTime _lastPreviewRightClickUtc = DateTime.MinValue;
 
         private static FloatingWindow _currentBottomMostWindow;
         private static readonly object _bottomMostLock = new object();
@@ -104,6 +120,7 @@ namespace YASN
             UpdateStatusText();
             UpdatePinButton();
             ApplyTheme(noteData.IsDarkMode);
+            UpdateThemeToggleButton();
             ApplyTitleBarColor(noteData.TitleBarColor);
             ApplyBackgroundImage(noteData.BackgroundImagePath);
             BackgroundImageBorder.Opacity = noteData.BackgroundImageOpacity;
@@ -129,11 +146,87 @@ namespace YASN
                 await RenderPreviewAsync();
             };
 
+            _chromeHoverTimer.Interval = TimeSpan.FromMilliseconds(120);
+            _chromeHoverTimer.Tick += (_, _) => UpdateChromeBarsByMouseState();
+            _chromeHoverTimer.Start();
+
             _collapseEditBar = (Storyboard)FindResource("CollapseEditBar");
             _expandEditBar = (Storyboard)FindResource("ExpandEditBar");
+            ApplyInitialDisplayMode();
 
             LocationChanged += (_, _) => SavePosition();
             SizeChanged += (_, _) => SaveSize();
+            PreviewKeyDown += FloatingWindow_PreviewKeyDown;
+        }
+
+        private void ApplyInitialDisplayMode()
+        {
+            var hasContent = !string.IsNullOrWhiteSpace(GetContent());
+            SetEditMode(!hasContent);
+        }
+
+        private void SetEditMode(bool isEditMode, bool focusEditor = false)
+        {
+            NoteData.IsEditMode = isEditMode;
+
+            MarkdownToolbar.Visibility = isEditMode ? Visibility.Visible : Visibility.Collapsed;
+            ContentTextBox.Visibility = isEditMode ? Visibility.Visible : Visibility.Collapsed;
+            EditorPreviewSplitter.Visibility = isEditMode ? Visibility.Visible : Visibility.Collapsed;
+
+            EditorColumn.Width = isEditMode
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(0);
+            SplitterColumn.Width = isEditMode
+                ? new GridLength(5)
+                : new GridLength(0);
+            PreviewColumn.Width = new GridLength(1, GridUnitType.Star);
+            UpdateChromeBarsByMouseState();
+
+            if (isEditMode && focusEditor)
+            {
+                ContentTextBox.Focus();
+                ContentTextBox.CaretIndex = ContentTextBox.Text?.Length ?? 0;
+            }
+        }
+
+        private void UpdateChromeBarsByMouseState()
+        {
+            SetChromeExpanded(IsMouseInsideWindow());
+        }
+
+        private bool IsMouseInsideWindow()
+        {
+            if (!IsVisible || WindowState == WindowState.Minimized)
+            {
+                return false;
+            }
+
+            if (!GetCursorPos(out var nativePoint))
+            {
+                return false;
+            }
+
+            var dipPoint = PointFromScreen(new Point(nativePoint.X, nativePoint.Y));
+            return dipPoint is { X: >= 0, Y: >= 0 } &&
+                   dipPoint.X <= ActualWidth &&
+                   dipPoint.Y <= ActualHeight;
+        }
+
+        private void SetChromeExpanded(bool expanded)
+        {
+            if (_isChromeExpanded == expanded)
+            {
+                return;
+            }
+
+            _isChromeExpanded = expanded;
+            if (expanded)
+            {
+                _expandEditBar?.Begin();
+                return;
+            }
+
+            _collapseEditBar?.Begin();
         }
 
         private void LoadContent(string content)
@@ -172,6 +265,7 @@ namespace YASN
                 PreviewWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 PreviewWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
                 PreviewWebView.CoreWebView2.Settings.AreDevToolsEnabled = true;
+                PreviewWebView.CoreWebView2.ContextMenuRequested += PreviewCoreWebView2_ContextMenuRequested;
                 PreviewWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                     "yasn.local",
                     AppPaths.DataDirectory,
@@ -397,29 +491,74 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             ApplyWindowLevel();
             await InitializePreviewAsync();
             SchedulePreviewRender();
+            UpdateChromeBarsByMouseState();
         }
 
         private void Window_Activated(object sender, EventArgs e)
         {
-            _expandEditBar?.Begin();
+            UpdateChromeBarsByMouseState();
         }
 
         private void Window_Deactivated(object sender, EventArgs e)
         {
-            _collapseEditBar?.Begin();
+            UpdateChromeBarsByMouseState();
         }
 
         private void MainBorder_MouseEnter(object sender, MouseEventArgs mouseEventArgs)
         {
-            _expandEditBar?.Begin();
+            UpdateChromeBarsByMouseState();
         }
 
         private void MainBorder_MouseLeave(object sender, MouseEventArgs e)
         {
-            if (!IsActive)
+            UpdateChromeBarsByMouseState();
+        }
+
+        private void FloatingWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (!NoteData.IsEditMode)
             {
-                _collapseEditBar?.Begin();
+                return;
             }
+
+            if (e.Key != Key.Escape)
+            {
+                return;
+            }
+
+            SetEditMode(false);
+            PreviewWebView.Focus();
+            e.Handled = true;
+        }
+
+        private void PreviewSurface_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2 && !NoteData.IsEditMode)
+            {
+                SetEditMode(true, focusEditor: true);
+                e.Handled = true;
+            }
+        }
+
+        private void PreviewCoreWebView2_ContextMenuRequested(object sender, CoreWebView2ContextMenuRequestedEventArgs e)
+        {
+            if (NoteData.IsEditMode)
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            var threshold = TimeSpan.FromMilliseconds(500);
+            var isDoubleRightClick = now - _lastPreviewRightClickUtc <= threshold;
+            _lastPreviewRightClickUtc = now;
+
+            e.Handled = true;
+            if (!isDoubleRightClick)
+            {
+                return;
+            }
+
+            Dispatcher.BeginInvoke(new Action(() => SetEditMode(true, focusEditor: true)));
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -528,9 +667,6 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
                 }
             };
 
-            var toggleThemeItem = new MenuItem { Header = NoteData.IsDarkMode ? "Switch to Day mode" : "Switch to Night mode" };
-            toggleThemeItem.Click += (_, _) => ToggleTheme();
-
             var changeTitleBarColorItem = new MenuItem { Header = "Change Title Bar Color" };
             changeTitleBarColorItem.Click += (_, _) => ShowColorPicker();
 
@@ -550,7 +686,6 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             contextMenu.Items.Add(deleteNoteItem);
             contextMenu.Items.Add(clearContentItem);
             contextMenu.Items.Add(new Separator());
-            contextMenu.Items.Add(toggleThemeItem);
             contextMenu.Items.Add(changeTitleBarColorItem);
             contextMenu.Items.Add(backgroundImageItem);
             contextMenu.Items.Add(new Separator());
@@ -563,19 +698,17 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
 
         private void PinButton_Click(object sender, RoutedEventArgs e)
         {
-            if (NoteData.Level == WindowLevel.TopMost)
-            {
-                SetWindowLevel(WindowLevel.Normal);
-            }
-            else
-            {
-                SetWindowLevel(WindowLevel.TopMost);
-            }
+            SetWindowLevel(NoteData.Level == WindowLevel.TopMost ? WindowLevel.Normal : WindowLevel.TopMost);
+        }
+
+        private void ThemeToggle_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleTheme();
         }
 
         private void SendToBottom_Click(object sender, RoutedEventArgs e)
         {
-            SetWindowLevel(WindowLevel.BottomMost);
+            SetWindowLevel(NoteData.Level == WindowLevel.BottomMost ? WindowLevel.Normal : WindowLevel.BottomMost);
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
@@ -600,15 +733,28 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
 
         private void UpdatePinButton()
         {
-            if (NoteData.Level == WindowLevel.TopMost)
+            switch (NoteData.Level)
             {
-                PinButton.Content = "^";
-                PinButton.ToolTip = "Unpin from Top";
-            }
-            else
-            {
-                PinButton.Content = "P";
-                PinButton.ToolTip = "Pin to Top";
+                case WindowLevel.TopMost:
+                    PinTopButton.Content = IconUnpin;
+                    PinTopButton.ToolTip = "Unpin from Top";
+                    PinBottomButton.Content = IconArrowDown;
+                    PinBottomButton.ToolTip = "Pin to Bottom";
+                    break;
+                case WindowLevel.Normal:
+                    PinTopButton.Content = IconPin;
+                    PinTopButton.ToolTip = "Pin to Top";
+                    PinBottomButton.Content = IconArrowDown;
+                    PinBottomButton.ToolTip = "Pin to Bottom";
+                    break;
+                case WindowLevel.BottomMost:
+                    PinTopButton.Content = IconPin;
+                    PinTopButton.ToolTip = "Pin to Top";
+                    PinBottomButton.Content = IconUnpin;
+                    PinBottomButton.ToolTip = "Unpin from Bottom";
+                    break;
+                default: // try to make linter happy
+                    break;
             }
         }
 
@@ -703,6 +849,7 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
         {
             _bottomMostTimer?.Stop();
             _previewDebounceTimer?.Stop();
+            _chromeHoverTimer?.Stop();
 
             lock (_bottomMostLock)
             {
@@ -726,8 +873,22 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
         {
             NoteData.IsDarkMode = !NoteData.IsDarkMode;
             ApplyTheme(NoteData.IsDarkMode);
+            UpdateThemeToggleButton();
             NoteManager.Instance.UpdateNote(NoteData);
             SchedulePreviewRender();
+        }
+
+        private void UpdateThemeToggleButton()
+        {
+            if (ThemeToggleButton == null)
+            {
+                return;
+            }
+
+            ThemeToggleButton.Content = NoteData.IsDarkMode ? IconSun : IconMoon;
+            ThemeToggleButton.ToolTip = NoteData.IsDarkMode
+                ? "Switch to Day mode"
+                : "Switch to Night mode";
         }
 
         private void ApplyTheme(bool isDarkMode)

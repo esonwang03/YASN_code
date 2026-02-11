@@ -91,6 +91,8 @@
         </Style>
 
         <Style x:Key="CloseButtonStyle" TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -115,6 +117,12 @@
         <Style x:Key="LevelButtonStyle" TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+        <Style x:Key="IconTitleBarButtonStyle" TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Normal"/>
         </Style>
 
         <Style x:Key="MarkdownActionButtonStyle" TargetType="Button">
@@ -145,6 +153,12 @@
         </Style>
 
         <Storyboard x:Key="CollapseEditBar">
+            <DoubleAnimation Storyboard.TargetName="TitleBar"
+                           Storyboard.TargetProperty="Height"
+                           To="0" Duration="0:0:0.2"/>
+            <DoubleAnimation Storyboard.TargetName="TitleBar"
+                           Storyboard.TargetProperty="Opacity"
+                           To="0" Duration="0:0:0.2"/>
             <DoubleAnimation Storyboard.TargetName="MarkdownToolbar"
                            Storyboard.TargetProperty="Height"
                            To="0" Duration="0:0:0.2"/>
@@ -154,6 +168,12 @@
         </Storyboard>
 
         <Storyboard x:Key="ExpandEditBar">
+            <DoubleAnimation Storyboard.TargetName="TitleBar"
+                           Storyboard.TargetProperty="Height"
+                           To="40" Duration="0:0:0.2"/>
+            <DoubleAnimation Storyboard.TargetName="TitleBar"
+                           Storyboard.TargetProperty="Opacity"
+                           To="1" Duration="0:0:0.2"/>
             <DoubleAnimation Storyboard.TargetName="MarkdownToolbar"
                            Storyboard.TargetProperty="Height"
                            To="30" Duration="0:0:0.2"/>
@@ -202,9 +222,10 @@
                             <ColumnDefinition Width="40"/>
                             <ColumnDefinition Width="40"/>
                             <ColumnDefinition Width="40"/>
+                            <ColumnDefinition Width="40"/>
                         </Grid.ColumnDefinitions>
 
-                        <Button Grid.Column="0" Content="=" ToolTip="Show Main" Style="{StaticResource TitleBarButtonStyle}" Click="ShowMainWindow_Click"/>
+                        <Button Grid.Column="0" Content="&#xE700;" ToolTip="Show Main" Style="{StaticResource IconTitleBarButtonStyle}" Click="ShowMainWindow_Click"/>
                         <Border Grid.Column="1" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                             <TextBlock x:Name="StatusText"
                                        Text="Note #1"
@@ -214,10 +235,11 @@
                                        FontSize="13"
                                        FontWeight="SemiBold"/>
                         </Border>
-                        <Button Grid.Column="2" Content="..." ToolTip="More" Style="{StaticResource TitleBarButtonStyle}" Click="MoreOptions_Click"/>
-                        <Button x:Name="PinButton" Grid.Column="3" Content="P" ToolTip="Pin Top" Style="{StaticResource TitleBarButtonStyle}" Click="PinButton_Click"/>
-                        <Button Grid.Column="4" Content="v" ToolTip="To Bottom" Style="{StaticResource LevelButtonStyle}" Click="SendToBottom_Click"/>
-                        <Button Grid.Column="5" Content="X" ToolTip="Close" Style="{StaticResource CloseButtonStyle}" Click="CloseButton_Click"/>
+                        <Button Grid.Column="2" Content="&#xE712;" ToolTip="More" Style="{StaticResource IconTitleBarButtonStyle}" Click="MoreOptions_Click"/>
+                        <Button x:Name="ThemeToggleButton" Grid.Column="3" Content="&#xE706;" ToolTip="Switch Theme" Style="{StaticResource IconTitleBarButtonStyle}" Click="ThemeToggle_Click"/>
+                        <Button x:Name="PinTopButton" Grid.Column="4" Content="&#xE718;" ToolTip="Pin Top" Style="{StaticResource IconTitleBarButtonStyle}" Click="PinButton_Click"/>
+                        <Button x:Name="PinBottomButton" Grid.Column="5" Content="&#xE74B;" ToolTip="To Bottom" Style="{StaticResource IconTitleBarButtonStyle}" Click="SendToBottom_Click"/>
+                        <Button Grid.Column="6" Content="&#xE8BB;" ToolTip="Close" Style="{StaticResource CloseButtonStyle}" Click="CloseButton_Click"/>
                     </Grid>
                 </Border>
 
@@ -231,19 +253,14 @@
                             <Button Content="Insert Image" Style="{StaticResource MarkdownActionButtonStyle}" Click="InsertImage_Click"/>
                             <Button Content="Refresh Preview" Style="{StaticResource MarkdownActionButtonStyle}" Click="RefreshPreview_Click"/>
                         </StackPanel>
-                        <TextBlock Text="Markdown"
-                                   Foreground="#EAF0F1"
-                                   FontSize="12"
-                                   VerticalAlignment="Center"
-                                   Margin="8,0,0,0"/>
                     </DockPanel>
                 </Border>
 
                 <Grid Grid.Row="2">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="5"/>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition x:Name="EditorColumn" Width="*"/>
+                        <ColumnDefinition x:Name="SplitterColumn" Width="5"/>
+                        <ColumnDefinition x:Name="PreviewColumn" Width="*"/>
                     </Grid.ColumnDefinitions>
 
                     <TextBox x:Name="ContentTextBox"
@@ -253,14 +270,24 @@
                              PreviewDragOver="ContentTextBox_PreviewDragOver"
                              PreviewDrop="ContentTextBox_PreviewDrop"/>
 
-                    <GridSplitter Grid.Column="1"
+                    <GridSplitter x:Name="EditorPreviewSplitter"
+                                  Grid.Column="1"
                                   Width="5"
                                   HorizontalAlignment="Stretch"
                                   VerticalAlignment="Stretch"
                                   Background="#33000000"/>
 
-                    <Border Grid.Column="2" Margin="0,0,6,6" CornerRadius="4" Background="#20FFFFFF" BorderBrush="#25000000" BorderThickness="1">
-                        <wv2:WebView2 x:Name="PreviewWebView" Margin="0"/>
+                    <Border x:Name="PreviewContainer"
+                            Grid.Column="2"
+                            Margin="0,0,0,0"
+                            CornerRadius="4"
+                            Background="#20FFFFFF"
+                            BorderBrush="#25000000"
+                            BorderThickness="1"
+                            PreviewMouseRightButtonDown="PreviewSurface_PreviewMouseRightButtonDown">
+                        <wv2:WebView2 x:Name="PreviewWebView"
+                                      Margin="0"
+                                      PreviewMouseRightButtonDown="PreviewSurface_PreviewMouseRightButtonDown"/>
                     </Border>
                 </Grid>
             </Grid>
