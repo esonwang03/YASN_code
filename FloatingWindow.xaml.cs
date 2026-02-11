@@ -744,7 +744,7 @@ namespace YASN
             {
                 var contextMenu = new ContextMenu();
                 
-                var showMainWindowItem = new MenuItem { Header = "��ʾ������" };
+                var showMainWindowItem = new MenuItem { Header = "Open MainWindow" };
                 showMainWindowItem.Click += (s, args) =>
                 {
                     var app = System.Windows.Application.Current as App;
@@ -756,7 +756,7 @@ namespace YASN
                     }
                 };
                 
-                var createNoteItem = new MenuItem { Header = "�½���ǩ" };
+                var createNoteItem = new MenuItem { Header = "Create New Note" };
                 createNoteItem.Click += (s, args) =>
                 {
                     var newNote = NoteManager.Instance.CreateNote();
@@ -764,7 +764,7 @@ namespace YASN
                     newWindow.Show();
                 };
                 
-                var createTopMostNoteItem = new MenuItem { Header = "�½��ö���ǩ" };
+                var createTopMostNoteItem = new MenuItem { Header = "Create TopMost Note" };
                 createTopMostNoteItem.Click += (s, args) =>
                 {
                     var newNote = NoteManager.Instance.CreateNote(WindowLevel.TopMost);
@@ -794,8 +794,8 @@ namespace YASN
                 deleteNoteItem.Click += (s, args) =>
                 {
                     var result = WpfMessageBox.Show(
-                        "ȷ��Ҫɾ�������ǩ��",
-                        "ȷ��ɾ��",
+                        "Are you sure you want to delete this note?",
+                        "Delete",
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Question);
                     
@@ -806,12 +806,12 @@ namespace YASN
                     }
                 };
                 
-                var clearContentItem = new MenuItem { Header = "�������" };
+                var clearContentItem = new MenuItem { Header = "Clear Current Content" };
                 clearContentItem.Click += (s, args) =>
                 {
                     var result = WpfMessageBox.Show(
-                        "ȷ��Ҫ��ձ�ǩ������",
-                        "ȷ�����",
+                        "Are you sure you want to clear the current content?",
+                        "Clear Content",
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Question);
                     
@@ -822,23 +822,23 @@ namespace YASN
                     }
                 };
                 
-                var aboutItem = new MenuItem { Header = "����" };
+                var aboutItem = new MenuItem { Header = "About" };
                 aboutItem.Click += (s, args) =>
                 {
                     WpfMessageBox.Show(
-                        "YASN - Yet Another Sticky Notes\n�汾 1.0\n\nһ�����ı�ǩӦ�ó���",
-                        "���� YASN",
+                        "YASN - Yet Another Sticky Notes\nv1.0\n\nA simple sticky note application",
+                        "About YASN",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                 };
                 
-                var toggleThemeItem = new MenuItem { Header = NoteData.IsDarkMode ? "�л�������ģʽ" : "�л�����ҹģʽ" };
+                var toggleThemeItem = new MenuItem { Header = NoteData.IsDarkMode ? "Switch to Day mode" : "Switch to Night mode" };
                 toggleThemeItem.Click += (s, args) =>
                 {
                     ToggleTheme();
                 };
                 
-                var changeTitleBarColorItem = new MenuItem { Header = "���ı�������ɫ" };
+                var changeTitleBarColorItem = new MenuItem { Header = "Change Title Bar Color" };
                 changeTitleBarColorItem.Click += (s, args) =>
                 {
                     ShowColorPicker();
@@ -925,7 +925,7 @@ namespace YASN
             if (_hwnd == IntPtr.Zero)
                 return;
 
-            // ��ֹͣ��ʱ��
+            // stop timer
             _timer?.Stop();
 
             switch (NoteData.Level)
@@ -939,30 +939,25 @@ namespace YASN
                     
                     lock (_bottomMostLock)
                     {
-                        // ����Ѿ������������� BottomMost�������Ϊ Normal
+                        // Switch previous bottom most windows to Normal
                         if (_currentBottomMostWindow != null && _currentBottomMostWindow != this)
                         {
                             var previousWindow = _currentBottomMostWindow;
-                            _currentBottomMostWindow = null; // ����գ�����ݹ�
+                            _currentBottomMostWindow = null; // clear first
                             
-                            // ��֮ǰ�� BottomMost ���ڸ�Ϊ Normal
-                            previousWindow.Dispatcher.Invoke(() =>
-                            {
-                                previousWindow.SetWindowLevel(WindowLevel.Normal);
-                            });
+                            previousWindow.Dispatcher.Invoke(() => previousWindow.SetWindowLevel(WindowLevel.Normal));
                         }
                         
-                        // ���õ�ǰ����Ϊ BottomMost
                         _currentBottomMostWindow = this;
                     }
                     
-                    // ���ô��ڵ��ײ�
+                    // window to bottom
                     SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 
                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
                     SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, 
                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
                     
-                    // ������ʱ��
+                    // restart timer
                     _timer?.Start();
                     break;
 
@@ -970,7 +965,7 @@ namespace YASN
                 default:
                     this.Topmost = false;
                     
-                    // �����ǰ������ BottomMost �ڣ��������
+                    // if current windows is bottom most, clear the ref 
                     lock (_bottomMostLock)
                     {
                         if (_currentBottomMostWindow == this)
@@ -995,7 +990,6 @@ namespace YASN
         {
             base.OnActivated(e);
             
-            // ֻ�е�ǰ�� BottomMost ���ڲ�����Ӧ�ô��ڼ���
             if (NoteData.Level == WindowLevel.BottomMost && _hwnd != IntPtr.Zero && _currentBottomMostWindow == this)
             {
                 Dispatcher.BeginInvoke(new Action(() => 
@@ -1010,7 +1004,6 @@ namespace YASN
         {
             _timer?.Stop();
             
-            // �����ǰ������ BottomMost ���ڣ��������
             lock (_bottomMostLock)
             {
                 if (_currentBottomMostWindow == this)
@@ -1064,22 +1057,29 @@ namespace YASN
         {
             foreach (var inline in inlines)
             {
-                if (inline is Run run)
+                switch (inline)
                 {
-                    if (run.Foreground is SolidColorBrush brush && brush.Color == oldColor)
+                    case Run run:
                     {
-                        run.Foreground = new SolidColorBrush(newColor);
+                        if (run.Foreground is SolidColorBrush brush && brush.Color == oldColor)
+                        {
+                            run.Foreground = new SolidColorBrush(newColor);
+                        }
+
+                        break;
                     }
-                }
-                else if (inline is Span span)
-                {
-                    // Recursively update nested inlines
-                    UpdateInlineColors(span.Inlines, oldColor, newColor);
-                    
-                    // Also check the span itself
-                    if (span.Foreground is SolidColorBrush brush && brush.Color == oldColor)
+                    case Span span:
                     {
-                        span.Foreground = new SolidColorBrush(newColor);
+                        // Recursively update nested inlines
+                        UpdateInlineColors(span.Inlines, oldColor, newColor);
+                    
+                        // Also check the span itself
+                        if (span.Foreground is SolidColorBrush brush && brush.Color == oldColor)
+                        {
+                            span.Foreground = new SolidColorBrush(newColor);
+                        }
+
+                        break;
                     }
                 }
             }
@@ -1089,23 +1089,22 @@ namespace YASN
         {
             if (isDarkMode)
             {
-                // ��ҹģʽ���ڵװ���
-                MainBorder.Background = new SolidColorBrush(WpfColor.FromArgb(0xC8, 0x1E, 0x1E, 0x1E)); // ��Һ�ɫ
+                MainBorder.Background = new SolidColorBrush(WpfColor.FromArgb(0xC8, 0x1E, 0x1E, 0x1E));
                 MainBorder.BorderBrush = new SolidColorBrush(WpfColor.FromArgb(0x60, 0x80, 0x80, 0x80));
-                StatusText.Foreground = new SolidColorBrush(WpfColor.FromRgb(0xEC, 0xF0, 0xF1)); // ǳɫ����
+                StatusText.Foreground = new SolidColorBrush(WpfColor.FromRgb(0xEC, 0xF0, 0xF1)); 
                 FormatToolbar.Background = new SolidColorBrush(WpfColor.FromArgb(0x40, 0x00, 0x00, 0x00));
-                ContentRichTextBox.Foreground = new SolidColorBrush(WpfColor.FromRgb(0xEC, 0xF0, 0xF1)); // ��ɫ����
+                ContentRichTextBox.Foreground = new SolidColorBrush(WpfColor.FromRgb(0xEC, 0xF0, 0xF1));
             }
             else
             {
-                // ����ģʽ���׵׺���
-                MainBorder.Background = new SolidColorBrush(WpfColor.FromArgb(0xF0, 0xFF, 0xFF, 0xF0)); // �װ�ɫ
+
+                MainBorder.Background = new SolidColorBrush(WpfColor.FromArgb(0xF0, 0xFF, 0xFF, 0xF0)); 
                 MainBorder.BorderBrush = new SolidColorBrush(WpfColor.FromArgb(0x60, 0xC0, 0xC0, 0xC0));
-                StatusText.Foreground = new SolidColorBrush(WpfColor.FromRgb(0x2C, 0x3E, 0x50)); // ��ɫ����
-                FormatToolbar.Background = new SolidColorBrush(WpfColor.FromArgb(0x30, 0xE0, 0xE0, 0xE0)); // ǳ��ɫ
-                ContentRichTextBox.Foreground = new SolidColorBrush(WpfColor.FromRgb(0x2C, 0x3E, 0x50)); // ��ɫ����
+                StatusText.Foreground = new SolidColorBrush(WpfColor.FromRgb(0x2C, 0x3E, 0x50)); 
+                FormatToolbar.Background = new SolidColorBrush(WpfColor.FromArgb(0x30, 0xE0, 0xE0, 0xE0));
+                ContentRichTextBox.Foreground = new SolidColorBrush(WpfColor.FromRgb(0x2C, 0x3E, 0x50));
             }
-            // ��������ɫ�����������ã��� ApplyTitleBarColor ��������
+
         }
         
         private void ApplyTitleBarColor(string colorHex)
@@ -1117,7 +1116,6 @@ namespace YASN
             }
             catch
             {
-                // �����ɫ��ʽ����ʹ��Ĭ����ɫ
                 TitleBar.Background = new SolidColorBrush(WpfColor.FromArgb(0xE6, 0xD4, 0xC5, 0xE0));
             }
         }
@@ -1289,6 +1287,7 @@ namespace YASN
                     }
                     catch
                     {
+                        // we should do some user side report or logging
                     }
                 }
                 
@@ -1341,11 +1340,13 @@ namespace YASN
                         }
                         catch
                         {
+                            // we should do some user side report or logging 
                         }
                     }
                 }
                 catch
                 {
+                    // we should do some user side report or logging 
                 }
             }
         }
@@ -1354,7 +1355,7 @@ namespace YASN
         {
             var opacityWindow = new Window
             {
-                Title = "��������ͼƬ͸����",
+                Title = "Change opacity of background image",
                 Width = 300,
                 Height = 200,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1367,7 +1368,7 @@ namespace YASN
             
             stackPanel.Children.Add(new TextBlock 
             { 
-                Text = "����ͼƬ͸���ȣ�", 
+                Text = "BG opacity", 
                 FontWeight = FontWeights.Bold,
                 Margin = new Thickness(0, 0, 0, 10)
             });
@@ -1384,7 +1385,7 @@ namespace YASN
             
             var valueText = new TextBlock
             {
-                Text = $"��ǰֵ: {BackgroundImageBorder.Opacity:F2}",
+                Text = $"Current: {BackgroundImageBorder.Opacity:F2}",
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 10)
             };
@@ -1392,7 +1393,7 @@ namespace YASN
             slider.ValueChanged += (s, e) =>
             {
                 BackgroundImageBorder.Opacity = slider.Value;
-                valueText.Text = $"��ǰֵ: {slider.Value:F2}";
+                valueText.Text = $"Current: {slider.Value:F2}";
                 
                 // Save the opacity value to NoteData immediately
                 NoteData.BackgroundImageOpacity = slider.Value;
