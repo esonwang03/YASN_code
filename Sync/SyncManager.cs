@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Timers;
-using System.Windows;
 using YASN;
 using YASN.Logging;
 using Application = System.Windows.Application;
@@ -22,7 +21,6 @@ namespace YASN.Sync
         private ISyncClient _client;
         private bool _isEnabled;
         private string _remoteDirectory = string.Empty;
-        private readonly string[] _syncFiles;
         private Dictionary<string, string> _remoteSignatures = new();
         private const string SignatureFileName = "yasn.sig";
 
@@ -35,11 +33,6 @@ namespace YASN.Sync
 
         public SyncManager()
         {
-            _syncFiles = new[]
-            {
-                AppPaths.NotesFilePath,
-                AppPaths.SyncSettingsPath
-            };
             _signatureStore = new SignatureStore(AppPaths.SignatureFilePath);
             _syncTimer = new System.Timers.Timer
             {
@@ -102,8 +95,18 @@ namespace YASN.Sync
 
             try
             {
-                var existingFiles = _syncFiles.Where(File.Exists).ToList();
-                if (!existingFiles.Any())
+                _remoteSignatures = await LoadRemoteSignaturesAsync();
+                var localEntries = BuildLocalSyncEntries();
+                var allKeys = new HashSet<string>(localEntries.Keys, StringComparer.OrdinalIgnoreCase);
+                foreach (var key in _remoteSignatures.Keys)
+                {
+                    if (!string.Equals(key, SignatureFileName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        allKeys.Add(key);
+                    }
+                }
+
+                if (allKeys.Count == 0)
                 {
                     result.Success = false;
                     result.Message = "No syncable files found";
@@ -111,113 +114,119 @@ namespace YASN.Sync
                 }
 
                 var messages = new List<string>();
-                _remoteSignatures = await LoadRemoteSignaturesAsync();
                 var signatureDirty = false;
+                var shouldReloadNotes = false;
 
-                foreach (var filePath in existingFiles)
+                foreach (var key in allKeys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
                 {
-                    var fileName = Path.GetFileName(filePath);
-                    var remoteFilePath = BuildRemotePath(fileName);
-                    var isNotesFile = string.Equals(fileName, "notes.json", StringComparison.OrdinalIgnoreCase);
-                    var localHash = _signatureStore.Get(fileName);
-                    if (string.IsNullOrEmpty(localHash))
-                    {
-                        localHash = FileHashUtil.ComputeFileHash(filePath);
-                        if (!string.IsNullOrEmpty(localHash))
-                        {
-                            _signatureStore.Set(fileName, localHash);
-                            signatureDirty = true;
-                        }
-                    }
-                    _remoteSignatures.TryGetValue(fileName, out var remoteHash);
+                    var localPath = localEntries.TryGetValue(key, out var existingPath)
+                        ? existingPath
+                        : ToLocalPath(key);
+                    var remotePath = BuildRemotePath(key);
+                    var localExists = File.Exists(localPath);
+                    var remoteExists = _remoteSignatures.ContainsKey(key) || await _client.FileExistsAsync(remotePath);
 
-                    var remoteExists = await _client.FileExistsAsync(remoteFilePath);
-                    if (remoteExists)
+                    if (localExists && remoteExists)
                     {
-                        var remoteLastModified = await _client.GetFileLastModifiedAsync(remoteFilePath);
-                        var localLastModified = File.GetLastWriteTime(filePath);
-                        var remoteIsNewer = remoteLastModified.HasValue && remoteLastModified.Value > localLastModified;
-                        if (remoteIsNewer)
+                        var localHash = _signatureStore.Get(key);
+                        if (string.IsNullOrEmpty(localHash))
                         {
-                            if (!string.IsNullOrEmpty(localHash) &&
-                                !string.IsNullOrEmpty(remoteHash))
+                            localHash = FileHashUtil.ComputeFileHash(localPath);
+                            if (!string.IsNullOrEmpty(localHash))
                             {
-                                if (!string.Equals(localHash, remoteHash, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    AppLogger.Warn($"Sync conflict detected for {fileName} (local {localLastModified}, remote {remoteLastModified.Value}).");
-                                    var resolution = await PromptConflictAsync(fileName, localLastModified, remoteLastModified.Value);
-
-                                    if (resolution == ConflictResolutionAction.DownloadRemote)
-                                    {
-                                        if (await _client.DownloadFileAsync(remoteFilePath, filePath))
-                                        {
-                                            messages.Add($"{fileName} downloaded (conflict)");
-                                            result.FilesDownloaded += 1;
-                                            UpdateLocalSignature(filePath, fileName, ref signatureDirty);
-                                            if (isNotesFile)
-                                            {
-                                                await Application.Current.Dispatcher.InvokeAsync(() =>
-                                                {
-                                                    NoteManager.Instance.ReloadNotes();
-                                                });
-                                            }
-                                            continue;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        if (await _client.UploadFileAsync(filePath, remoteFilePath))
-                                        {
-                                            messages.Add($"{fileName} uploaded (conflict)");
-                                            UpdateLocalSignature(filePath, fileName, ref signatureDirty);
-                                            result.FilesUploaded += 1;
-                                            continue;
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    File.SetLastWriteTime(filePath, remoteLastModified.Value);
-                                    continue;
-                                }
+                                _signatureStore.Set(key, localHash);
+                                signatureDirty = true;
                             }
                         }
 
+                        _remoteSignatures.TryGetValue(key, out var remoteHash);
+                        var remoteLastModified = await _client.GetFileLastModifiedAsync(remotePath);
+                        var localLastModified = File.GetLastWriteTime(localPath);
+                        var remoteIsNewer = remoteLastModified.HasValue && remoteLastModified.Value > localLastModified;
+
+                        if (remoteIsNewer &&
+                            !string.IsNullOrEmpty(localHash) &&
+                            !string.IsNullOrEmpty(remoteHash) &&
+                            !string.Equals(localHash, remoteHash, StringComparison.OrdinalIgnoreCase))
+                        {
+                            AppLogger.Warn($"Sync conflict detected for {key} (local {localLastModified}, remote {remoteLastModified.Value}).");
+                            var resolution = await PromptConflictAsync(key, localLastModified, remoteLastModified.Value);
+                            if (resolution == ConflictResolutionAction.DownloadRemote)
+                            {
+                                if (await DownloadFileAsync(remotePath, localPath))
+                                {
+                                    messages.Add($"{key} downloaded (conflict)");
+                                    result.FilesDownloaded += 1;
+                                    UpdateLocalSignature(localPath, key, ref signatureDirty);
+                                    shouldReloadNotes |= ShouldReloadNotes(key);
+                                }
+                            }
+                            else
+                            {
+                                if (await UploadFileAsync(localPath, key))
+                                {
+                                    messages.Add($"{key} uploaded (conflict)");
+                                    UpdateLocalSignature(localPath, key, ref signatureDirty);
+                                    result.FilesUploaded += 1;
+                                }
+                            }
+
+                            continue;
+                        }
+
                         if (remoteIsNewer)
                         {
-                            if (await _client.DownloadFileAsync(remoteFilePath, filePath))
+                            if (await DownloadFileAsync(remotePath, localPath))
                             {
-                                messages.Add($"{fileName} downloaded");
+                                messages.Add($"{key} downloaded");
                                 result.FilesDownloaded += 1;
-                                UpdateLocalSignature(filePath, fileName, ref signatureDirty);
-                                if (isNotesFile)
-                                {
-                                    await Application.Current.Dispatcher.InvokeAsync(() =>
-                                    {
-                                        NoteManager.Instance.ReloadNotes();
-                                    });
-                                }
+                                UpdateLocalSignature(localPath, key, ref signatureDirty);
+                                shouldReloadNotes |= ShouldReloadNotes(key);
                             }
                         }
                         else
                         {
-                            if (await _client.UploadFileAsync(filePath, remoteFilePath))
+                            if (await UploadFileAsync(localPath, key))
                             {
-                                messages.Add($"{fileName} uploaded");
-                                UpdateLocalSignature(filePath, fileName, ref signatureDirty);
+                                messages.Add($"{key} uploaded");
+                                UpdateLocalSignature(localPath, key, ref signatureDirty);
                                 result.FilesUploaded += 1;
                             }
                         }
+
+                        continue;
                     }
-                    else
+
+                    if (localExists && !remoteExists)
                     {
-                        if (await _client.UploadFileAsync(filePath, remoteFilePath))
+                        if (await UploadFileAsync(localPath, key))
                         {
-                            messages.Add($"{fileName} initial upload");
-                            UpdateLocalSignature(filePath, fileName, ref signatureDirty);
+                            messages.Add($"{key} initial upload");
+                            UpdateLocalSignature(localPath, key, ref signatureDirty);
                             result.FilesUploaded += 1;
                         }
+
+                        continue;
                     }
+
+                    if (!localExists && remoteExists)
+                    {
+                        if (await DownloadFileAsync(remotePath, localPath))
+                        {
+                            messages.Add($"{key} downloaded (new)");
+                            result.FilesDownloaded += 1;
+                            UpdateLocalSignature(localPath, key, ref signatureDirty);
+                            shouldReloadNotes |= ShouldReloadNotes(key);
+                        }
+                    }
+                }
+
+                if (shouldReloadNotes)
+                {
+                    await Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        NoteManager.Instance.ReloadNotes();
+                    });
                 }
 
                 if (signatureDirty)
@@ -249,11 +258,10 @@ namespace YASN.Sync
 
             var anyUploaded = false;
             var signatureDirty = false;
-            foreach (var filePath in _syncFiles.Where(File.Exists))
+            foreach (var (key, filePath) in BuildLocalSyncEntries())
             {
-                var remoteFilePath = BuildRemotePath(Path.GetFileName(filePath));
-                anyUploaded |= await _client.UploadFileAsync(filePath, remoteFilePath);
-                UpdateLocalSignature(filePath, Path.GetFileName(filePath), ref signatureDirty);
+                anyUploaded |= await UploadFileAsync(filePath, key);
+                UpdateLocalSignature(filePath, key, ref signatureDirty);
             }
 
             if (signatureDirty)
@@ -274,28 +282,32 @@ namespace YASN.Sync
 
             var anyDownloaded = false;
             var signatureDirty = false;
+            var shouldReloadNotes = false;
             _remoteSignatures = await LoadRemoteSignaturesAsync();
             foreach (var kv in _remoteSignatures)
             {
-                _signatureStore.Set(kv.Key, kv.Value);
-                signatureDirty = true;
-            }
+                if (string.Equals(kv.Key, SignatureFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
 
-            foreach (var filePath in _syncFiles)
-            {
-                var remoteFilePath = BuildRemotePath(Path.GetFileName(filePath));
-                if (await _client.DownloadFileAsync(remoteFilePath, filePath))
+                var localPath = ToLocalPath(kv.Key);
+                var remotePath = BuildRemotePath(kv.Key);
+                if (await DownloadFileAsync(remotePath, localPath))
                 {
                     anyDownloaded = true;
-                    UpdateLocalSignature(filePath, Path.GetFileName(filePath), ref signatureDirty);
-                    if (string.Equals(Path.GetFileName(filePath), "notes.json", StringComparison.OrdinalIgnoreCase))
-                    {
-                        await Application.Current.Dispatcher.InvokeAsync(() =>
-                        {
-                            NoteManager.Instance.ReloadNotes();
-                        });
-                    }
+                    _signatureStore.Set(kv.Key, kv.Value);
+                    signatureDirty = true;
+                    shouldReloadNotes |= ShouldReloadNotes(kv.Key);
                 }
+            }
+
+            if (shouldReloadNotes)
+            {
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    NoteManager.Instance.ReloadNotes();
+                });
             }
 
             if (signatureDirty)
@@ -319,22 +331,22 @@ namespace YASN.Sync
             return (directory ?? string.Empty).Trim().Trim('/');
         }
 
-        private string BuildRemotePath(string fileName)
+        private string BuildRemotePath(string relativePath)
         {
             if (string.IsNullOrEmpty(_remoteDirectory))
             {
-                return fileName;
+                return relativePath;
             }
 
-            return $"{_remoteDirectory}/{fileName}";
+            return $"{_remoteDirectory}/{relativePath}";
         }
 
-        private void UpdateLocalSignature(string filePath, string fileName, ref bool signatureDirty)
+        private void UpdateLocalSignature(string filePath, string key, ref bool signatureDirty)
         {
             var hash = FileHashUtil.ComputeFileHash(filePath);
             if (!string.IsNullOrEmpty(hash))
             {
-                _signatureStore.Set(fileName, hash);
+                _signatureStore.Set(key, hash);
                 signatureDirty = true;
             }
         }
@@ -364,7 +376,7 @@ namespace YASN.Sync
             }
             finally
             {
-                try { File.Delete(tempFile); } catch { /* ignored */ }
+                try { File.Delete(tempFile); } catch { }
             }
 
             return signatures;
@@ -387,8 +399,8 @@ namespace YASN.Sync
             {
                 var message =
                     $"远端的 {fileName} 已更新，但内容与本地不同。\n本地修改时间: {localTime:G}\n远端修改时间: {remoteTime:G}\n选择“是”下载远端覆盖本地，选择“否”保留本地并覆盖远端。";
-                var result = MessageBox.Show(message, "同步冲突", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                return result == MessageBoxResult.Yes
+                var result = MessageBox.Show(message, "同步冲突", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
+                return result == System.Windows.MessageBoxResult.Yes
                     ? ConflictResolutionAction.DownloadRemote
                     : ConflictResolutionAction.KeepLocal;
             });
@@ -409,6 +421,100 @@ namespace YASN.Sync
 
             _intervalSeconds = seconds;
             _syncTimer.Interval = TimeSpan.FromSeconds(_intervalSeconds).TotalMilliseconds;
+        }
+
+        private Dictionary<string, string> BuildLocalSyncEntries()
+        {
+            var entries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            AddIfExists(entries, AppPaths.NotesIndexPath);
+            AddIfExists(entries, AppPaths.SyncSettingsPath);
+            AddDirectoryFiles(entries, AppPaths.NotesMarkdownRoot);
+            AddDirectoryFiles(entries, AppPaths.NoteAssetsRoot);
+            AddDirectoryFiles(entries, AppPaths.NoteBackgroundsRoot);
+
+            return entries;
+        }
+
+        private static void AddIfExists(IDictionary<string, string> map, string fullPath)
+        {
+            if (!File.Exists(fullPath))
+            {
+                return;
+            }
+
+            var key = ToSyncKey(fullPath);
+            map[key] = fullPath;
+        }
+
+        private static void AddDirectoryFiles(IDictionary<string, string> map, string root)
+        {
+            if (!Directory.Exists(root))
+            {
+                return;
+            }
+
+            foreach (var file in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
+            {
+                var key = ToSyncKey(file);
+                map[key] = file;
+            }
+        }
+
+        private static string ToSyncKey(string fullPath)
+        {
+            var relative = Path.GetRelativePath(AppPaths.DataDirectory, fullPath);
+            return relative.Replace('\\', '/');
+        }
+
+        private static string ToLocalPath(string key)
+        {
+            var localRelative = key.Replace('/', Path.DirectorySeparatorChar);
+            return Path.Combine(AppPaths.DataDirectory, localRelative);
+        }
+
+        private async Task<bool> UploadFileAsync(string localPath, string key)
+        {
+            if (_client == null)
+            {
+                return false;
+            }
+
+            var idx = key.LastIndexOf('/');
+            if (idx > 0)
+            {
+                var remoteDir = key.Substring(0, idx);
+                if (!await _client.EnsureDirectoryAsync(BuildRemotePath(remoteDir)))
+                {
+                    return false;
+                }
+            }
+
+            return await _client.UploadFileAsync(localPath, BuildRemotePath(key));
+        }
+
+        private async Task<bool> DownloadFileAsync(string remotePath, string localPath)
+        {
+            if (_client == null)
+            {
+                return false;
+            }
+
+            var directory = Path.GetDirectoryName(localPath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            return await _client.DownloadFileAsync(remotePath, localPath);
+        }
+
+        private static bool ShouldReloadNotes(string key)
+        {
+            return key.Equals("notes.index.json", StringComparison.OrdinalIgnoreCase)
+                   || key.StartsWith("notes/", StringComparison.OrdinalIgnoreCase)
+                   || key.StartsWith("note-assets/", StringComparison.OrdinalIgnoreCase)
+                   || key.StartsWith("NoteBackgrounds/", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

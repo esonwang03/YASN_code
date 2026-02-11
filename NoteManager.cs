@@ -1,19 +1,19 @@
-using System;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Linq;
+using System.Text;
 using System.Text.Json;
+using System.Windows.Documents;
+using DataFormats = System.Windows.DataFormats;
 
 namespace YASN
 {
     public class NoteManager
     {
-        private static NoteManager _instance;
-        private static readonly object _lock = new object();
-        private const string SaveFileName = "notes.json";
-        
-        // ��ȡ�����ļ�������·��
-        private static string SaveFilePath => AppPaths.NotesFilePath;
+        private static NoteManager? _instance;
+        private static readonly object Lock = new();
+        private const string LegacySaveFileName = "notes.json";
+
+        private static string IndexFilePath => AppPaths.NotesIndexPath;
 
         public static NoteManager Instance
         {
@@ -21,7 +21,7 @@ namespace YASN
             {
                 if (_instance == null)
                 {
-                    lock (_lock)
+                    lock (Lock)
                     {
                         if (_instance == null)
                         {
@@ -29,6 +29,7 @@ namespace YASN
                         }
                     }
                 }
+
                 return _instance;
             }
         }
@@ -49,12 +50,12 @@ namespace YASN
             {
                 Id = _nextId++,
                 Title = $"Note #{_nextId - 1}",
-                Content = "Enter your text here...",
+                Content = "Enter your markdown here...",
                 Level = level,
                 Left = 100,
                 Top = 100,
-                Width = 400,
-                Height = 300,
+                Width = 760,
+                Height = 460,
                 IsOpen = false
             };
 
@@ -73,11 +74,17 @@ namespace YASN
 
         public void DeleteNote(NoteData note)
         {
-            if (note != null)
+            if (note == null)
             {
-                Notes.Remove(note);
-                Save();
+                return;
             }
+
+            Notes.Remove(note);
+            TryDeleteFile(AppPaths.GetNoteMarkdownPath(note.Id));
+            TryDeleteFile(AppPaths.GetNoteHtmlCachePath(note.Id));
+            TryDeleteDirectory(Path.Combine(AppPaths.NoteAssetsRoot, note.Id.ToString()));
+            TryDeleteDirectory(Path.Combine(AppPaths.NoteBackgroundsRoot, note.Id.ToString()));
+            Save();
         }
 
         public void Save()
@@ -89,31 +96,31 @@ namespace YASN
                     WriteIndented = true
                 };
 
-                var json = JsonSerializer.Serialize(Notes.Select(n => new
+                var metadata = Notes.Select(n => new NoteMetadataDto
                 {
-                    n.Id,
-                    n.Title,
-                    n.Content,
-                    n.Level,
-                    n.Left,
-                    n.Top,
-                    n.Width,
-                    n.Height,
-                    n.IsDarkMode,
-                    n.TitleBarColor,
-                    n.BackgroundImagePath,
-                    n.BackgroundImageOpacity,
-                    n.IsOpen
-                }), options);
+                    Id = n.Id,
+                    Title = n.Title,
+                    Level = n.Level,
+                    Left = n.Left,
+                    Top = n.Top,
+                    Width = n.Width,
+                    Height = n.Height,
+                    IsDarkMode = n.IsDarkMode,
+                    TitleBarColor = n.TitleBarColor,
+                    BackgroundImagePath = n.BackgroundImagePath,
+                    BackgroundImageOpacity = n.BackgroundImageOpacity,
+                    IsOpen = n.IsOpen
+                }).ToArray();
 
-                var directory = Path.GetDirectoryName(SaveFilePath);
-                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                WriteTextFile(IndexFilePath, JsonSerializer.Serialize(metadata, options));
+
+                foreach (var note in Notes)
                 {
-                    Directory.CreateDirectory(directory);
+                    var markdownPath = AppPaths.GetNoteMarkdownPath(note.Id);
+                    WriteTextFile(markdownPath, note.Content ?? string.Empty);
                 }
 
-                File.WriteAllText(SaveFilePath, json);
-                System.Diagnostics.Debug.WriteLine($"Saved {Notes.Count} notes to {SaveFilePath}");
+                System.Diagnostics.Debug.WriteLine($"Saved {Notes.Count} notes to {IndexFilePath}");
             }
             catch (Exception ex)
             {
@@ -125,82 +132,78 @@ namespace YASN
         {
             try
             {
-                var legacyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, SaveFileName);
-                if (!File.Exists(SaveFilePath) && File.Exists(legacyPath))
+                Notes.Clear();
+                _nextId = 1;
+
+                if (!File.Exists(IndexFilePath))
                 {
-                    var directory = Path.GetDirectoryName(SaveFilePath);
-                    if (!string.IsNullOrEmpty(directory))
+                    TryMigrateLegacyStorage();
+                }
+
+                if (!File.Exists(IndexFilePath))
+                {
+                    System.Diagnostics.Debug.WriteLine($"Notes index not found at {IndexFilePath}");
+                    return;
+                }
+
+                var json = File.ReadAllText(IndexFilePath);
+                var items = JsonSerializer.Deserialize<NoteMetadataDto[]>(json);
+                if (items == null)
+                {
+                    return;
+                }
+
+                foreach (var item in items)
+                {
+                    var content = ReadMarkdownContent(item.Id);
+                    if (string.IsNullOrEmpty(content) && !string.IsNullOrEmpty(item.Content))
                     {
-                        Directory.CreateDirectory(directory);
+                        content = NormalizeLegacyContent(item.Content);
                     }
-                    File.Copy(legacyPath, SaveFilePath, true);
-                }
 
-                if (File.Exists(SaveFilePath))
-                {
-                    System.Diagnostics.Debug.WriteLine($"Loading notes from {SaveFilePath}");
-                    var json = File.ReadAllText(SaveFilePath);
-                    System.Diagnostics.Debug.WriteLine($"JSON content length: {json.Length}");
-                    
-                    var items = JsonSerializer.Deserialize<NoteDataDto[]>(json);
-
-                    if (items != null)
+                    var note = new NoteData
                     {
-                        System.Diagnostics.Debug.WriteLine($"Deserialized {items.Length} notes");
-                        foreach (var item in items)
-                        {
-                            var note = new NoteData
-                            {
-                                Id = item.Id,
-                                Title = item.Title,
-                                Content = item.Content,
-                                Level = item.Level,
-                                Left = item.Left,
-                                Top = item.Top,
-                                Width = item.Width,
-                                Height = item.Height,
-                                IsDarkMode = item.IsDarkMode,
-                                TitleBarColor = item.TitleBarColor,
-                                BackgroundImagePath = item.BackgroundImagePath,
-                                BackgroundImageOpacity = item.BackgroundImageOpacity,
-                                IsOpen = item.IsOpen
-                            };
-                            Notes.Add(note);
-                            System.Diagnostics.Debug.WriteLine($"Loaded note: Id={note.Id}, Title={note.Title}, IsOpen={note.IsOpen}");
+                        Id = item.Id,
+                        Title = item.Title ?? $"Note #{item.Id}",
+                        Content = content,
+                        Level = item.Level,
+                        Left = item.Left,
+                        Top = item.Top,
+                        Width = item.Width,
+                        Height = item.Height,
+                        IsDarkMode = item.IsDarkMode,
+                        TitleBarColor = item.TitleBarColor,
+                        BackgroundImagePath = item.BackgroundImagePath,
+                        BackgroundImageOpacity = item.BackgroundImageOpacity,
+                        IsOpen = item.IsOpen
+                    };
 
-                            if (item.Id >= _nextId)
-                            {
-                                _nextId = item.Id + 1;
-                            }
-                        }
+                    Notes.Add(note);
+                    if (item.Id >= _nextId)
+                    {
+                        _nextId = item.Id + 1;
                     }
                 }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"Notes file not found at {SaveFilePath}");
-                }
+
+                System.Diagnostics.Debug.WriteLine($"Loaded {Notes.Count} notes from {IndexFilePath}");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to load notes: {ex.Message}\nStack trace: {ex.StackTrace}");
             }
         }
-        
-        /// <summary>
-        /// �Զ���֮ǰ�򿪵ı�ǩ����
-        /// </summary>
+
         public void RestoreOpenNotes()
         {
             System.Diagnostics.Debug.WriteLine($"RestoreOpenNotes called. Total notes: {Notes.Count}");
-            
+
             var openNotes = Notes.Where(n => n.IsOpen).ToList();
             System.Diagnostics.Debug.WriteLine($"Notes marked as open: {openNotes.Count}");
-            
+
             foreach (var note in openNotes)
             {
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine($"Restoring note: Id={note.Id}, Title={note.Title}, IsOpen={note.IsOpen}");
                     var window = new FloatingWindow(note);
                     window.Show();
                     System.Diagnostics.Debug.WriteLine($"Note {note.Id} window created and shown successfully");
@@ -212,28 +215,186 @@ namespace YASN
             }
         }
 
-        /// <summary>
-        /// Reload notes from file (for sync purposes)
-        /// </summary>
         public void ReloadNotes()
         {
-            // Close all open windows
             foreach (var note in Notes.Where(n => n.IsOpen).ToList())
             {
                 note.Window?.Close();
             }
 
-            // Clear current notes
             Notes.Clear();
-
-            // Reload from file
             Load();
-
-            // Restore open notes
             RestoreOpenNotes();
         }
 
-        private class NoteDataDto
+        private void TryMigrateLegacyStorage()
+        {
+            var legacyCandidates = new[]
+            {
+                AppPaths.LegacyNotesFilePath,
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, LegacySaveFileName)
+            };
+
+            var legacyPath = legacyCandidates.FirstOrDefault(File.Exists);
+            if (string.IsNullOrEmpty(legacyPath))
+            {
+                return;
+            }
+
+            try
+            {
+                var legacyJson = File.ReadAllText(legacyPath);
+                var legacyItems = JsonSerializer.Deserialize<LegacyNoteDataDto[]>(legacyJson);
+                if (legacyItems == null || legacyItems.Length == 0)
+                {
+                    return;
+                }
+
+                var backupPath = Path.Combine(AppPaths.DataDirectory, "notes.v1.backup.json");
+                if (!File.Exists(backupPath))
+                {
+                    WriteTextFile(backupPath, legacyJson);
+                }
+
+                var migratedNotes = new List<NoteData>();
+                foreach (var item in legacyItems)
+                {
+                    migratedNotes.Add(new NoteData
+                    {
+                        Id = item.Id,
+                        Title = item.Title ?? $"Note #{item.Id}",
+                        Content = NormalizeLegacyContent(item.Content),
+                        Level = item.Level,
+                        Left = item.Left,
+                        Top = item.Top,
+                        Width = item.Width,
+                        Height = item.Height,
+                        IsDarkMode = item.IsDarkMode,
+                        TitleBarColor = item.TitleBarColor,
+                        BackgroundImagePath = item.BackgroundImagePath,
+                        BackgroundImageOpacity = item.BackgroundImageOpacity,
+                        IsOpen = item.IsOpen
+                    });
+                }
+
+                Notes.Clear();
+                foreach (var note in migratedNotes)
+                {
+                    Notes.Add(note);
+                }
+
+                if (migratedNotes.Count > 0)
+                {
+                    _nextId = migratedNotes.Max(n => n.Id) + 1;
+                }
+
+                Save();
+                System.Diagnostics.Debug.WriteLine($"Migrated {migratedNotes.Count} legacy notes from {legacyPath}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to migrate legacy notes: {ex.Message}");
+            }
+        }
+
+        private static string ReadMarkdownContent(int noteId)
+        {
+            try
+            {
+                var path = AppPaths.GetNoteMarkdownPath(noteId);
+                return File.Exists(path) ? File.ReadAllText(path) : string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static string NormalizeLegacyContent(string content)
+        {
+            if (string.IsNullOrEmpty(content))
+            {
+                return string.Empty;
+            }
+
+            if (!content.TrimStart().StartsWith(@"{\rtf", StringComparison.OrdinalIgnoreCase))
+            {
+                return content;
+            }
+
+            try
+            {
+                var document = new FlowDocument();
+                var textRange = new TextRange(document.ContentStart, document.ContentEnd);
+                using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+                textRange.Load(stream, DataFormats.Rtf);
+                return (textRange.Text ?? string.Empty).Replace("\r\n", "\n").TrimEnd();
+            }
+            catch
+            {
+                return content;
+            }
+        }
+
+        private static void WriteTextFile(string path, string content)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(path, content ?? string.Empty);
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        private static void TryDeleteDirectory(string path)
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    Directory.Delete(path, true);
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        private class NoteMetadataDto
+        {
+            public int Id { get; set; }
+            public string Title { get; set; }
+            public string Content { get; set; }
+            public WindowLevel Level { get; set; }
+            public double Left { get; set; }
+            public double Top { get; set; }
+            public double Width { get; set; }
+            public double Height { get; set; }
+            public bool IsDarkMode { get; set; }
+            public string TitleBarColor { get; set; }
+            public string BackgroundImagePath { get; set; }
+            public double BackgroundImageOpacity { get; set; }
+            public bool IsOpen { get; set; }
+        }
+
+        private class LegacyNoteDataDto
         {
             public int Id { get; set; }
             public string Title { get; set; }
@@ -251,8 +412,3 @@ namespace YASN
         }
     }
 }
-
-
-
-
-
