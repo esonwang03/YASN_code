@@ -14,13 +14,13 @@ namespace YASN
         public static string NotesIndexPath { get; } = Path.Combine(DataDirectory, "notes.index.json");
         public static string NotesMarkdownRoot { get; } = Path.Combine(DataDirectory, "notes");
         public static string NoteAssetsRoot { get; } = Path.Combine(DataDirectory, "note-assets");
-        public static string NoteBackgroundsRoot { get; } = Path.Combine(DataDirectory, "NoteBackgrounds");
+        public static string NoteBackgroundsRoot { get; } = Path.Combine(NoteAssetsRoot, "backgrounds");
         public static string HtmlCacheRoot { get; } = Path.Combine(DataDirectory, "html-cache");
 
         public static string SyncSettingsPath { get; } = Path.Combine(DataDirectory, "settings.sync.json");
         public static string LocalSettingsPath { get; } = Path.Combine(BaseDirectory, "settings.local.json");
         public static string LogFilePath { get; } = Path.Combine(BaseDirectory, "yasn_log.log");
-        public static string SignatureFilePath { get; } = Path.Combine(DataDirectory, "yasn.sig");
+        public static string SignatureFilePath { get; } = Path.Combine(DataDirectory, "sync.manifest.json");
 
         static AppPaths()
         {

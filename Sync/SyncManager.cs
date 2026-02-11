@@ -22,7 +22,7 @@ namespace YASN.Sync
         private bool _isEnabled;
         private string _remoteDirectory = string.Empty;
         private Dictionary<string, string> _remoteSignatures = new();
-        private const string SignatureFileName = "yasn.sig";
+        private const string ManifestFileName = "sync.manifest.json";
 
         public bool IsEnabled => _isEnabled;
         public bool IsConfigured => _client != null;
@@ -100,7 +100,7 @@ namespace YASN.Sync
                 var allKeys = new HashSet<string>(localEntries.Keys, StringComparer.OrdinalIgnoreCase);
                 foreach (var key in _remoteSignatures.Keys)
                 {
-                    if (!string.Equals(key, SignatureFileName, StringComparison.OrdinalIgnoreCase))
+                    if (!string.Equals(key, ManifestFileName, StringComparison.OrdinalIgnoreCase) && IsSyncableKey(key))
                     {
                         allKeys.Add(key);
                     }
@@ -128,21 +128,29 @@ namespace YASN.Sync
 
                     if (localExists && remoteExists)
                     {
-                        var localHash = _signatureStore.Get(key);
-                        if (string.IsNullOrEmpty(localHash))
+                        var localHash = FileHashUtil.ComputeFileHash(localPath);
+                        if (!string.IsNullOrEmpty(localHash))
                         {
-                            localHash = FileHashUtil.ComputeFileHash(localPath);
-                            if (!string.IsNullOrEmpty(localHash))
-                            {
-                                _signatureStore.Set(key, localHash);
-                                signatureDirty = true;
-                            }
+                            _signatureStore.Set(key, localHash);
+                            signatureDirty = true;
                         }
 
                         _remoteSignatures.TryGetValue(key, out var remoteHash);
                         var remoteLastModified = await _client.GetFileLastModifiedAsync(remotePath);
                         var localLastModified = File.GetLastWriteTime(localPath);
                         var remoteIsNewer = remoteLastModified.HasValue && remoteLastModified.Value > localLastModified;
+
+                        if (!string.IsNullOrEmpty(localHash) &&
+                            !string.IsNullOrEmpty(remoteHash) &&
+                            string.Equals(localHash, remoteHash, StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (remoteLastModified.HasValue && remoteLastModified.Value > localLastModified)
+                            {
+                                File.SetLastWriteTime(localPath, remoteLastModified.Value);
+                            }
+
+                            continue;
+                        }
 
                         if (remoteIsNewer &&
                             !string.IsNullOrEmpty(localHash) &&
@@ -286,7 +294,12 @@ namespace YASN.Sync
             _remoteSignatures = await LoadRemoteSignaturesAsync();
             foreach (var kv in _remoteSignatures)
             {
-                if (string.Equals(kv.Key, SignatureFileName, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(kv.Key, ManifestFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!IsSyncableKey(kv.Key))
                 {
                     continue;
                 }
@@ -360,7 +373,7 @@ namespace YASN.Sync
                 return signatures;
             }
 
-            var remoteSigPath = BuildRemotePath(SignatureFileName);
+            var remoteSigPath = BuildRemotePath(ManifestFileName);
             var tempFile = Path.GetTempFileName();
             try
             {
@@ -389,7 +402,7 @@ namespace YASN.Sync
                 return;
             }
 
-            var remoteSigPath = BuildRemotePath(SignatureFileName);
+            var remoteSigPath = BuildRemotePath(ManifestFileName);
             await _client.UploadFileAsync(AppPaths.SignatureFilePath, remoteSigPath);
         }
 
@@ -428,10 +441,8 @@ namespace YASN.Sync
             var entries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             AddIfExists(entries, AppPaths.NotesIndexPath);
-            AddIfExists(entries, AppPaths.SyncSettingsPath);
             AddDirectoryFiles(entries, AppPaths.NotesMarkdownRoot);
             AddDirectoryFiles(entries, AppPaths.NoteAssetsRoot);
-            AddDirectoryFiles(entries, AppPaths.NoteBackgroundsRoot);
 
             return entries;
         }
@@ -513,8 +524,14 @@ namespace YASN.Sync
         {
             return key.Equals("notes.index.json", StringComparison.OrdinalIgnoreCase)
                    || key.StartsWith("notes/", StringComparison.OrdinalIgnoreCase)
-                   || key.StartsWith("note-assets/", StringComparison.OrdinalIgnoreCase)
-                   || key.StartsWith("NoteBackgrounds/", StringComparison.OrdinalIgnoreCase);
+                   || key.StartsWith("note-assets/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSyncableKey(string key)
+        {
+            return key.Equals("notes.index.json", StringComparison.OrdinalIgnoreCase)
+                   || key.StartsWith("notes/", StringComparison.OrdinalIgnoreCase)
+                   || key.StartsWith("note-assets/", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

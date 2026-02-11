@@ -1,17 +1,21 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
-using System.Windows.Documents;
-using DataFormats = System.Windows.DataFormats;
 
 namespace YASN
 {
     public class NoteManager
     {
-        private static NoteManager? _instance;
-        private static readonly object Lock = new();
+        private static NoteManager _instance;
+        private static readonly object _lock = new object();
+
         private const string LegacySaveFileName = "notes.json";
+        private const int CurrentSchemaVersion = 2;
 
         private static string IndexFilePath => AppPaths.NotesIndexPath;
 
@@ -19,15 +23,10 @@ namespace YASN
         {
             get
             {
-                if (_instance == null)
+                if (_instance != null) return _instance;
+                lock (_lock)
                 {
-                    lock (Lock)
-                    {
-                        if (_instance == null)
-                        {
-                            _instance = new NoteManager();
-                        }
-                    }
+                    _instance ??= new NoteManager();
                 }
 
                 return _instance;
@@ -96,31 +95,35 @@ namespace YASN
                     WriteIndented = true
                 };
 
-                var metadata = Notes.Select(n => new NoteMetadataDto
+                var index = new NoteIndexDto
                 {
-                    Id = n.Id,
-                    Title = n.Title,
-                    Level = n.Level,
-                    Left = n.Left,
-                    Top = n.Top,
-                    Width = n.Width,
-                    Height = n.Height,
-                    IsDarkMode = n.IsDarkMode,
-                    TitleBarColor = n.TitleBarColor,
-                    BackgroundImagePath = n.BackgroundImagePath,
-                    BackgroundImageOpacity = n.BackgroundImageOpacity,
-                    IsOpen = n.IsOpen
-                }).ToArray();
+                    SchemaVersion = CurrentSchemaVersion,
+                    UpdatedAtUtc = DateTime.UtcNow,
+                    Notes = Notes.Select(n => new NoteMetadataDto
+                    {
+                        Id = n.Id,
+                        Title = n.Title,
+                        Level = n.Level,
+                        Left = n.Left,
+                        Top = n.Top,
+                        Width = n.Width,
+                        Height = n.Height,
+                        IsDarkMode = n.IsDarkMode,
+                        TitleBarColor = n.TitleBarColor,
+                        BackgroundImagePath = n.BackgroundImagePath,
+                        BackgroundImageOpacity = n.BackgroundImageOpacity,
+                        IsOpen = n.IsOpen
+                    }).ToArray()
+                };
 
-                WriteTextFile(IndexFilePath, JsonSerializer.Serialize(metadata, options));
+                WriteTextFile(IndexFilePath, JsonSerializer.Serialize(index, options));
 
                 foreach (var note in Notes)
                 {
-                    var markdownPath = AppPaths.GetNoteMarkdownPath(note.Id);
-                    WriteTextFile(markdownPath, note.Content ?? string.Empty);
+                    WriteTextFile(AppPaths.GetNoteMarkdownPath(note.Id), note.Content ?? string.Empty);
                 }
 
-                System.Diagnostics.Debug.WriteLine($"Saved {Notes.Count} notes to {IndexFilePath}");
+                System.Diagnostics.Debug.WriteLine($"Saved {Notes.Count} notes to {IndexFilePath} (schema v{CurrentSchemaVersion})");
             }
             catch (Exception ex)
             {
@@ -147,18 +150,20 @@ namespace YASN
                 }
 
                 var json = File.ReadAllText(IndexFilePath);
-                var items = JsonSerializer.Deserialize<NoteMetadataDto[]>(json);
+                var (items, schemaVersion) = ParseIndexItems(json);
                 if (items == null)
                 {
                     return;
                 }
 
+                var shouldRewrite = schemaVersion < CurrentSchemaVersion;
                 foreach (var item in items)
                 {
                     var content = ReadMarkdownContent(item.Id);
                     if (string.IsNullOrEmpty(content) && !string.IsNullOrEmpty(item.Content))
                     {
                         content = NormalizeLegacyContent(item.Content);
+                        shouldRewrite = true;
                     }
 
                     var note = new NoteData
@@ -185,6 +190,11 @@ namespace YASN
                     }
                 }
 
+                if (shouldRewrite)
+                {
+                    Save();
+                }
+
                 System.Diagnostics.Debug.WriteLine($"Loaded {Notes.Count} notes from {IndexFilePath}");
             }
             catch (Exception ex)
@@ -195,18 +205,13 @@ namespace YASN
 
         public void RestoreOpenNotes()
         {
-            System.Diagnostics.Debug.WriteLine($"RestoreOpenNotes called. Total notes: {Notes.Count}");
-
             var openNotes = Notes.Where(n => n.IsOpen).ToList();
-            System.Diagnostics.Debug.WriteLine($"Notes marked as open: {openNotes.Count}");
-
             foreach (var note in openNotes)
             {
                 try
                 {
                     var window = new FloatingWindow(note);
                     window.Show();
-                    System.Diagnostics.Debug.WriteLine($"Note {note.Id} window created and shown successfully");
                 }
                 catch (Exception ex)
                 {
@@ -256,10 +261,10 @@ namespace YASN
                     WriteTextFile(backupPath, legacyJson);
                 }
 
-                var migratedNotes = new List<NoteData>();
+                Notes.Clear();
                 foreach (var item in legacyItems)
                 {
-                    migratedNotes.Add(new NoteData
+                    Notes.Add(new NoteData
                     {
                         Id = item.Id,
                         Title = item.Title ?? $"Note #{item.Id}",
@@ -277,23 +282,38 @@ namespace YASN
                     });
                 }
 
-                Notes.Clear();
-                foreach (var note in migratedNotes)
-                {
-                    Notes.Add(note);
-                }
-
-                if (migratedNotes.Count > 0)
-                {
-                    _nextId = migratedNotes.Max(n => n.Id) + 1;
-                }
-
+                _nextId = Notes.Count > 0 ? Notes.Max(n => n.Id) + 1 : 1;
                 Save();
-                System.Diagnostics.Debug.WriteLine($"Migrated {migratedNotes.Count} legacy notes from {legacyPath}");
+                System.Diagnostics.Debug.WriteLine($"Migrated {Notes.Count} legacy notes from {legacyPath}");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to migrate legacy notes: {ex.Message}");
+            }
+        }
+
+        private static (NoteMetadataDto[] items, int schemaVersion) ParseIndexItems(string json)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    var notes = JsonSerializer.Deserialize<NoteMetadataDto[]>(json);
+                    return (notes, 1);
+                }
+
+                if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                {
+                    return (null, 0);
+                }
+
+                var index = JsonSerializer.Deserialize<NoteIndexDto>(json);
+                return (index?.Notes ?? Array.Empty<NoteMetadataDto>(), index?.SchemaVersion ?? 1);
+            }
+            catch
+            {
+                return (null, 0);
             }
         }
 
@@ -317,22 +337,186 @@ namespace YASN
                 return string.Empty;
             }
 
-            if (!content.TrimStart().StartsWith(@"{\rtf", StringComparison.OrdinalIgnoreCase))
-            {
-                return content;
-            }
+            return content.TrimStart().StartsWith(@"{\rtf", StringComparison.OrdinalIgnoreCase)
+                ? ConvertRtfToPlainText(content)
+                : content;
+        }
 
+        private static string ConvertRtfToPlainText(string rtf)
+        {
             try
             {
-                var document = new FlowDocument();
-                var textRange = new TextRange(document.ContentStart, document.ContentEnd);
-                using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
-                textRange.Load(stream, DataFormats.Rtf);
-                return (textRange.Text ?? string.Empty).Replace("\r\n", "\n").TrimEnd();
+                var sb = new StringBuilder();
+                var skipStack = new Stack<bool>();
+                var skipDestination = false;
+                var ucSkipCount = 1;
+                var pendingSkip = 0;
+
+                for (var i = 0; i < rtf.Length; i++)
+                {
+                    if (pendingSkip > 0)
+                    {
+                        pendingSkip -= 1;
+                        continue;
+                    }
+
+                    var c = rtf[i];
+                    if (c == '{')
+                    {
+                        skipStack.Push(skipDestination);
+                        continue;
+                    }
+
+                    if (c == '}')
+                    {
+                        skipDestination = skipStack.Count > 0 && skipStack.Pop();
+                        continue;
+                    }
+
+                    if (c == '\\')
+                    {
+                        if (i + 1 >= rtf.Length)
+                        {
+                            break;
+                        }
+
+                        var next = rtf[++i];
+                        if (next == '\\' || next == '{' || next == '}')
+                        {
+                            if (!skipDestination)
+                            {
+                                sb.Append(next);
+                            }
+
+                            continue;
+                        }
+
+                        if (next == '*')
+                        {
+                            skipDestination = true;
+                            continue;
+                        }
+
+                        if (next == '\'')
+                        {
+                            if (i + 2 < rtf.Length)
+                            {
+                                var hex = rtf.Substring(i + 1, 2);
+                                if (byte.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b) && !skipDestination)
+                                {
+                                    sb.Append((char)b);
+                                }
+
+                                i += 2;
+                            }
+
+                            continue;
+                        }
+
+                        if (!char.IsLetter(next))
+                        {
+                            if (!skipDestination)
+                            {
+                                if (next == '~')
+                                {
+                                    sb.Append(' ');
+                                }
+                                else if (next == '|')
+                                {
+                                    sb.Append('\n');
+                                }
+                            }
+
+                            continue;
+                        }
+
+                        var wordStart = i;
+                        while (i < rtf.Length && char.IsLetter(rtf[i]))
+                        {
+                            i++;
+                        }
+
+                        var word = rtf.Substring(wordStart, i - wordStart);
+                        var sign = 1;
+                        if (i < rtf.Length && (rtf[i] == '-' || rtf[i] == '+'))
+                        {
+                            sign = rtf[i] == '-' ? -1 : 1;
+                            i++;
+                        }
+
+                        var numStart = i;
+                        while (i < rtf.Length && char.IsDigit(rtf[i]))
+                        {
+                            i++;
+                        }
+
+                        var hasParam = i > numStart;
+                        var param = 0;
+                        if (hasParam)
+                        {
+                            int.TryParse(rtf.Substring(numStart, i - numStart), out param);
+                            param *= sign;
+                        }
+
+                        var hasDelimiterSpace = i < rtf.Length && rtf[i] == ' ';
+                        if (!hasDelimiterSpace)
+                        {
+                            i--;
+                        }
+
+                        if (word.Equals("uc", StringComparison.OrdinalIgnoreCase) && hasParam)
+                        {
+                            ucSkipCount = Math.Max(0, param);
+                        }
+
+                        if (skipDestination)
+                        {
+                            continue;
+                        }
+
+                        switch (word)
+                        {
+                            case "par":
+                            case "line":
+                                sb.Append('\n');
+                                break;
+                            case "tab":
+                                sb.Append('\t');
+                                break;
+                            case "u":
+                                if (hasParam)
+                                {
+                                    var codePoint = param;
+                                    if (codePoint < 0)
+                                    {
+                                        codePoint += 65536;
+                                    }
+
+                                    if (codePoint >= 0 && codePoint <= 0x10FFFF)
+                                    {
+                                        sb.Append(char.ConvertFromUtf32(codePoint));
+                                    }
+
+                                    pendingSkip = ucSkipCount;
+                                }
+
+                                break;
+                        }
+
+                        continue;
+                    }
+
+                    if (!skipDestination)
+                    {
+                        sb.Append(c);
+                    }
+                }
+
+                return sb.ToString().Replace("\r\n", "\n").TrimEnd();
             }
             catch
             {
-                return content;
+                return rtf;
             }
         }
 
@@ -375,6 +559,13 @@ namespace YASN
             {
                 // ignored
             }
+        }
+
+        private class NoteIndexDto
+        {
+            public int SchemaVersion { get; set; } = 1;
+            public DateTime UpdatedAtUtc { get; set; }
+            public NoteMetadataDto[] Notes { get; set; } = Array.Empty<NoteMetadataDto>();
         }
 
         private class NoteMetadataDto

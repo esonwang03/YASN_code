@@ -11,6 +11,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Markdig;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Win32;
@@ -19,11 +20,13 @@ using Brushes = System.Windows.Media.Brushes;
 using Button = System.Windows.Controls.Button;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
+using ContextMenu = System.Windows.Controls.ContextMenu;
 using DataFormats = System.Windows.DataFormats;
 using DragDropEffects = System.Windows.DragDropEffects;
 using DragEventArgs = System.Windows.DragEventArgs;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
-using MessageBox = System.Windows.MessageBox;
+using MenuItem = System.Windows.Controls.MenuItem;
+using MessageBox = ModernWpf.MessageBox;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 
@@ -50,8 +53,8 @@ namespace YASN
         private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
         private IntPtr _hwnd;
-        private readonly System.Windows.Threading.DispatcherTimer _bottomMostTimer;
-        private readonly System.Windows.Threading.DispatcherTimer _previewDebounceTimer;
+        private readonly DispatcherTimer _bottomMostTimer = new();
+        private readonly DispatcherTimer _previewDebounceTimer = new();
         private readonly MarkdownPipeline _markdownPipeline;
         private Storyboard _collapseEditBar;
         private Storyboard _expandEditBar;
