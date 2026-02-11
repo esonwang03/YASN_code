@@ -41,11 +41,6 @@
                 BorderThickness="1"
                 CornerRadius="8">
             <StackPanel>
-                <TextBlock Text="快速跳转"
-                           FontSize="14"
-                           FontWeight="SemiBold"
-                           Foreground="#2C3E50"
-                           Margin="16,16,16,8"/>
                 <ListBox x:Name="NavList"
                          ItemsSource="{Binding Modules}"
                          DisplayMemberPath="Title"

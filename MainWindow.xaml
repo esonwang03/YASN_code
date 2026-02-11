@@ -22,13 +22,13 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="#2C3E50" Padding="20,15">
-            <TextBlock Text="YASN - Yet Another Sticky Notes" 
-                       FontSize="24" 
-                       FontWeight="Bold" 
-                       Foreground="White"
-                       HorizontalAlignment="Center"/>
-        </Border>
+        <!-- <Border Grid.Row="0" Background="#2C3E50" Padding="20,15"> -->
+        <!--     <TextBlock Text="YASN - Yet Another Sticky Notes"  -->
+        <!--                FontSize="24"  -->
+        <!--                FontWeight="Bold"  -->
+        <!--                Foreground="White" -->
+        <!--                HorizontalAlignment="Center"/> -->
+        <!-- </Border> -->
 
         <Grid Grid.Row="1" Margin="20">
             <Grid.ColumnDefinitions>
