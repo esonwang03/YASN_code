@@ -1,16 +1,9 @@
 ﻿using System;
 using System.Globalization;
-using System.Text;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using System.Linq;
+using MessageBox = ModernWpf.MessageBox;
 
 namespace YASN
 {
@@ -45,18 +38,21 @@ namespace YASN
         {
             var noteData = NoteManager.Instance.CreateNote(WindowLevel.TopMost);
             OpenNote(noteData);
+            RefreshWindowList();
         }
 
         private void CreateBottomWindow_Click(object sender, RoutedEventArgs e)
         {
             var noteData = NoteManager.Instance.CreateNote(WindowLevel.BottomMost);
             OpenNote(noteData);
+            RefreshWindowList();
         }
 
         private void CreateNormalWindow_Click(object sender, RoutedEventArgs e)
         {
             var noteData = NoteManager.Instance.CreateNote(WindowLevel.Normal);
             OpenNote(noteData);
+            RefreshWindowList();
         }
 
         private void ToggleWindow_Click(object sender, RoutedEventArgs e)
@@ -78,7 +74,7 @@ namespace YASN
         {
             if (sender is System.Windows.Controls.Button button && button.Tag is NoteData noteData)
             {
-                var result = System.Windows.MessageBox.Show(
+                var result = MessageBox.Show(
                     $"Are you sure you want to delete '{noteData.Title}'?",
                     "Confirm Delete",
                     MessageBoxButton.YesNo,

@@ -67,6 +67,33 @@ namespace YASN
             allFields.Add(logSizeField);
             generalModule.Fields.Add(logSizeField);
 
+            var floatingTaskbarVisibilityField = new SettingField
+            {
+                Key = FloatingWindowTaskbarVisibility.SettingKey,
+                Title = "Floating Window 任务栏图标",
+                Description = "控制悬浮窗是否在任务栏显示。",
+                FieldType = SettingFieldType.Select,
+                Value = FloatingWindowTaskbarVisibility.DefaultValue,
+                ShouldSync = false
+            };
+            floatingTaskbarVisibilityField.Options.Add(new SettingOption
+            {
+                Label = "始终显示",
+                Value = FloatingWindowTaskbarVisibility.AlwaysShowValue
+            });
+            floatingTaskbarVisibilityField.Options.Add(new SettingOption
+            {
+                Label = "始终不显示",
+                Value = FloatingWindowTaskbarVisibility.AlwaysHideValue
+            });
+            floatingTaskbarVisibilityField.Options.Add(new SettingOption
+            {
+                Label = "仅 TopMost 不显示",
+                Value = FloatingWindowTaskbarVisibility.HideTopMostOnlyValue
+            });
+            allFields.Add(floatingTaskbarVisibilityField);
+            generalModule.Fields.Add(floatingTaskbarVisibilityField);
+
             var serverUrlField = new SettingField
             {
                 Key = "webdav.server",
@@ -146,6 +173,8 @@ namespace YASN
             webDavModule.Fields.Add(autoSyncField);
 
             _settingsStore.ApplyValues(allFields);
+            floatingTaskbarVisibilityField.Value =
+                FloatingWindowTaskbarVisibility.NormalizeValue(floatingTaskbarVisibilityField.Value);
 
             autoStartField.OnChanged = field =>
             {
@@ -157,6 +186,12 @@ namespace YASN
             {
                 ApplyLogSize(field.Value);
                 _settingsStore.PersistField(field);
+            };
+
+            floatingTaskbarVisibilityField.OnChanged = field =>
+            {
+                _settingsStore.PersistField(field);
+                ApplyFloatingWindowTaskbarVisibilityToOpenWindows();
             };
 
             foreach (var field in new[] { serverUrlField, userField, passwordField, remoteField, autoSyncField, syncIntervalField })
@@ -172,6 +207,7 @@ namespace YASN
 
             ApplyLogSize(logSizeField.Value);
             ApplySyncInterval(syncIntervalField.Value);
+            ApplyFloatingWindowTaskbarVisibilityToOpenWindows();
 
             webDavModule.Actions.Add(new SettingAction
             {
@@ -280,6 +316,14 @@ namespace YASN
         private SettingModule FindModuleForAction(SettingAction action)
         {
             return ViewModel.Modules.FirstOrDefault(m => m.Actions.Contains(action));
+        }
+
+        private static void ApplyFloatingWindowTaskbarVisibilityToOpenWindows()
+        {
+            foreach (var note in NoteManager.Instance.Notes)
+            {
+                note.Window?.RefreshTaskbarVisibilityFromSettings();
+            }
         }
 
         private void ApplyLogSize(string value)
