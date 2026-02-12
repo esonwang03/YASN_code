@@ -10,6 +10,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Markdig;
 using Microsoft.Web.WebView2.Core;
+using YASN.Settings;
 using Application = System.Windows.Application;
 using Brushes = System.Windows.Media.Brushes;
 using Button = System.Windows.Controls.Button;
@@ -17,8 +18,10 @@ using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
 using ContextMenu = System.Windows.Controls.ContextMenu;
 using DataFormats = System.Windows.DataFormats;
+using DrawingColor = System.Drawing.Color;
 using DragDropEffects = System.Windows.DragDropEffects;
 using DragEventArgs = System.Windows.DragEventArgs;
+using DragDeltaEventArgs = System.Windows.Controls.Primitives.DragDeltaEventArgs;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MenuItem = System.Windows.Controls.MenuItem;
@@ -51,6 +54,7 @@ namespace YASN
         private const string IconSun = "\uE706";
         private const string IconMoon = "\uE708";
 
+        
         [LibraryImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static partial bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
@@ -100,6 +104,7 @@ namespace YASN
             NoteData = noteData;
             NoteData.Window = this;
             NoteData.IsOpen = true;
+            RefreshTaskbarVisibilityFromSettings();
 
             _imageDirectory = AppPaths.GetNoteAssetsDirectory(noteData.Id);
             _backgroundImageDirectory = AppPaths.GetNoteBackgroundDirectory(noteData.Id);
@@ -180,7 +185,17 @@ namespace YASN
                 ? new GridLength(5)
                 : new GridLength(0);
             PreviewColumn.Width = new GridLength(1, GridUnitType.Star);
-            UpdateChromeBarsByMouseState();
+            UpdatePreviewContainerAppearance(isEditMode);
+
+            if (isEditMode)
+            {
+                SetChromeExpanded(true);
+                UpdateChromeBarsByMouseState();
+            }
+            else
+            {
+                UpdateChromeBarsByMouseState();
+            }
 
             if (isEditMode && focusEditor)
             {
@@ -191,7 +206,67 @@ namespace YASN
 
         private void UpdateChromeBarsByMouseState()
         {
-            SetChromeExpanded(IsMouseInsideWindow());
+            var keepExpandedForEditor = NoteData.IsEditMode &&
+                                        (ContentTextBox.IsKeyboardFocusWithin || ContentTextBox.IsMouseOver);
+            SetChromeExpanded(keepExpandedForEditor || IsMouseInsideWindow());
+        }
+
+        private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        {
+            const double fallbackMinWidth = 320;
+            const double fallbackMinHeight = 220;
+            var minWidth = MinWidth > 0 ? MinWidth : fallbackMinWidth;
+            var minHeight = MinHeight > 0 ? MinHeight : fallbackMinHeight;
+
+            Width = Math.Max(minWidth, Width + e.HorizontalChange);
+            Height = Math.Max(minHeight, Height + e.VerticalChange);
+        }
+
+        private void UpdatePreviewContainerAppearance(bool isEditMode)
+        {
+            if (isEditMode)
+            {
+                PreviewContainer.Margin = new Thickness(0);
+                PreviewContainer.CornerRadius = new CornerRadius(4);
+                PreviewContainer.BorderThickness = new Thickness(1);
+                PreviewContainer.BorderBrush = new SolidColorBrush(Color.FromArgb(0x25, 0x00, 0x00, 0x00));
+                PreviewContainer.Background = new SolidColorBrush(Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF));
+            }
+            else
+            {
+                // Slightly overdraw vertically in preview mode to avoid revealing underlying windows during chrome collapse.
+                PreviewContainer.Margin = new Thickness(0, 0, 0, -40);
+                PreviewContainer.CornerRadius = new CornerRadius(8);
+                PreviewContainer.BorderThickness = new Thickness(0);
+                PreviewContainer.BorderBrush = Brushes.Transparent;
+                PreviewContainer.Background = Brushes.Transparent;
+            }
+
+            ApplyPreviewClip();
+        }
+
+        private void ApplyPreviewClip()
+        {
+            if (PreviewWebView.ActualWidth <= 0 || PreviewWebView.ActualHeight <= 0)
+            {
+                return;
+            }
+
+            var radius = Math.Max(0, PreviewContainer.CornerRadius.TopLeft);
+            PreviewWebView.Clip = new RectangleGeometry(
+                new Rect(0, 0, PreviewWebView.ActualWidth, PreviewWebView.ActualHeight),
+                radius,
+                radius);
+        }
+
+        private void PreviewContainer_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            ApplyPreviewClip();
+        }
+
+        private void PreviewWebView_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            ApplyPreviewClip();
         }
 
         private bool IsMouseInsideWindow()
@@ -261,6 +336,7 @@ namespace YASN
             _isPreviewInitInProgress = true;
             try
             {
+                PreviewWebView.DefaultBackgroundColor = DrawingColor.Transparent;
                 await PreviewWebView.EnsureCoreWebView2Async();
                 PreviewWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 PreviewWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
@@ -272,6 +348,7 @@ namespace YASN
                     CoreWebView2HostResourceAccessKind.Allow);
 
                 _previewReady = true;
+                ApplyPreviewClip();
                 await RenderPreviewAsync();
             }
             catch (Exception ex)
@@ -331,8 +408,9 @@ namespace YASN
 <base href='https://yasn.local/' />
 <style>
 :root {{ color-scheme: {(darkMode ? "dark" : "light")}; }}
-html, body {{ margin: 0; padding: 0; background: {bg}; color: {fg}; font-family: Segoe UI, Microsoft YaHei UI, sans-serif; line-height: 1.6; }}
-body {{ padding: 16px 20px; box-sizing: border-box; }}
+html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; color: {fg}; font-family: Segoe UI, Microsoft YaHei UI, sans-serif; line-height: 1.6; }}
+body {{ overflow: hidden; }}
+#page {{ height: 100%; box-sizing: border-box; overflow: auto; padding: 16px 20px; background: {bg}; border-radius: 8px; }}
 h1, h2, h3, h4, h5, h6 {{ margin: 0.8em 0 0.4em; }}
 p {{ margin: 0.4em 0 0.8em; }}
 ul, ol {{ margin: 0.4em 0 0.9em 1.4em; }}
@@ -349,7 +427,9 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
 </style>
 </head>
 <body>
+<div id='page'>
 {htmlBody}
+</div>
 </body>
 </html>";
         }
@@ -476,6 +556,17 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             }
         }
 
+        public void RefreshTaskbarVisibilityFromSettings()
+        {
+            var settingsStore = new SettingsStore();
+            var modeValue = settingsStore.GetValue(
+                FloatingWindowTaskbarVisibility.SettingKey,
+                shouldSync: false,
+                defaultValue: FloatingWindowTaskbarVisibility.DefaultValue);
+
+            ShowInTaskbar = FloatingWindowTaskbarVisibility.ShouldShowInTaskbar(NoteData.Level, modeValue);
+        }
+
         private void Timer_Tick(object sender, EventArgs e)
         {
             if (NoteData.Level == WindowLevel.BottomMost && _hwnd != IntPtr.Zero && _currentBottomMostWindow == this)
@@ -488,6 +579,7 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
             _hwnd = new WindowInteropHelper(this).Handle;
+            RefreshTaskbarVisibilityFromSettings();
             ApplyWindowLevel();
             await InitializePreviewAsync();
             SchedulePreviewRender();
@@ -720,6 +812,7 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
         private void SetWindowLevel(WindowLevel level)
         {
             NoteData.Level = level;
+            RefreshTaskbarVisibilityFromSettings();
 
             UpdateStatusText();
             UpdatePinButton();

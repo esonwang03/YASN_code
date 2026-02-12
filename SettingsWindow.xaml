@@ -9,37 +9,25 @@
         Height="520"
         Width="780"
         WindowStartupLocation="CenterOwner"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        ui:WindowHelper.UseModernWindowStyle="True"
         Background="#F5F5F5">
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="150"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Title Bar -->
-        <Border Grid.Row="0"
-                Grid.ColumnSpan="2"
-                Background="#2C3E50"
-                Padding="20,15">
-            <TextBlock Text="Application Settings"
-                       FontSize="20"
-                       FontWeight="Bold"
-                       Foreground="White"/>
-        </Border>
-
         <!-- Navigation -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="0"
                 Grid.Column="0"
-                Margin="20"
                 Background="White"
                 BorderBrush="#DDD"
-                BorderThickness="1"
-                CornerRadius="8">
+                BorderThickness="1">
             <StackPanel>
                 <ListBox x:Name="NavList"
                          ItemsSource="{Binding Modules}"
@@ -83,26 +71,28 @@
 
         <!-- Content -->
         <ScrollViewer x:Name="ModuleScrollViewer"
-                      Grid.Row="1"
+                      Grid.Row="0"
                       Grid.Column="1"
-                      Margin="0,20,20,20"
+                      Margin="15,10,10,10"
                       VerticalScrollBarVisibility="Auto">
-            <ItemsControl x:Name="ModuleItemsControl" ItemsSource="{Binding Modules}">
+            <ItemsControl x:Name="ModuleItemsControl" ItemsSource="{Binding Modules}" Margin="0 0 15 0">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type settings:SettingModule}">
-                        <Border x:Name="ModuleRoot"
-                                Tag="{Binding Key}"
-                                Background="White"
-                                BorderBrush="#DDD"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="20"
-                                Margin="0,0,0,16">
                             <StackPanel>
-                                <TextBlock Text="{Binding Title}"
-                                           FontSize="18"
-                                           FontWeight="Bold"
-                                           Foreground="#2C3E50"/>
+                                <Grid Margin="0 0 0 2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="56"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Height="1" Background="#2C3E50" VerticalAlignment="Center" Margin="0 0 8 0 "/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Title}"
+                                               FontSize="18"
+                                               FontWeight="Bold"
+                                               Foreground="#2C3E50"/>
+                                    <Border Grid.Column="2" Height="1" Background="#2C3E50" VerticalAlignment="Center" Margin="8 0 0 0 "/>
+                                </Grid>
+
                                 <TextBlock Text="{Binding Description}"
                                            FontSize="12"
                                            Foreground="#7F8C8D"
@@ -114,7 +104,7 @@
                                         <DataTemplate DataType="{x:Type settings:SettingField}">
                                             <Border BorderBrush="#EEE"
                                                     BorderThickness="0,0,0,1"
-                                                    Padding="0,12,0,12">
+                                                    Padding="0,5,0,5">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -134,11 +124,14 @@
                                                     </StackPanel>
 
                                                     <!-- Toggle -->
-                                                    <CheckBox Grid.Column="1"
-                                                              VerticalAlignment="Center"
-                                                              IsChecked="{Binding BoolValue, Mode=TwoWay}">
-                                                        <CheckBox.Style>
-                                                            <Style TargetType="CheckBox">
+                                                    <ui:ToggleSwitch Grid.Column="1"
+                                                                     VerticalAlignment="Center"
+                                                                     IsOn="{Binding BoolValue, Mode=TwoWay}"
+                                                                     OnContent=""
+                                                                     OffContent="">
+                                                        <ui:ToggleSwitch.Style>
+                                                            <Style TargetType="{x:Type ui:ToggleSwitch}"
+                                                                   BasedOn="{StaticResource {x:Type ui:ToggleSwitch}}">
                                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding FieldType}" Value="{x:Static settings:SettingFieldType.Toggle}">
@@ -146,15 +139,16 @@
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
-                                                        </CheckBox.Style>
-                                                    </CheckBox>
+                                                        </ui:ToggleSwitch.Style>
+                                                    </ui:ToggleSwitch>
                                                     <!-- Text -->
                                                     <TextBox Grid.Column="1"
                                                              VerticalAlignment="Center"
                                                              Padding="8"
                                                              Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                                                         <TextBox.Style>
-                                                            <Style TargetType="TextBox">
+                                                            <Style TargetType="TextBox"
+                                                                   BasedOn="{StaticResource {x:Type TextBox}}">
                                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding FieldType}" Value="{x:Static settings:SettingFieldType.Text}">
@@ -164,6 +158,26 @@
                                                             </Style>
                                                         </TextBox.Style>
                                                     </TextBox>
+                                                    <!-- Select -->
+                                                    <ComboBox Grid.Column="1"
+                                                              VerticalAlignment="Center"
+                                                              Padding="6,4"
+                                                              ItemsSource="{Binding Options}"
+                                                              DisplayMemberPath="Label"
+                                                              SelectedValuePath="Value"
+                                                              SelectedValue="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                        <ComboBox.Style>
+                                                            <Style TargetType="ComboBox"
+                                                                   BasedOn="{StaticResource {x:Type ComboBox}}">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding FieldType}" Value="{x:Static settings:SettingFieldType.Select}">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </ComboBox.Style>
+                                                    </ComboBox>
                                                     <!-- Password -->
                                                     <PasswordBox x:Name="PasswordBox"
                                                                  Grid.Column="1"
@@ -172,7 +186,8 @@
                                                                  PasswordChanged="PasswordBox_PasswordChanged"
                                                                  Loaded="PasswordBox_Loaded">
                                                         <PasswordBox.Style>
-                                                            <Style TargetType="PasswordBox">
+                                                            <Style TargetType="PasswordBox"
+                                                                   BasedOn="{StaticResource {x:Type PasswordBox}}">
                                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding FieldType}" Value="{x:Static settings:SettingFieldType.Password}">
@@ -209,7 +224,6 @@
                                                TextWrapping="Wrap"/>
                                 </StackPanel>
                             </StackPanel>
-                        </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

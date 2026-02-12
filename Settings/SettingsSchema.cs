@@ -10,7 +10,14 @@ namespace YASN.Settings
     {
         Toggle,
         Text,
-        Password
+        Password,
+        Select
+    }
+
+    public class SettingOption
+    {
+        public string Label { get; set; }
+        public string Value { get; set; }
     }
 
     public class SettingField : INotifyPropertyChanged
@@ -52,6 +59,7 @@ namespace YASN.Settings
         }
 
         public Action<SettingField> OnChanged { get; set; }
+        public ObservableCollection<SettingOption> Options { get; } = new();
 
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string propertyName = null)

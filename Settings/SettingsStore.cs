@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
 
 namespace YASN.Settings
@@ -63,7 +60,13 @@ namespace YASN.Settings
             SaveDictionary(map, path);
         }
 
-        private Dictionary<string, string> LoadDictionary(string path)
+        public string GetValue(string key, bool shouldSync, string defaultValue = "")
+        {
+            var map = shouldSync ? _syncSettings : _localSettings;
+            return map.GetValueOrDefault(key, defaultValue);
+        }
+
+        private static Dictionary<string, string> LoadDictionary(string path)
         {
             try
             {

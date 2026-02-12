@@ -16,7 +16,10 @@
         Deactivated="Window_Deactivated">
 
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="40" GlassFrameThickness="-1" UseAeroCaptionButtons="False"/>
+        <shell:WindowChrome CaptionHeight="40"
+                            GlassFrameThickness="-1"
+                            ResizeBorderThickness="15"
+                            UseAeroCaptionButtons="False"/>
     </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
@@ -279,17 +282,42 @@
 
                     <Border x:Name="PreviewContainer"
                             Grid.Column="2"
-                            Margin="0,0,0,0"
-                            CornerRadius="4"
-                            Background="#20FFFFFF"
-                            BorderBrush="#25000000"
-                            BorderThickness="1"
+                            Margin="0"
+                            CornerRadius="8"
+                            Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="0"
+                            ClipToBounds="True"
+                            SizeChanged="PreviewContainer_SizeChanged"
                             PreviewMouseRightButtonDown="PreviewSurface_PreviewMouseRightButtonDown">
                         <wv2:WebView2 x:Name="PreviewWebView"
                                       Margin="0"
+                                      SizeChanged="PreviewWebView_SizeChanged"
                                       PreviewMouseRightButtonDown="PreviewSurface_PreviewMouseRightButtonDown"/>
                     </Border>
                 </Grid>
+
+                <Thumb x:Name="ResizeThumb"
+                       Grid.Row="2"
+                       Width="16"
+                       Height="16"
+                       Margin="0,0,2,2"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Bottom"
+                       Cursor="SizeNWSE"
+                       Opacity="0.7"
+                       shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                       DragDelta="ResizeThumb_DragDelta">
+                    <Thumb.Template>
+                        <ControlTemplate TargetType="Thumb">
+                            <Grid Background="Transparent">
+                                <Path Data="M 16,10 L 10,16 M 16,6 L 6,16 M 16,2 L 2,16"
+                                      Stroke="#99FFFFFF"
+                                      StrokeThickness="1"/>
+                            </Grid>
+                        </ControlTemplate>
+                    </Thumb.Template>
+                </Thumb>
             </Grid>
         </Grid>
     </Border>
