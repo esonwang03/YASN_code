@@ -1,8 +1,7 @@
-using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 
 namespace YASN.Settings
 {
@@ -16,27 +15,27 @@ namespace YASN.Settings
 
     public class SettingOption
     {
-        public string Label { get; set; }
-        public string Value { get; set; }
+        public string? Label { get; set; }
+        public string? Value { get; set; }
     }
 
     public class SettingField : INotifyPropertyChanged
     {
-        public string Key { get; set; }
-        public string Title { get; set; }
-        public string Description { get; set; }
+        public string? Key { get; set; }
+        public string? Title { get; set; }
+        public string? Description { get; set; }
         public SettingFieldType FieldType { get; set; }
         public bool ShouldSync { get; set; }
 
-        private string _value;
+        [field: AllowNull, MaybeNull]
         public string Value
         {
-            get => _value;
+            get;
             set
             {
-                if (_value != value)
+                if (field != value)
                 {
-                    _value = value;
+                    field = value;
                     OnPropertyChanged();
                     OnChanged?.Invoke(this);
                 }
@@ -62,7 +61,7 @@ namespace YASN.Settings
         public ObservableCollection<SettingOption> Options { get; } = new();
 
         public event PropertyChangedEventHandler PropertyChanged;
-        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        private void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
@@ -70,28 +69,28 @@ namespace YASN.Settings
 
     public class SettingAction
     {
-        public string Key { get; set; }
-        public string Label { get; set; }
-        public Func<Task<string>> ExecuteAsync { get; set; }
+        public string? Key { get; set; }
+        public string? Label { get; set; }
+        public Func<Task<string>>? ExecuteAsync { get; set; }
     }
 
     public class SettingModule : INotifyPropertyChanged
     {
-        public string Key { get; set; }
-        public string Title { get; set; }
-        public string Description { get; set; }
+        public string? Key { get; set; }
+        public string? Title { get; set; }
+        public string? Description { get; set; }
         public ObservableCollection<SettingField> Fields { get; } = new();
         public ObservableCollection<SettingAction> Actions { get; } = new();
 
-        private string _status;
+        [field: AllowNull, MaybeNull]
         public string Status
         {
-            get => _status;
+            get;
             set
             {
-                if (_status != value)
+                if (field != value)
                 {
-                    _status = value;
+                    field = value;
                     OnPropertyChanged();
                 }
             }
