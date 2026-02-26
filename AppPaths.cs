@@ -13,6 +13,7 @@ namespace YASN
         public static string NotesIndexPath { get; } = Path.Combine(DataDirectory, "notes.index.json");
         public static string NotesMarkdownRoot { get; } = Path.Combine(DataDirectory, "notes");
         public static string NoteAssetsRoot { get; } = Path.Combine(DataDirectory, "note-assets");
+        public static string NoteAttachmentsRoot { get; } = Path.Combine(NoteAssetsRoot, "attachments");
         public static string NoteBackgroundsRoot { get; } = Path.Combine(NoteAssetsRoot, "backgrounds");
         public static string HtmlCacheRoot { get; } = Path.Combine(DataDirectory, "html-cache");
 
@@ -26,6 +27,7 @@ namespace YASN
             Directory.CreateDirectory(DataDirectory);
             Directory.CreateDirectory(NotesMarkdownRoot);
             Directory.CreateDirectory(NoteAssetsRoot);
+            Directory.CreateDirectory(NoteAttachmentsRoot);
             Directory.CreateDirectory(NoteBackgroundsRoot);
             Directory.CreateDirectory(HtmlCacheRoot);
         }
@@ -45,6 +47,13 @@ namespace YASN
         public static string GetNoteBackgroundDirectory(int noteId)
         {
             var path = Path.Combine(NoteBackgroundsRoot, noteId.ToString());
+            Directory.CreateDirectory(path);
+            return path;
+        }
+
+        public static string GetNoteAttachmentsDirectory(int noteId)
+        {
+            var path = Path.Combine(NoteAttachmentsRoot, noteId.ToString());
             Directory.CreateDirectory(path);
             return path;
         }

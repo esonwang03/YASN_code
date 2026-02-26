@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.IO;
+﻿using System.IO;
 using MessageBox = ModernWpf.MessageBox;
 using System.Windows;
 using System.Windows.Threading;
@@ -86,7 +85,7 @@ namespace YASN
             // Restore previously opened notes after a short delay to ensure everything is initialized
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                Debug.WriteLine("App startup: calling RestoreOpenNotes");
+                AppLogger.Debug("App startup: calling RestoreOpenNotes");
                 NoteManager.Instance.RestoreOpenNotes();
             }), DispatcherPriority.ApplicationIdle);
         }
@@ -175,3 +174,4 @@ namespace YASN
         }
     }
 }
+

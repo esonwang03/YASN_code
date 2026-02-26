@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace YASN.Settings
 {
@@ -66,6 +67,78 @@ namespace YASN.Settings
             return map.GetValueOrDefault(key, defaultValue);
         }
 
+        public bool ExportToFile(string path, out string errorMessage)
+        {
+            errorMessage = string.Empty;
+            try
+            {
+                var directory = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var payload = new SettingsExportPayload
+                {
+                    SchemaVersion = 1,
+                    SyncSettings = new Dictionary<string, string>(_syncSettings),
+                    LocalSettings = new Dictionary<string, string>(_localSettings)
+                };
+
+                var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(path, json);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = ex.Message;
+                return false;
+            }
+        }
+
+        public bool ImportFromFile(string path, out string errorMessage)
+        {
+            errorMessage = string.Empty;
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    errorMessage = "File not found.";
+                    return false;
+                }
+
+                var json = File.ReadAllText(path);
+                var payload = JsonSerializer.Deserialize<SettingsExportPayload>(json);
+                if (payload == null)
+                {
+                    errorMessage = "Invalid settings file.";
+                    return false;
+                }
+
+                _syncSettings.Clear();
+                _localSettings.Clear();
+
+                foreach (var kv in payload.SyncSettings)
+                {
+                    _syncSettings[kv.Key] = kv.Value ?? string.Empty;
+                }
+
+                foreach (var kv in payload.LocalSettings)
+                {
+                    _localSettings[kv.Key] = kv.Value ?? string.Empty;
+                }
+
+                SaveDictionary(_syncSettings, _syncPath);
+                SaveDictionary(_localSettings, _localPath);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = ex.Message;
+                return false;
+            }
+        }
+
         private static Dictionary<string, string> LoadDictionary(string path)
         {
             try
@@ -101,6 +174,18 @@ namespace YASN.Settings
             {
                 // Swallow IO errors to avoid crashing settings UI
             }
+        }
+
+        private sealed class SettingsExportPayload
+        {
+            [JsonPropertyName("schemaVersion")]
+            public int SchemaVersion { get; set; } = 1;
+
+            [JsonPropertyName("syncSettings")]
+            public Dictionary<string, string> SyncSettings { get; set; } = new();
+
+            [JsonPropertyName("localSettings")]
+            public Dictionary<string, string> LocalSettings { get; set; } = new();
         }
     }
 }

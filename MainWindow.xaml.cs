@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
@@ -122,6 +123,27 @@ namespace YASN
                 Owner = this
             };
             settingsWindow.ShowDialog();
+        }
+
+        private void OpenDataFolder_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var dataDirectory = AppPaths.DataDirectory;
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = dataDirectory,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to open data folder: {ex.Message}",
+                    "Open Folder Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)

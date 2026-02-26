@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using WebDav;
+using YASN.Logging;
 
 namespace YASN.Sync.WebDav
 {
@@ -80,7 +81,7 @@ namespace YASN.Sync.WebDav
             catch (Exception ex)
             {
                 LastError = ex.Message;
-                System.Diagnostics.Debug.WriteLine($"WebDAV test failed: {ex}");
+                AppLogger.Debug($"WebDAV test failed: {ex}");
                 return false;
             }
         }
@@ -148,7 +149,7 @@ namespace YASN.Sync.WebDav
             catch (Exception ex)
             {
                 LastError = ex.Message;
-                System.Diagnostics.Debug.WriteLine($"WebDAV upload failed: {ex}");
+                AppLogger.Debug($"WebDAV upload failed: {ex}");
                 return false;
             }
         }
@@ -182,7 +183,7 @@ namespace YASN.Sync.WebDav
             catch (Exception ex)
             {
                 LastError = ex.Message;
-                System.Diagnostics.Debug.WriteLine($"WebDAV download failed: {ex}");
+                AppLogger.Debug($"WebDAV download failed: {ex}");
                 return false;
             }
         }
@@ -202,7 +203,7 @@ namespace YASN.Sync.WebDav
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"WebDAV exists check failed: {ex.Message}");
+                AppLogger.Debug($"WebDAV exists check failed: {ex.Message}");
                 return false;
             }
         }
@@ -228,7 +229,7 @@ namespace YASN.Sync.WebDav
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"WebDAV last-modified check failed: {ex.Message}");
+                AppLogger.Debug($"WebDAV last-modified check failed: {ex.Message}");
                 return null;
             }
         }
@@ -252,7 +253,7 @@ namespace YASN.Sync.WebDav
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"WebDAV hash failed: {ex.Message}");
+                AppLogger.Debug($"WebDAV hash failed: {ex.Message}");
                 return null;
             }
         }
@@ -274,3 +275,5 @@ namespace YASN.Sync.WebDav
         }
     }
 }
+
+

@@ -36,14 +36,17 @@ namespace YASN.Logging
         {
             try
             {
+                string line;
                 lock (Lock)
                 {
                     EnsureDirectory();
                     RotateIfNeeded();
 
-                    var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{level}] {message}";
-                    File.AppendAllLines(LogPath, new[] { line });
+                    line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{level}] {message}";
+                    File.AppendAllLines(LogPath, [line]);
                 }
+
+                WriteToTerminalInDebug(line);
 
                 if (showToast)
                 {
@@ -54,6 +57,20 @@ namespace YASN.Logging
             {
                 // Avoid throwing from logger
             }
+        }
+
+        private static void WriteToTerminalInDebug(string line)
+        {
+#if DEBUG
+            try
+            {
+                Console.WriteLine(line);
+            }
+            catch
+            {
+                // ignore terminal output failures
+            }
+#endif
         }
 
         private static void EnsureDirectory()

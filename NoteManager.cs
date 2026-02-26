@@ -1,8 +1,9 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using YASN.Logging;
 
 namespace YASN
 {
@@ -120,11 +121,11 @@ namespace YASN
                     WriteTextFile(AppPaths.GetNoteMarkdownPath(note.Id), note.Content ?? string.Empty);
                 }
 
-                System.Diagnostics.Debug.WriteLine($"Saved {Notes.Count} notes to {IndexFilePath} (schema v{CurrentSchemaVersion})");
+                AppLogger.Debug($"Saved {Notes.Count} notes to {IndexFilePath} (schema v{CurrentSchemaVersion})");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to save notes: {ex.Message}");
+                AppLogger.Debug($"Failed to save notes: {ex.Message}");
             }
         }
 
@@ -142,7 +143,7 @@ namespace YASN
 
                 if (!File.Exists(IndexFilePath))
                 {
-                    System.Diagnostics.Debug.WriteLine($"Notes index not found at {IndexFilePath}");
+                    AppLogger.Debug($"Notes index not found at {IndexFilePath}");
                     return;
                 }
 
@@ -192,11 +193,11 @@ namespace YASN
                     Save();
                 }
 
-                System.Diagnostics.Debug.WriteLine($"Loaded {Notes.Count} notes from {IndexFilePath}");
+                AppLogger.Debug($"Loaded {Notes.Count} notes from {IndexFilePath}");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to load notes: {ex.Message}\nStack trace: {ex.StackTrace}");
+                AppLogger.Debug($"Failed to load notes: {ex.Message}\nStack trace: {ex.StackTrace}");
             }
         }
 
@@ -212,7 +213,7 @@ namespace YASN
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Failed to restore note window {note.Id}: {ex.Message}");
+                    AppLogger.Debug($"Failed to restore note window {note.Id}: {ex.Message}");
                 }
             }
         }
@@ -281,11 +282,11 @@ namespace YASN
 
                 _nextId = Notes.Count > 0 ? Notes.Max(n => n.Id) + 1 : 1;
                 Save();
-                System.Diagnostics.Debug.WriteLine($"Migrated {Notes.Count} legacy notes from {legacyPath}");
+                AppLogger.Debug($"Migrated {Notes.Count} legacy notes from {legacyPath}");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to migrate legacy notes: {ex.Message}");
+                AppLogger.Debug($"Failed to migrate legacy notes: {ex.Message}");
             }
         }
 
@@ -600,3 +601,5 @@ namespace YASN
         }
     }
 }
+
+

@@ -6,7 +6,7 @@ using Markdig.Renderers.Html;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 
-namespace YASN
+namespace YASN.Markdown.Extensions
 {
     internal sealed class HexColorExtension : IMarkdownExtension
     {

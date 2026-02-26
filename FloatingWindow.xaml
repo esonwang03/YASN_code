@@ -5,7 +5,7 @@
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="Floating Window"
         Height="460"
-        Width="760"
+        Width="700"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -254,6 +254,7 @@
                     <DockPanel LastChildFill="False">
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                             <Button Content="Insert Image" Style="{StaticResource MarkdownActionButtonStyle}" Click="InsertImage_Click"/>
+                            <Button Content="Insert Attachment" Style="{StaticResource MarkdownActionButtonStyle}" Click="InsertAttachment_Click"/>
                             <Button Content="Refresh Preview" Style="{StaticResource MarkdownActionButtonStyle}" Click="RefreshPreview_Click"/>
                         </StackPanel>
                     </DockPanel>

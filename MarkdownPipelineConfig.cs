@@ -1,4 +1,5 @@
 using Markdig;
+using YASN.Markdown.Extensions;
 
 namespace YASN
 {

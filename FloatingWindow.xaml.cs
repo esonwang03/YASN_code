@@ -1,5 +1,6 @@
-using System.IO;
+﻿using System.IO;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -10,6 +11,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Markdig;
 using Microsoft.Web.WebView2.Core;
+using YASN.Logging;
 using YASN.Settings;
 using Application = System.Windows.Application;
 using Brushes = System.Windows.Media.Brushes;
@@ -78,12 +80,14 @@ namespace YASN
         private Storyboard _expandEditBar;
 
         private readonly string _imageDirectory;
+        private readonly string _attachmentDirectory;
         private readonly string _backgroundImageDirectory;
         private readonly string _htmlCachePath;
 
         private bool _previewReady;
         private bool _isPreviewInitInProgress;
         private bool _isChromeExpanded = true;
+        private bool _autoCollapseChromeEnabled = NoteWindowUiSettings.DefaultAutoCollapseChrome;
         private DateTime _lastPreviewRightClickUtc = DateTime.MinValue;
 
         private static FloatingWindow _currentBottomMostWindow;
@@ -107,6 +111,7 @@ namespace YASN
             RefreshTaskbarVisibilityFromSettings();
 
             _imageDirectory = AppPaths.GetNoteAssetsDirectory(noteData.Id);
+            _attachmentDirectory = AppPaths.GetNoteAttachmentsDirectory(noteData.Id);
             _backgroundImageDirectory = AppPaths.GetNoteBackgroundDirectory(noteData.Id);
             _htmlCachePath = AppPaths.GetNoteHtmlCachePath(noteData.Id);
 
@@ -152,6 +157,7 @@ namespace YASN
             _chromeHoverTimer.Interval = TimeSpan.FromMilliseconds(120);
             _chromeHoverTimer.Tick += (_, _) => UpdateChromeBarsByMouseState();
             _chromeHoverTimer.Start();
+            RefreshChromeBehaviorFromSettings();
 
             _collapseEditBar = (Storyboard)FindResource("CollapseEditBar");
             _expandEditBar = (Storyboard)FindResource("ExpandEditBar");
@@ -204,9 +210,22 @@ namespace YASN
 
         private void UpdateChromeBarsByMouseState()
         {
+            if (!_autoCollapseChromeEnabled)
+            {
+                SetChromeExpanded(true);
+                return;
+            }
+
             var keepExpandedForEditor = NoteData.IsEditMode &&
                                         (ContentTextBox.IsKeyboardFocusWithin || ContentTextBox.IsMouseOver);
             SetChromeExpanded(keepExpandedForEditor || IsMouseInsideWindow());
+        }
+
+        public void RefreshChromeBehaviorFromSettings()
+        {
+            var settingsStore = new SettingsStore();
+            _autoCollapseChromeEnabled = NoteWindowUiSettings.IsAutoCollapseChromeEnabled(settingsStore);
+            UpdateChromeBarsByMouseState();
         }
 
         private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
@@ -340,6 +359,7 @@ namespace YASN
                 PreviewWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
                 PreviewWebView.CoreWebView2.Settings.AreDevToolsEnabled = true;
                 PreviewWebView.CoreWebView2.ContextMenuRequested += PreviewCoreWebView2_ContextMenuRequested;
+                PreviewWebView.CoreWebView2.NavigationStarting += PreviewCoreWebView2_NavigationStarting;
                 PreviewWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                     "yasn.local",
                     AppPaths.DataDirectory,
@@ -351,7 +371,7 @@ namespace YASN
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to initialize WebView2: {ex.Message}");
+                AppLogger.Debug($"Failed to initialize WebView2: {ex.Message}");
             }
             finally
             {
@@ -369,7 +389,7 @@ namespace YASN
             try
             {
                 var markdown = GetContent();
-                var htmlBody = Markdown.ToHtml(markdown ?? string.Empty, _markdownPipeline);
+                var htmlBody = global::Markdig.Markdown.ToHtml(markdown ?? string.Empty, _markdownPipeline);
                 var html = BuildHtmlPage(htmlBody, NoteData.IsDarkMode);
 
                 var cacheDir = Path.GetDirectoryName(_htmlCachePath);
@@ -383,7 +403,7 @@ namespace YASN
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to render markdown preview: {ex.Message}");
+                AppLogger.Debug($"Failed to render markdown preview: {ex.Message}");
             }
 
             await Task.CompletedTask;
@@ -446,12 +466,26 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             }
         }
 
+        private void InsertAttachment_Click(object sender, RoutedEventArgs e)
+        {
+            var openFileDialog = new OpenFileDialog
+            {
+                Filter = "All Files|*.*",
+                Title = "Select Attachment to Insert"
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                InsertAttachment(openFileDialog.FileName);
+            }
+        }
+
         private void ContentTextBox_PreviewDragOver(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 var files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                if (files != null && files.Length > 0 && IsImageFile(files[0]))
+                if (files != null && files.Length > 0 && File.Exists(files[0]))
                 {
                     e.Effects = DragDropEffects.Copy;
                     e.Handled = true;
@@ -468,9 +502,17 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 var files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                if (files != null && files.Length > 0 && IsImageFile(files[0]))
+                if (files != null && files.Length > 0 && File.Exists(files[0]))
                 {
-                    InsertImage(files[0]);
+                    if (IsImageFile(files[0]))
+                    {
+                        InsertImage(files[0]);
+                    }
+                    else
+                    {
+                        InsertAttachment(files[0]);
+                    }
+
                     e.Handled = true;
                 }
             }
@@ -512,6 +554,46 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
                 }
 
                 MessageBox.Show($"Fail to insert image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void InsertAttachment(string sourceFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(sourceFilePath) || !File.Exists(sourceFilePath))
+            {
+                MessageBox.Show("Attachment file does not exist.", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            try
+            {
+                var fileInfo = new FileInfo(sourceFilePath);
+                var displayName = Path.GetFileName(sourceFilePath);
+                string linkTarget;
+                var settingsStore = new SettingsStore();
+                var autoSyncEnabled = AttachmentSyncSettings.GetAutoSyncEnabled(settingsStore);
+                var autoSyncMaxBytes = AttachmentSyncSettings.GetAutoSyncThresholdBytes(settingsStore);
+
+                if (autoSyncEnabled && fileInfo.Length <= autoSyncMaxBytes)
+                {
+                    var fileName = $"{Guid.NewGuid()}{Path.GetExtension(sourceFilePath)}";
+                    var destPath = Path.Combine(_attachmentDirectory, fileName);
+                    File.Copy(sourceFilePath, destPath, true);
+                    linkTarget = $"note-assets/attachments/{NoteData.Id}/{fileName}";
+                }
+                else
+                {
+                    linkTarget = new Uri(sourceFilePath, UriKind.Absolute).AbsoluteUri;
+                }
+
+                var markdown = $"[{displayName}]({linkTarget}){Environment.NewLine}";
+                InsertTextAtCaret(markdown);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Fail to insert attachment: {ex.Message}", "Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -649,6 +731,88 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             }
 
             Dispatcher.BeginInvoke(new Action(() => SetEditMode(true, focusEditor: true)));
+        }
+
+        private void PreviewCoreWebView2_NavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
+        {
+            if (!e.IsUserInitiated)
+            {
+                return;
+            }
+
+            if (!TryResolveOpenTarget(e.Uri, out var openTarget))
+            {
+                return;
+            }
+
+            e.Cancel = true;
+            TryOpenWithSystemViewer(openTarget);
+        }
+
+        private static bool TryResolveOpenTarget(string rawUri, out string openTarget)
+        {
+            openTarget = string.Empty;
+            if (string.IsNullOrWhiteSpace(rawUri))
+            {
+                return false;
+            }
+
+            if (Uri.TryCreate(rawUri, UriKind.Absolute, out var uri))
+            {
+                if (uri.IsFile)
+                {
+                    var localPath = uri.LocalPath;
+                    if (File.Exists(localPath))
+                    {
+                        openTarget = localPath;
+                        return true;
+                    }
+                }
+                else if (string.Equals(uri.Scheme, "https", StringComparison.OrdinalIgnoreCase) &&
+                         string.Equals(uri.Host, "yasn.local", StringComparison.OrdinalIgnoreCase))
+                {
+                    var localRelative = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/'))
+                        .Replace('/', Path.DirectorySeparatorChar);
+                    var localPath = Path.Combine(AppPaths.DataDirectory, localRelative);
+                    if (File.Exists(localPath))
+                    {
+                        openTarget = localPath;
+                        return true;
+                    }
+                }
+                else if (string.Equals(uri.Scheme, "http", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(uri.Scheme, "https", StringComparison.OrdinalIgnoreCase))
+                {
+                    openTarget = rawUri;
+                    return true;
+                }
+            }
+
+            if (File.Exists(rawUri))
+            {
+                openTarget = rawUri;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static void TryOpenWithSystemViewer(string target)
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = target,
+                    UseShellExecute = true
+                };
+                Process.Start(startInfo);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Fail to open attachment: {ex.Message}", "Open Failed",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -1286,3 +1450,5 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
         }
     }
 }
+
+
