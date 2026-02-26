@@ -131,9 +131,7 @@ namespace YASN
             BackgroundImageBorder.Opacity = noteData.BackgroundImageOpacity;
             LoadContent(noteData.Content);
 
-            _markdownPipeline = new MarkdownPipelineBuilder()
-                .UseAdvancedExtensions()
-                .Build();
+            _markdownPipeline = MarkdownPipelineConfig.Create();
 
             _bottomMostTimer = new System.Windows.Threading.DispatcherTimer
             {
