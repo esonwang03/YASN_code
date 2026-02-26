@@ -27,11 +27,9 @@ namespace YASN
             get => _id;
             set
             {
-                if (_id != value)
-                {
-                    _id = value;
-                    OnPropertyChanged(nameof(Id));
-                }
+                if (_id == value) return;
+                _id = value;
+                OnPropertyChanged(nameof(Id));
             }
         }
 
@@ -40,12 +38,10 @@ namespace YASN
             get => _title;
             set
             {
-                if (_title != value)
-                {
-                    _title = value;
-                    OnPropertyChanged(nameof(Title));
-                    OnPropertyChanged(nameof(DisplayTitle));
-                }
+                if (_title == value) return;
+                _title = value;
+                OnPropertyChanged(nameof(Title));
+                OnPropertyChanged(nameof(DisplayTitle));
             }
         }
 
@@ -63,11 +59,9 @@ namespace YASN
             get => _content;
             set
             {
-                if (_content != value)
-                {
-                    _content = value;
-                    OnPropertyChanged(nameof(Content));
-                }
+                if (_content == value) return;
+                _content = value;
+                OnPropertyChanged(nameof(Content));
             }
         }
 
@@ -76,13 +70,11 @@ namespace YASN
             get => _level;
             set
             {
-                if (_level != value)
-                {
-                    _level = value;
-                    OnPropertyChanged(nameof(Level));
-                    OnPropertyChanged(nameof(DisplayTitle));
-                    OnPropertyChanged(nameof(LevelPrefix));
-                }
+                if (_level == value) return;
+                _level = value;
+                OnPropertyChanged(nameof(Level));
+                OnPropertyChanged(nameof(DisplayTitle));
+                OnPropertyChanged(nameof(LevelPrefix));
             }
         }
 
@@ -91,11 +83,9 @@ namespace YASN
             get => _left;
             set
             {
-                if (Math.Abs(_left - value) > 0.01)
-                {
-                    _left = value;
-                    OnPropertyChanged(nameof(Left));
-                }
+                if (!(Math.Abs(_left - value) > 0.01)) return;
+                _left = value;
+                OnPropertyChanged(nameof(Left));
             }
         }
 
@@ -104,11 +94,9 @@ namespace YASN
             get => _top;
             set
             {
-                if (Math.Abs(_top - value) > 0.01)
-                {
-                    _top = value;
-                    OnPropertyChanged(nameof(Top));
-                }
+                if (!(Math.Abs(_top - value) > 0.01)) return;
+                _top = value;
+                OnPropertyChanged(nameof(Top));
             }
         }
 
@@ -117,11 +105,9 @@ namespace YASN
             get => _width;
             set
             {
-                if (Math.Abs(_width - value) > 0.01)
-                {
-                    _width = value;
-                    OnPropertyChanged(nameof(Width));
-                }
+                if (!(Math.Abs(_width - value) > 0.01)) return;
+                _width = value;
+                OnPropertyChanged(nameof(Width));
             }
         }
 
@@ -130,11 +116,9 @@ namespace YASN
             get => _height;
             set
             {
-                if (Math.Abs(_height - value) > 0.01)
-                {
-                    _height = value;
-                    OnPropertyChanged(nameof(Height));
-                }
+                if (!(Math.Abs(_height - value) > 0.01)) return;
+                _height = value;
+                OnPropertyChanged(nameof(Height));
             }
         }
 
@@ -143,12 +127,10 @@ namespace YASN
             get => _isOpen;
             set
             {
-                if (_isOpen != value)
-                {
-                    _isOpen = value;
-                    OnPropertyChanged(nameof(IsOpen));
-                    OnPropertyChanged(nameof(StatusText));
-                }
+                if (_isOpen == value) return;
+                _isOpen = value;
+                OnPropertyChanged(nameof(IsOpen));
+                OnPropertyChanged(nameof(StatusText));
             }
         }
 
@@ -161,11 +143,9 @@ namespace YASN
             get => _isEditMode;
             set
             {
-                if (_isEditMode != value)
-                {
-                    _isEditMode = value;
-                    OnPropertyChanged(nameof(IsEditMode));
-                }
+                if (_isEditMode == value) return;
+                _isEditMode = value;
+                OnPropertyChanged(nameof(IsEditMode));
             }
         }
 
@@ -174,11 +154,9 @@ namespace YASN
             get => _isDarkMode;
             set
             {
-                if (_isDarkMode != value)
-                {
-                    _isDarkMode = value;
-                    OnPropertyChanged(nameof(IsDarkMode));
-                }
+                if (_isDarkMode == value) return;
+                _isDarkMode = value;
+                OnPropertyChanged(nameof(IsDarkMode));
             }
         }
 
@@ -187,11 +165,9 @@ namespace YASN
             get => _titleBarColor ?? "#E6D4C5E0";
             set
             {
-                if (_titleBarColor != value)
-                {
-                    _titleBarColor = value;
-                    OnPropertyChanged(nameof(TitleBarColor));
-                }
+                if (_titleBarColor == value) return;
+                _titleBarColor = value;
+                OnPropertyChanged(nameof(TitleBarColor));
             }
         }
 
@@ -200,11 +176,9 @@ namespace YASN
             get => _backgroundImagePath;
             set
             {
-                if (_backgroundImagePath != value)
-                {
-                    _backgroundImagePath = value;
-                    OnPropertyChanged(nameof(BackgroundImagePath));
-                }
+                if (_backgroundImagePath == value) return;
+                _backgroundImagePath = value;
+                OnPropertyChanged(nameof(BackgroundImagePath));
             }
         }
 
@@ -213,15 +187,13 @@ namespace YASN
             get => _backgroundImageOpacity > 0 ? _backgroundImageOpacity : 0.15;
             set
             {
-                if (Math.Abs(_backgroundImageOpacity - value) > 0.01)
-                {
-                    _backgroundImageOpacity = value;
-                    OnPropertyChanged(nameof(BackgroundImageOpacity));
-                }
+                if (!(Math.Abs(_backgroundImageOpacity - value) > 0.01)) return;
+                _backgroundImageOpacity = value;
+                OnPropertyChanged(nameof(BackgroundImageOpacity));
             }
         }
 
-        protected void OnPropertyChanged(string propertyName)
+        private void OnPropertyChanged(string propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }

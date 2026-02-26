@@ -1,20 +1,28 @@
-﻿namespace YASN
+﻿using System.Diagnostics;
+using System.IO;
+using MessageBox = ModernWpf.MessageBox;
+using System.Windows;
+using System.Windows.Threading;
+using YASN.Logging;
+using YASN.Sync;
+
+namespace YASN
 {
     /// <summary>
     /// Interaction logic for App.xaml
     /// </summary>
-    public partial class App : System.Windows.Application
+    public partial class App
     {
         private NotifyIcon? _notifyIcon;
         public static Sync.SyncManager? SyncManager { get; private set; }
         private static System.Threading.Mutex? _singleInstanceMutex;
         private const string MutexName = "Global\\YASN_SingleInstance";
 
-        protected override void OnStartup(System.Windows.StartupEventArgs e)
+        protected override void OnStartup(StartupEventArgs e)
         {
             if (!EnsureSingleInstance())
             {
-                System.Windows.MessageBox.Show("YASN 已在运行，无法启动多个实例。", "已在运行", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                MessageBox.Show("YASN 已在运行，无法启动多个实例。", "已在运行", MessageBoxButton.OK, MessageBoxImage.Information);
                 Shutdown();
                 return;
             }
@@ -22,8 +30,8 @@
             base.OnStartup(e);
 
             // Initialize WebDAV sync manager
-            SyncManager = new Sync.SyncManager();
-            Logging.AppLogger.Info("YASN Started");
+            SyncManager = new SyncManager();
+            AppLogger.Info("YASN Started");
 
             // Hide main window, only show tray icon
             MainWindow = new MainWindow();
@@ -35,16 +43,10 @@
             // Load icon from the same icon file used by the EXE
             try
             {
-                var iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "amy.ico");
-                if (System.IO.File.Exists(iconPath))
-                {
-                    _notifyIcon.Icon = new Icon(iconPath);
-                }
-                else
-                {
+                var iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "amy.ico");
+                _notifyIcon.Icon = File.Exists(iconPath) ? new Icon(iconPath) :
                     // Fallback to embedded resource
-                    _notifyIcon.Icon = YASN.Properties.Resources.bitbug_favicon;
-                }
+                    YASN.Properties.Resources.bitbug_favicon;
             }
             catch
             {
@@ -53,7 +55,7 @@
             }
             
             _notifyIcon.Visible = true;
-            _notifyIcon.Text = "YASN - Window Manager";
+            _notifyIcon.Text = YASN.Properties.Resources.MainTitle;
 
             // Create context menu
             var contextMenu = new ContextMenuStrip();
@@ -84,9 +86,9 @@
             // Restore previously opened notes after a short delay to ensure everything is initialized
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                System.Diagnostics.Debug.WriteLine("App startup: calling RestoreOpenNotes");
+                Debug.WriteLine("App startup: calling RestoreOpenNotes");
                 NoteManager.Instance.RestoreOpenNotes();
-            }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            }), DispatcherPriority.ApplicationIdle);
         }
 
         protected override void OnExit(System.Windows.ExitEventArgs e)
