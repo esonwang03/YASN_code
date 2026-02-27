@@ -1029,6 +1029,11 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             Close();
         }
 
+        public void ChangeWindowLevel(WindowLevel level)
+        {
+            SetWindowLevel(level);
+        }
+
         private void SetWindowLevel(WindowLevel level)
         {
             NoteData.Level = level;

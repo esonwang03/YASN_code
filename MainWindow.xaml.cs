@@ -93,6 +93,39 @@ namespace YASN
             }
         }
 
+        private void ChangeNoteLevel_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.MenuItem menuItem || menuItem.Tag is not NoteData noteData)
+            {
+                return;
+            }
+
+            if (!TryParseWindowLevel(menuItem.CommandParameter as string, out var targetLevel))
+            {
+                return;
+            }
+
+            if (noteData.Level == targetLevel)
+            {
+                return;
+            }
+
+            if (noteData.IsOpen && noteData.Window != null)
+            {
+                noteData.Window.ChangeWindowLevel(targetLevel);
+                return;
+            }
+
+            noteData.Level = targetLevel;
+            NoteManager.Instance.UpdateNote(noteData);
+        }
+
+        private static bool TryParseWindowLevel(string? levelText, out WindowLevel level)
+        {
+            level = WindowLevel.Normal;
+            return Enum.TryParse(levelText, ignoreCase: true, out level);
+        }
+
         private void OpenNote(NoteData noteData)
         {
             if (!noteData.IsOpen || noteData.Window == null)

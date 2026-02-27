@@ -70,6 +70,22 @@
                                             CornerRadius="4"
                                             BorderBrush="#DEE2E6"
                                             BorderThickness="1">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Set Level: Normal"
+                                                          Tag="{Binding}"
+                                                          CommandParameter="Normal"
+                                                          Click="ChangeNoteLevel_Click"/>
+                                                <MenuItem Header="Set Level: TopMost"
+                                                          Tag="{Binding}"
+                                                          CommandParameter="TopMost"
+                                                          Click="ChangeNoteLevel_Click"/>
+                                                <MenuItem Header="Set Level: BottomMost"
+                                                          Tag="{Binding}"
+                                                          CommandParameter="BottomMost"
+                                                          Click="ChangeNoteLevel_Click"/>
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
