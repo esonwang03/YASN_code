@@ -120,3 +120,5 @@ $tf/
 .DS_Store
 *.swp
 *.swo
+
+.dotnet_cli/

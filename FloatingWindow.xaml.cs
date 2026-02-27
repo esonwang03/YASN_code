@@ -55,6 +55,21 @@ namespace YASN
         private const string IconArrowDown = "\uE74B";
         private const string IconSun = "\uE706";
         private const string IconMoon = "\uE708";
+        private const string PreviewRightClickBridgeScript = """
+                                                         (() => {
+                                                           const thresholdMs = 900;
+                                                           let lastRightClickAt = 0;
+                                                           document.addEventListener('contextmenu', (event) => {
+                                                             const now = Date.now();
+                                                             const isDouble = now - lastRightClickAt <= thresholdMs;
+                                                             lastRightClickAt = now;
+                                                             if (window.chrome && window.chrome.webview) {
+                                                               window.chrome.webview.postMessage(isDouble ? 'preview-right-double-click' : 'preview-right-click');
+                                                             }
+                                                             event.preventDefault();
+                                                           }, true);
+                                                         })();
+                                                         """;
 
         
         [LibraryImport("user32.dll", SetLastError = true)]
@@ -89,6 +104,7 @@ namespace YASN
         private bool _isChromeExpanded = true;
         private bool _autoCollapseChromeEnabled = NoteWindowUiSettings.DefaultAutoCollapseChrome;
         private DateTime _lastPreviewRightClickUtc = DateTime.MinValue;
+        private DateTime _lastPreviewSurfaceRightClickUtc = DateTime.MinValue;
 
         private static FloatingWindow _currentBottomMostWindow;
         private static readonly object _bottomMostLock = new object();
@@ -129,6 +145,7 @@ namespace YASN
 
             UpdateStatusText();
             UpdatePinButton();
+            UpdateTitleBarButtons();
             ApplyTheme(noteData.IsDarkMode);
             UpdateThemeToggleButton();
             ApplyTitleBarColor(noteData.TitleBarColor);
@@ -356,10 +373,12 @@ namespace YASN
                 PreviewWebView.DefaultBackgroundColor = DrawingColor.Transparent;
                 await PreviewWebView.EnsureCoreWebView2Async();
                 PreviewWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
-                PreviewWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+                PreviewWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
                 PreviewWebView.CoreWebView2.Settings.AreDevToolsEnabled = true;
+                await PreviewWebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(PreviewRightClickBridgeScript);
                 PreviewWebView.CoreWebView2.ContextMenuRequested += PreviewCoreWebView2_ContextMenuRequested;
                 PreviewWebView.CoreWebView2.NavigationStarting += PreviewCoreWebView2_NavigationStarting;
+                PreviewWebView.CoreWebView2.WebMessageReceived += PreviewCoreWebView2_WebMessageReceived;
                 PreviewWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                     "yasn.local",
                     AppPaths.DataDirectory,
@@ -641,7 +660,7 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             var settingsStore = new SettingsStore();
             var modeValue = settingsStore.GetValue(
                 FloatingWindowTaskbarVisibility.SettingKey,
-                shouldSync: false,
+                shouldSync: true,
                 defaultValue: FloatingWindowTaskbarVisibility.DefaultValue);
 
             ShowInTaskbar = FloatingWindowTaskbarVisibility.ShouldShowInTaskbar(NoteData.Level, modeValue);
@@ -705,11 +724,23 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
 
         private void PreviewSurface_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (e.ClickCount == 2 && !NoteData.IsEditMode)
+            if (NoteData.IsEditMode)
             {
-                SetEditMode(true, focusEditor: true);
-                e.Handled = true;
+                return;
             }
+
+            var now = DateTime.UtcNow;
+            var threshold = TimeSpan.FromMilliseconds(900);
+            var isDoubleRightClick = now - _lastPreviewSurfaceRightClickUtc <= threshold;
+            _lastPreviewSurfaceRightClickUtc = now;
+            if (!isDoubleRightClick)
+            {
+                return;
+            }
+
+            _lastPreviewSurfaceRightClickUtc = DateTime.MinValue;
+            SetEditMode(true, focusEditor: true);
+            e.Handled = true;
         }
 
         private void PreviewCoreWebView2_ContextMenuRequested(object sender, CoreWebView2ContextMenuRequestedEventArgs e)
@@ -720,12 +751,38 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             }
 
             var now = DateTime.UtcNow;
-            var threshold = TimeSpan.FromMilliseconds(500);
+            var threshold = TimeSpan.FromMilliseconds(900);
             var isDoubleRightClick = now - _lastPreviewRightClickUtc <= threshold;
             _lastPreviewRightClickUtc = now;
 
             e.Handled = true;
             if (!isDoubleRightClick)
+            {
+                return;
+            }
+
+            _lastPreviewRightClickUtc = DateTime.MinValue;
+            Dispatcher.BeginInvoke(new Action(() => SetEditMode(true, focusEditor: true)));
+        }
+
+        private void PreviewCoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
+        {
+            if (NoteData.IsEditMode)
+            {
+                return;
+            }
+
+            string? message;
+            try
+            {
+                message = e.TryGetWebMessageAsString();
+            }
+            catch
+            {
+                return;
+            }
+
+            if (!string.Equals(message, "preview-right-double-click", StringComparison.Ordinal))
             {
                 return;
             }
@@ -838,7 +895,17 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             }
         }
 
-        private void ShowMainWindow_Click(object sender, RoutedEventArgs e)
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (NoteData.Level != WindowLevel.Normal)
+            {
+                return;
+            }
+
+            WindowState = WindowState.Minimized;
+        }
+
+        private void MoreOptions_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button button)
             {
@@ -846,6 +913,9 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             }
 
             var contextMenu = new ContextMenu();
+
+            var renameTitleItem = new MenuItem { Header = "Edit Title" };
+            renameTitleItem.Click += (_, _) => PromptRenameTitle();
 
             var showMainWindowItem = new MenuItem { Header = "Open MainWindow" };
             showMainWindowItem.Click += (_, _) =>
@@ -871,24 +941,6 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
                 var newNote = NoteManager.Instance.CreateNote(WindowLevel.TopMost);
                 new FloatingWindow(newNote).Show();
             };
-
-            contextMenu.Items.Add(showMainWindowItem);
-            contextMenu.Items.Add(new Separator());
-            contextMenu.Items.Add(createNoteItem);
-            contextMenu.Items.Add(createTopMostNoteItem);
-
-            contextMenu.PlacementTarget = button;
-            contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-            contextMenu.IsOpen = true;
-        }
-        private void MoreOptions_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not Button button)
-            {
-                return;
-            }
-
-            var contextMenu = new ContextMenu();
 
             var deleteNoteItem = new MenuItem { Header = "Delete Note" };
             deleteNoteItem.Click += (_, _) =>
@@ -937,6 +989,12 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
                     MessageBoxImage.Information);
             };
 
+            contextMenu.Items.Add(renameTitleItem);
+            contextMenu.Items.Add(new Separator());
+            contextMenu.Items.Add(showMainWindowItem);
+            contextMenu.Items.Add(createNoteItem);
+            contextMenu.Items.Add(createTopMostNoteItem);
+            contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(deleteNoteItem);
             contextMenu.Items.Add(clearContentItem);
             contextMenu.Items.Add(new Separator());
@@ -978,6 +1036,7 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
 
             UpdateStatusText();
             UpdatePinButton();
+            UpdateTitleBarButtons();
             NoteManager.Instance.UpdateNote(NoteData);
 
             if (_hwnd != IntPtr.Zero)
@@ -1013,6 +1072,144 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             }
         }
 
+        private void UpdateTitleBarButtons()
+        {
+            if (MinimizeButton == null)
+            {
+                return;
+            }
+
+            MinimizeButton.Visibility = NoteData.Level == WindowLevel.Normal
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        private void PromptRenameTitle()
+        {
+            var input = ShowTitleInputDialog(NoteData.Title);
+            if (input == null)
+            {
+                return;
+            }
+
+            var newTitle = input.Trim();
+            if (string.IsNullOrEmpty(newTitle))
+            {
+                MessageBox.Show(
+                    "Title can't be empty。",
+                    "Edit Title",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (string.Equals(NoteData.Title, newTitle, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var hasDuplicate = NoteManager.Instance.Notes.Any(n =>
+                n.Id != NoteData.Id &&
+                string.Equals((n.Title ?? string.Empty).Trim(), newTitle, StringComparison.OrdinalIgnoreCase));
+            if (hasDuplicate)
+            {
+                MessageBox.Show(
+                    "Already had Note with same title",
+                    "Edit Title",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            NoteData.Title = newTitle;
+            NoteManager.Instance.UpdateNote(NoteData);
+            UpdateStatusText();
+        }
+
+        private string? ShowTitleInputDialog(string initialValue)
+        {
+            var dialog = new Window
+            {
+                Title = "Edit Title",
+                Width = 360,
+                Height = 170,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+
+            var grid = new Grid { Margin = new Thickness(14) };
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var prompt = new TextBlock
+            {
+                Text = "New Title",
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+
+            var inputBox = new System.Windows.Controls.TextBox
+            {
+                Text = initialValue ?? string.Empty,
+                Margin = new Thickness(0, 0, 0, 12)
+            };
+
+            var buttonPanel = new StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+
+            var okButton = new Button
+            {
+                Content = "Confirm",
+                Width = 72,
+                IsDefault = true,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+
+            var cancelButton = new Button
+            {
+                Content = "Cancel",
+                Width = 72,
+                IsCancel = true
+            };
+
+            string? result = null;
+            okButton.Click += (_, _) =>
+            {
+                result = inputBox.Text;
+                dialog.DialogResult = true;
+                dialog.Close();
+            };
+            cancelButton.Click += (_, _) =>
+            {
+                dialog.DialogResult = false;
+                dialog.Close();
+            };
+
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+
+            Grid.SetRow(prompt, 0);
+            Grid.SetRow(inputBox, 1);
+            Grid.SetRow(buttonPanel, 2);
+            grid.Children.Add(prompt);
+            grid.Children.Add(inputBox);
+            grid.Children.Add(buttonPanel);
+
+            dialog.Content = grid;
+            dialog.Loaded += (_, _) =>
+            {
+                inputBox.Focus();
+                inputBox.SelectAll();
+            };
+
+            return dialog.ShowDialog() == true ? result : null;
+        }
+
         private void UpdateStatusText()
         {
             var levelPrefix = NoteData.Level switch
@@ -1023,6 +1220,7 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
             };
 
             StatusText.Text = $"{levelPrefix}{NoteData.Title}";
+            Title = NoteData.Title;
         }
 
         private void ApplyWindowLevel()

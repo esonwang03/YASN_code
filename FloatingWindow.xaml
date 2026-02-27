@@ -219,16 +219,12 @@
                         CornerRadius="5,5,0,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="40"/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="40"/>
-                            <ColumnDefinition Width="40"/>
-                            <ColumnDefinition Width="40"/>
-                            <ColumnDefinition Width="40"/>
-                            <ColumnDefinition Width="40"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Button Grid.Column="0" Content="&#xE700;" ToolTip="Show Main" Style="{StaticResource IconTitleBarButtonStyle}" Click="ShowMainWindow_Click"/>
+                        <Button Grid.Column="0" Content="&#xE712;" ToolTip="More" Style="{StaticResource IconTitleBarButtonStyle}" Click="MoreOptions_Click"/>
                         <Border Grid.Column="1" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                             <TextBlock x:Name="StatusText"
                                        Text="Note #1"
@@ -238,11 +234,13 @@
                                        FontSize="13"
                                        FontWeight="SemiBold"/>
                         </Border>
-                        <Button Grid.Column="2" Content="&#xE712;" ToolTip="More" Style="{StaticResource IconTitleBarButtonStyle}" Click="MoreOptions_Click"/>
-                        <Button x:Name="ThemeToggleButton" Grid.Column="3" Content="&#xE706;" ToolTip="Switch Theme" Style="{StaticResource IconTitleBarButtonStyle}" Click="ThemeToggle_Click"/>
-                        <Button x:Name="PinTopButton" Grid.Column="4" Content="&#xE718;" ToolTip="Pin Top" Style="{StaticResource IconTitleBarButtonStyle}" Click="PinButton_Click"/>
-                        <Button x:Name="PinBottomButton" Grid.Column="5" Content="&#xE74B;" ToolTip="To Bottom" Style="{StaticResource IconTitleBarButtonStyle}" Click="SendToBottom_Click"/>
-                        <Button Grid.Column="6" Content="&#xE8BB;" ToolTip="Close" Style="{StaticResource CloseButtonStyle}" Click="CloseButton_Click"/>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <Button x:Name="ThemeToggleButton" Content="&#xE706;" ToolTip="Switch Theme" Style="{StaticResource IconTitleBarButtonStyle}" Click="ThemeToggle_Click"/>
+                            <Button x:Name="PinTopButton" Content="&#xE718;" ToolTip="Pin Top" Style="{StaticResource IconTitleBarButtonStyle}" Click="PinButton_Click"/>
+                            <Button x:Name="PinBottomButton" Content="&#xE74B;" ToolTip="To Bottom" Style="{StaticResource IconTitleBarButtonStyle}" Click="SendToBottom_Click"/>
+                            <Button x:Name="MinimizeButton" Content="&#xE921;" ToolTip="Minimize" Style="{StaticResource IconTitleBarButtonStyle}" Click="MinimizeButton_Click"/>
+                            <Button Content="&#xE8BB;" ToolTip="Close" Style="{StaticResource CloseButtonStyle}" Click="CloseButton_Click"/>
+                        </StackPanel>
                     </Grid>
                 </Border>
 
