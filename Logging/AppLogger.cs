@@ -12,6 +12,7 @@ namespace YASN.Logging
         private static readonly object Lock = new();
         private static readonly string LogPath = AppPaths.LogFilePath;
         private static long _maxBytes = 1024 * 1024; // default 1 MB
+        private static int _toastExpirationSeconds = 8; // default 8 seconds
 
         static AppLogger()
         {
@@ -28,9 +29,19 @@ namespace YASN.Logging
 
         public static void Debug(string message) => Write("DEBUG", message, showToast: false);
 
+        public static void DebugToast(string message) => Write("DEBUG", message, showToast: true);
+
         public static void Info(string message) => Write("INFO", message, showToast: true);
 
         public static void Warn(string message) => Write("WARN", message, showToast: true);
+
+        public static void SetToastExpirationSeconds(int seconds)
+        {
+            if (seconds <= 0)
+                return;
+
+            _toastExpirationSeconds = Math.Clamp(seconds, 1, 120);
+        }
 
         private static void Write(string level, string message, bool showToast)
         {
@@ -110,15 +121,27 @@ namespace YASN.Logging
         {
             try
             {
+                var (icon, title) = GetToastHeader(level);
                 new ToastContentBuilder()
-                    .AddText(level)
+                    .AddText($"{icon} {title}")
                     .AddText(message)
-                    .Show();
+                    .Show(toast => { toast.ExpirationTime = DateTimeOffset.Now.AddSeconds(_toastExpirationSeconds); });
             }
             catch
             {
                 // Toast failures should not crash the app
             }
+        }
+
+        private static (string Icon, string Title) GetToastHeader(string level)
+        {
+            return level switch
+            {
+                "INFO" => ("\u2139", "Info"),
+                "WARN" => ("\u26A0", "Warning"),
+                "DEBUG" => ("\u2699", "Debug"),
+                _ => ("\u2022", level)
+            };
         }
 
         private static void LoadMaxSizeFromLocalSettings()
@@ -133,6 +156,12 @@ namespace YASN.Logging
                         int.TryParse(value, out var kb) && kb > 0)
                     {
                         SetMaxSizeKb(kb);
+                    }
+
+                    if (dict != null && dict.TryGetValue("log.toastExpirationSeconds", out var toastSeconds) &&
+                        int.TryParse(toastSeconds, out var seconds) && seconds > 0)
+                    {
+                        SetToastExpirationSeconds(seconds);
                     }
                 }
             }

@@ -356,7 +356,7 @@ namespace YASN
                 PreviewWebView.DefaultBackgroundColor = DrawingColor.Transparent;
                 await PreviewWebView.EnsureCoreWebView2Async();
                 PreviewWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
-                PreviewWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+                PreviewWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
                 PreviewWebView.CoreWebView2.Settings.AreDevToolsEnabled = true;
                 PreviewWebView.CoreWebView2.ContextMenuRequested += PreviewCoreWebView2_ContextMenuRequested;
                 PreviewWebView.CoreWebView2.NavigationStarting += PreviewCoreWebView2_NavigationStarting;
@@ -371,7 +371,7 @@ namespace YASN
             }
             catch (Exception ex)
             {
-                AppLogger.Debug($"Failed to initialize WebView2: {ex.Message}");
+                AppLogger.Warn($"Failed to initialize WebView2: {ex.Message}");
             }
             finally
             {
@@ -403,7 +403,7 @@ namespace YASN
             }
             catch (Exception ex)
             {
-                AppLogger.Debug($"Failed to render markdown preview: {ex.Message}");
+                AppLogger.Warn($"Failed to render markdown preview: {ex.Message}");
             }
 
             await Task.CompletedTask;

@@ -121,11 +121,11 @@ namespace YASN
                     WriteTextFile(AppPaths.GetNoteMarkdownPath(note.Id), note.Content ?? string.Empty);
                 }
 
-                AppLogger.Debug($"Saved {Notes.Count} notes to {IndexFilePath} (schema v{CurrentSchemaVersion})");
+                // AppLogger.Debug($"Saved {Notes.Count} notes to {IndexFilePath} (schema v{CurrentSchemaVersion})");
             }
             catch (Exception ex)
             {
-                AppLogger.Debug($"Failed to save notes: {ex.Message}");
+                AppLogger.Warn($"Failed to save notes: {ex.Message}");
             }
         }
 
@@ -143,7 +143,7 @@ namespace YASN
 
                 if (!File.Exists(IndexFilePath))
                 {
-                    AppLogger.Debug($"Notes index not found at {IndexFilePath}");
+                    AppLogger.Warn($"Notes index not found at {IndexFilePath}");
                     return;
                 }
 

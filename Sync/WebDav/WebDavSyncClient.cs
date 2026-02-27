@@ -81,7 +81,7 @@ namespace YASN.Sync.WebDav
             catch (Exception ex)
             {
                 LastError = ex.Message;
-                AppLogger.Debug($"WebDAV test failed: {ex}");
+                AppLogger.Warn($"WebDAV test failed: {ex}");
                 return false;
             }
         }

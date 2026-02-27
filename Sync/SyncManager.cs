@@ -12,7 +12,8 @@ using MessageBox = System.Windows.MessageBox;
 namespace YASN.Sync
 {
     /// <summary>
-    /// Orchestrates sync operations on a timer while delegating storage to a backend.
+    /// Coordinates local/remote synchronization on a fixed interval by delegating
+    /// storage operations to an <see cref="ISyncClient"/> backend.
     /// </summary>
     public class SyncManager : IDisposable
     {
@@ -22,15 +23,34 @@ namespace YASN.Sync
         private bool _isEnabled;
         private string _remoteDirectory = string.Empty;
         private Dictionary<string, string> _remoteSignatures = new();
+        // Remote manifest file that stores content hashes by sync key.
         private const string ManifestFileName = "sync.manifest.json";
 
+        /// <summary>
+        /// Gets whether periodic synchronization is currently enabled.
+        /// </summary>
         public bool IsEnabled => _isEnabled;
+
+        /// <summary>
+        /// Gets whether a sync backend has been configured.
+        /// </summary>
         public bool IsConfigured => _client != null;
+
+        /// <summary>
+        /// Gets the timestamp of the most recent successful sync attempt.
+        /// </summary>
         public DateTime LastSyncTime { get; private set; }
+
+        /// <summary>
+        /// Gets the current backend display name, or empty if not configured.
+        /// </summary>
         public string CurrentBackend => _client?.BackendName ?? string.Empty;
 
         private int _intervalSeconds = 300;
 
+        /// <summary>
+        /// Creates a sync manager with default 5-minute auto-sync interval.
+        /// </summary>
         public SyncManager()
         {
             _signatureStore = new SignatureStore(AppPaths.SignatureFilePath);
@@ -43,6 +63,14 @@ namespace YASN.Sync
             _syncTimer.Elapsed += async (_, __) => await SyncAsync();
         }
 
+        /// <summary>
+        /// Configures the sync backend and auto-sync settings.
+        /// </summary>
+        /// <param name="client">Backend client implementation.</param>
+        /// <param name="remoteDirectory">Optional remote base directory.</param>
+        /// <param name="enableAutoSync">Whether periodic sync should start immediately.</param>
+        /// <param name="intervalSeconds">Auto-sync interval in seconds (minimum 10).</param>
+        /// <returns><c>true</c> if configuration and remote directory checks succeed.</returns>
         public async Task<bool> ConfigureAsync(ISyncClient client, string remoteDirectory, bool enableAutoSync, int intervalSeconds)
         {
             _client?.Dispose();
@@ -67,6 +95,10 @@ namespace YASN.Sync
             return true;
         }
 
+        /// <summary>
+        /// Starts periodic synchronization.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Thrown when backend is not configured.</exception>
         private void EnableAutoSync()
         {
             if (_client == null)
@@ -84,6 +116,13 @@ namespace YASN.Sync
             _syncTimer.Stop();
         }
 
+        /// <summary>
+        /// Runs one sync pass and resolves upload/download direction per file.
+        /// </summary>
+        /// <remarks>
+        /// Conflict handling is timestamp-driven: if remote is newer and hashes differ,
+        /// user input is required to pick remote download vs local overwrite upload.
+        /// </remarks>
         private async Task<SyncResult> SyncAsync()
         {
             if (_client == null || !_isEnabled)
@@ -152,6 +191,7 @@ namespace YASN.Sync
                             continue;
                         }
 
+                        // Both sides changed and remote timestamp wins -> explicit conflict prompt.
                         if (remoteIsNewer &&
                             !string.IsNullOrEmpty(localHash) &&
                             !string.IsNullOrEmpty(remoteHash) &&
@@ -182,6 +222,7 @@ namespace YASN.Sync
                             continue;
                         }
 
+                        // No hard conflict: choose newer side.
                         if (remoteIsNewer)
                         {
                             if (await DownloadFileAsync(remotePath, localPath))
@@ -205,6 +246,7 @@ namespace YASN.Sync
                         continue;
                     }
 
+                    // First-time publish from local.
                     if (localExists && !remoteExists)
                     {
                         if (await UploadFileAsync(localPath, key))
@@ -217,15 +259,14 @@ namespace YASN.Sync
                         continue;
                     }
 
+                    // First-time materialization from remote.
                     if (!localExists && remoteExists)
                     {
-                        if (await DownloadFileAsync(remotePath, localPath))
-                        {
-                            messages.Add($"{key} downloaded (new)");
-                            result.FilesDownloaded += 1;
-                            UpdateLocalSignature(localPath, key, ref signatureDirty);
-                            shouldReloadNotes |= ShouldReloadNotes(key);
-                        }
+                        if (!await DownloadFileAsync(remotePath, localPath)) continue;
+                        messages.Add($"{key} downloaded (new)");
+                        result.FilesDownloaded += 1;
+                        UpdateLocalSignature(localPath, key, ref signatureDirty);
+                        shouldReloadNotes |= ShouldReloadNotes(key);
                     }
                 }
 
@@ -257,6 +298,10 @@ namespace YASN.Sync
             return result;
         }
 
+        /// <summary>
+        /// Uploads all local sync files regardless of timestamp comparison.
+        /// </summary>
+        /// <returns><c>true</c> if at least one file upload succeeds.</returns>
         public async Task<bool> ForceUploadAsync()
         {
             if (_client == null)
@@ -281,6 +326,10 @@ namespace YASN.Sync
             return anyUploaded;
         }
 
+        /// <summary>
+        /// Downloads all files listed in the remote manifest regardless of timestamps.
+        /// </summary>
+        /// <returns><c>true</c> if at least one file download succeeds.</returns>
         public async Task<bool> ForceDownloadAsync()
         {
             if (_client == null)
@@ -332,6 +381,9 @@ namespace YASN.Sync
             return anyDownloaded;
         }
 
+        /// <summary>
+        /// Stops timers and disposes backend resources.
+        /// </summary>
         public void Dispose()
         {
             _syncTimer?.Stop();
@@ -339,11 +391,17 @@ namespace YASN.Sync
             _client?.Dispose();
         }
 
+        /// <summary>
+        /// Normalizes a remote directory by trimming whitespace and slashes.
+        /// </summary>
         private static string NormalizeRemoteDirectory(string directory)
         {
             return (directory ?? string.Empty).Trim().Trim('/');
         }
 
+        /// <summary>
+        /// Joins sync relative path with configured remote base directory.
+        /// </summary>
         private string BuildRemotePath(string relativePath)
         {
             if (string.IsNullOrEmpty(_remoteDirectory))
@@ -354,6 +412,9 @@ namespace YASN.Sync
             return $"{_remoteDirectory}/{relativePath}";
         }
 
+        /// <summary>
+        /// Recomputes and stores local file hash into signature manifest state.
+        /// </summary>
         private void UpdateLocalSignature(string filePath, string key, ref bool signatureDirty)
         {
             var hash = FileHashUtil.ComputeFileHash(filePath);
@@ -364,6 +425,9 @@ namespace YASN.Sync
             }
         }
 
+        /// <summary>
+        /// Loads hash manifest from remote storage into memory.
+        /// </summary>
         private async Task<Dictionary<string, string>> LoadRemoteSignaturesAsync()
         {
             var signatures = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -385,7 +449,7 @@ namespace YASN.Sync
             }
             catch (Exception ex)
             {
-                AppLogger.Debug($"加载远端签名文件失败：{ex.Message}");
+                AppLogger.Warn($"Failed to load remote signature：{ex.Message}");
             }
             finally
             {
@@ -395,6 +459,9 @@ namespace YASN.Sync
             return signatures;
         }
 
+        /// <summary>
+        /// Uploads the local signature manifest file to remote storage.
+        /// </summary>
         private async Task UploadSignatureFileAsync()
         {
             if (_client == null || !File.Exists(AppPaths.SignatureFilePath))
@@ -406,6 +473,9 @@ namespace YASN.Sync
             await _client.UploadFileAsync(AppPaths.SignatureFilePath, remoteSigPath);
         }
 
+        /// <summary>
+        /// Prompts user to resolve a content conflict when local and remote differ.
+        /// </summary>
         private async Task<ConflictResolutionAction> PromptConflictAsync(string fileName, DateTime localTime, DateTime remoteTime)
         {
             return await Application.Current.Dispatcher.InvokeAsync(() =>
@@ -419,12 +489,18 @@ namespace YASN.Sync
             });
         }
 
+        /// <summary>
+        /// User-selected direction for resolving conflicting file versions.
+        /// </summary>
         private enum ConflictResolutionAction
         {
             DownloadRemote,
             KeepLocal
         }
 
+        /// <summary>
+        /// Updates auto-sync interval; values under 10 seconds are clamped.
+        /// </summary>
         public void SetIntervalSeconds(int seconds)
         {
             if (seconds < 10)
@@ -436,6 +512,9 @@ namespace YASN.Sync
             _syncTimer.Interval = TimeSpan.FromSeconds(_intervalSeconds).TotalMilliseconds;
         }
 
+        /// <summary>
+        /// Builds all local file entries participating in sync.
+        /// </summary>
         private Dictionary<string, string> BuildLocalSyncEntries()
         {
             var entries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -447,6 +526,9 @@ namespace YASN.Sync
             return entries;
         }
 
+        /// <summary>
+        /// Adds file to sync map when it exists.
+        /// </summary>
         private static void AddIfExists(IDictionary<string, string> map, string fullPath)
         {
             if (!File.Exists(fullPath))
@@ -458,6 +540,9 @@ namespace YASN.Sync
             map[key] = fullPath;
         }
 
+        /// <summary>
+        /// Recursively adds all files under a directory into sync map.
+        /// </summary>
         private static void AddDirectoryFiles(IDictionary<string, string> map, string root)
         {
             if (!Directory.Exists(root))
@@ -472,18 +557,27 @@ namespace YASN.Sync
             }
         }
 
+        /// <summary>
+        /// Converts absolute local path to normalized sync key.
+        /// </summary>
         private static string ToSyncKey(string fullPath)
         {
             var relative = Path.GetRelativePath(AppPaths.DataDirectory, fullPath);
             return relative.Replace('\\', '/');
         }
 
+        /// <summary>
+        /// Converts normalized sync key back to absolute local path.
+        /// </summary>
         private static string ToLocalPath(string key)
         {
             var localRelative = key.Replace('/', Path.DirectorySeparatorChar);
             return Path.Combine(AppPaths.DataDirectory, localRelative);
         }
 
+        /// <summary>
+        /// Uploads one local file to remote, creating parent directory when needed.
+        /// </summary>
         private async Task<bool> UploadFileAsync(string localPath, string key)
         {
             if (_client == null)
@@ -504,6 +598,9 @@ namespace YASN.Sync
             return await _client.UploadFileAsync(localPath, BuildRemotePath(key));
         }
 
+        /// <summary>
+        /// Downloads one remote file to local disk, creating local directory if needed.
+        /// </summary>
         private async Task<bool> DownloadFileAsync(string remotePath, string localPath)
         {
             if (_client == null)
@@ -520,6 +617,9 @@ namespace YASN.Sync
             return await _client.DownloadFileAsync(remotePath, localPath);
         }
 
+        /// <summary>
+        /// Determines whether a changed file should trigger note cache reload.
+        /// </summary>
         private static bool ShouldReloadNotes(string key)
         {
             return key.Equals("notes.index.json", StringComparison.OrdinalIgnoreCase)
@@ -527,6 +627,9 @@ namespace YASN.Sync
                    || key.StartsWith("note-assets/", StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// Determines whether a sync key belongs to the supported note data set.
+        /// </summary>
         private static bool IsSyncableKey(string key)
         {
             return key.Equals("notes.index.json", StringComparison.OrdinalIgnoreCase)
