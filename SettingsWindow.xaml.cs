@@ -40,6 +40,7 @@ namespace YASN
             allFields.Add(generalFields.AutoCollapseNoteChromeField);
             allFields.Add(generalFields.LogSizeField);
             allFields.Add(generalFields.FloatingTaskbarVisibilityField);
+            allFields.Add(generalFields.PreviewStyleField);
             allFields.Add(webDavFields.ServerUrlField);
             allFields.Add(webDavFields.UserField);
             allFields.Add(webDavFields.PasswordField);
@@ -59,6 +60,7 @@ namespace YASN
             generalModule.Fields.Add(generalFields.AutoCollapseNoteChromeField);
             generalModule.Fields.Add(generalFields.LogSizeField);
             generalModule.Fields.Add(generalFields.FloatingTaskbarVisibilityField);
+            generalModule.Fields.Add(generalFields.PreviewStyleField);
 
             var webDavModule = new SettingModule
             {
@@ -78,6 +80,7 @@ namespace YASN
             _settingsStore.ApplyValues(allFields);
             generalFields.FloatingTaskbarVisibilityField.Value =
                 FloatingWindowTaskbarVisibility.NormalizeValue(generalFields.FloatingTaskbarVisibilityField.Value);
+            var previewStyleNormalized = ConfigurePreviewStyleField(generalFields.PreviewStyleField);
 
             generalFields.AutoStartField.OnChanged = field =>
             {
@@ -99,6 +102,23 @@ namespace YASN
                 _settingsStore.PersistField(field);
                 ApplyFloatingWindowTaskbarVisibilityToOpenWindows();
             };
+            generalFields.PreviewStyleField.OnChanged = field =>
+            {
+                var resolved = PreviewStyleManager.ResolveStyle(field.Value);
+                if (!string.Equals(field.Value, resolved, StringComparison.OrdinalIgnoreCase))
+                {
+                    field.Value = resolved;
+                    return;
+                }
+
+                _settingsStore.PersistField(field);
+                ApplyPreviewStyleToOpenWindows();
+                Logging.AppLogger.Info($"Preview style switched to '{resolved}'.");
+            };
+            if (previewStyleNormalized)
+            {
+                _settingsStore.PersistField(generalFields.PreviewStyleField);
+            }
 
             foreach (var field in new[]
                      {
@@ -134,6 +154,7 @@ namespace YASN
             ApplySyncInterval(webDavFields.SyncIntervalField.Value);
             ApplyFloatingWindowTaskbarVisibilityToOpenWindows();
             ApplyNoteChromeAutoCollapseToOpenWindows();
+            ApplyPreviewStyleToOpenWindows();
 
             generalModule.Actions.Add(new SettingAction
             {
@@ -313,6 +334,32 @@ namespace YASN
             {
                 note.Window?.RefreshChromeBehaviorFromSettings();
             }
+        }
+
+        private static void ApplyPreviewStyleToOpenWindows()
+        {
+            foreach (var note in NoteManager.Instance.Notes)
+            {
+                note.Window?.RefreshPreviewStyleFromSettings();
+            }
+        }
+
+        private static bool ConfigurePreviewStyleField(SettingField field)
+        {
+            field.Options.Clear();
+            foreach (var stylePath in PreviewStyleManager.ListStyles())
+            {
+                field.Options.Add(new SettingOption
+                {
+                    Label = stylePath,
+                    Value = stylePath
+                });
+            }
+
+            var resolved = PreviewStyleManager.ResolveStyle(field.Value);
+            var changed = !string.Equals(field.Value, resolved, StringComparison.OrdinalIgnoreCase);
+            field.Value = resolved;
+            return changed;
         }
 
         private void ApplyLogSize(string value)

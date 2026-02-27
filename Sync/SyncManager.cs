@@ -155,6 +155,7 @@ namespace YASN.Sync
                 var messages = new List<string>();
                 var signatureDirty = false;
                 var shouldReloadNotes = false;
+                var shouldRefreshPreviewStyles = false;
 
                 foreach (var key in allKeys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
                 {
@@ -207,6 +208,7 @@ namespace YASN.Sync
                                     result.FilesDownloaded += 1;
                                     UpdateLocalSignature(localPath, key, ref signatureDirty);
                                     shouldReloadNotes |= ShouldReloadNotes(key);
+                                    shouldRefreshPreviewStyles |= ShouldRefreshPreviewStyles(key);
                                 }
                             }
                             else
@@ -231,6 +233,7 @@ namespace YASN.Sync
                                 result.FilesDownloaded += 1;
                                 UpdateLocalSignature(localPath, key, ref signatureDirty);
                                 shouldReloadNotes |= ShouldReloadNotes(key);
+                                shouldRefreshPreviewStyles |= ShouldRefreshPreviewStyles(key);
                             }
                         }
                         else
@@ -267,6 +270,7 @@ namespace YASN.Sync
                         result.FilesDownloaded += 1;
                         UpdateLocalSignature(localPath, key, ref signatureDirty);
                         shouldReloadNotes |= ShouldReloadNotes(key);
+                        shouldRefreshPreviewStyles |= ShouldRefreshPreviewStyles(key);
                     }
                 }
 
@@ -275,6 +279,17 @@ namespace YASN.Sync
                     await Application.Current.Dispatcher.InvokeAsync(() =>
                     {
                         NoteManager.Instance.ReloadNotes();
+                    });
+                }
+
+                if (shouldRefreshPreviewStyles)
+                {
+                    await Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        foreach (var note in NoteManager.Instance.Notes)
+                        {
+                            note.Window?.RefreshPreviewStyleFromSettings();
+                        }
                     });
                 }
 
@@ -340,6 +355,7 @@ namespace YASN.Sync
             var anyDownloaded = false;
             var signatureDirty = false;
             var shouldReloadNotes = false;
+            var shouldRefreshPreviewStyles = false;
             _remoteSignatures = await LoadRemoteSignaturesAsync();
             foreach (var kv in _remoteSignatures)
             {
@@ -361,6 +377,7 @@ namespace YASN.Sync
                     _signatureStore.Set(kv.Key, kv.Value);
                     signatureDirty = true;
                     shouldReloadNotes |= ShouldReloadNotes(kv.Key);
+                    shouldRefreshPreviewStyles |= ShouldRefreshPreviewStyles(kv.Key);
                 }
             }
 
@@ -369,6 +386,17 @@ namespace YASN.Sync
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     NoteManager.Instance.ReloadNotes();
+                });
+            }
+
+            if (shouldRefreshPreviewStyles)
+            {
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    foreach (var note in NoteManager.Instance.Notes)
+                    {
+                        note.Window?.RefreshPreviewStyleFromSettings();
+                    }
                 });
             }
 
@@ -522,6 +550,7 @@ namespace YASN.Sync
             AddIfExists(entries, AppPaths.NotesIndexPath);
             AddDirectoryFiles(entries, AppPaths.NotesMarkdownRoot);
             AddDirectoryFiles(entries, AppPaths.NoteAssetsRoot);
+            AddDirectoryFiles(entries, AppPaths.StyleRoot);
 
             return entries;
         }
@@ -627,6 +656,11 @@ namespace YASN.Sync
                    || key.StartsWith("note-assets/", StringComparison.OrdinalIgnoreCase);
         }
 
+        private static bool ShouldRefreshPreviewStyles(string key)
+        {
+            return key.StartsWith("style/", StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>
         /// Determines whether a sync key belongs to the supported note data set.
         /// </summary>
@@ -634,7 +668,8 @@ namespace YASN.Sync
         {
             return key.Equals("notes.index.json", StringComparison.OrdinalIgnoreCase)
                    || key.StartsWith("notes/", StringComparison.OrdinalIgnoreCase)
-                   || key.StartsWith("note-assets/", StringComparison.OrdinalIgnoreCase);
+                   || key.StartsWith("note-assets/", StringComparison.OrdinalIgnoreCase)
+                   || key.StartsWith("style/", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

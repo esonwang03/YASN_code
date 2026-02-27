@@ -30,6 +30,7 @@ namespace YASN
 
             // Initialize WebDAV sync manager
             SyncManager = new SyncManager();
+            PreviewStyleManager.EnsureInitialized();
             AppLogger.Info("YASN Started");
 
             // Hide main window, only show tray icon

@@ -6,6 +6,7 @@ namespace YASN.Settings
         internal required SettingField AutoCollapseNoteChromeField { get; init; }
         internal required SettingField LogSizeField { get; init; }
         internal required SettingField FloatingTaskbarVisibilityField { get; init; }
+        internal required SettingField PreviewStyleField { get; init; }
     }
 
     internal static class GeneralSettingsFieldFactory
@@ -68,12 +69,28 @@ namespace YASN.Settings
                 Value = global::YASN.FloatingWindowTaskbarVisibility.HideTopMostOnlyValue
             });
 
+            var previewStyleField = new SettingField
+            {
+                Key = global::YASN.PreviewStyleManager.SettingKey,
+                Title = "Markdown preview style",
+                Description = "Load CSS from data/style and apply it to markdown preview.",
+                FieldType = SettingFieldType.Select,
+                Value = global::YASN.PreviewStyleManager.DefaultStyleRelativePath,
+                ShouldSync = false
+            };
+            previewStyleField.Options.Add(new SettingOption
+            {
+                Label = global::YASN.PreviewStyleManager.DefaultStyleRelativePath,
+                Value = global::YASN.PreviewStyleManager.DefaultStyleRelativePath
+            });
+
             return new GeneralSettingFields
             {
                 AutoStartField = autoStartField,
                 AutoCollapseNoteChromeField = autoCollapseNoteChromeField,
                 LogSizeField = logSizeField,
-                FloatingTaskbarVisibilityField = floatingTaskbarVisibilityField
+                FloatingTaskbarVisibilityField = floatingTaskbarVisibilityField,
+                PreviewStyleField = previewStyleField
             };
         }
     }

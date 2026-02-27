@@ -103,6 +103,7 @@ namespace YASN
         private bool _isPreviewInitInProgress;
         private bool _isChromeExpanded = true;
         private bool _autoCollapseChromeEnabled = NoteWindowUiSettings.DefaultAutoCollapseChrome;
+        private string _previewStyleRelativePath = PreviewStyleManager.DefaultStyleRelativePath;
         private DateTime _lastPreviewRightClickUtc = DateTime.MinValue;
         private DateTime _lastPreviewSurfaceRightClickUtc = DateTime.MinValue;
 
@@ -152,6 +153,7 @@ namespace YASN
             ApplyBackgroundImage(noteData.BackgroundImagePath);
             BackgroundImageBorder.Opacity = noteData.BackgroundImageOpacity;
             LoadContent(noteData.Content);
+            RefreshPreviewStyleFromSettings(forceRender: false);
 
             _markdownPipeline = MarkdownPipelineConfig.Create();
 
@@ -409,7 +411,10 @@ namespace YASN
             {
                 var markdown = GetContent();
                 var htmlBody = global::Markdig.Markdown.ToHtml(markdown ?? string.Empty, _markdownPipeline);
-                var html = BuildHtmlPage(htmlBody, NoteData.IsDarkMode);
+                var stylePath = PreviewStyleManager.ToStyleAbsolutePath(_previewStyleRelativePath);
+                var styleVersion = File.Exists(stylePath) ? File.GetLastWriteTimeUtc(stylePath).Ticks : DateTime.UtcNow.Ticks;
+                var styleHref = PreviewStyleManager.BuildStyleHref(_previewStyleRelativePath, styleVersion);
+                var html = BuildHtmlPage(htmlBody, NoteData.IsDarkMode, styleHref);
 
                 var cacheDir = Path.GetDirectoryName(_htmlCachePath);
                 if (!string.IsNullOrEmpty(cacheDir))
@@ -428,42 +433,19 @@ namespace YASN
             await Task.CompletedTask;
         }
 
-        private static string BuildHtmlPage(string htmlBody, bool darkMode)
+        private static string BuildHtmlPage(string htmlBody, bool darkMode, string styleHref)
         {
-            var bg = darkMode ? "#15191D" : "#FAFBFC";
-            var fg = darkMode ? "#E9EEF2" : "#253341";
-            var muted = darkMode ? "#8FA1B5" : "#6A7D90";
-            var border = darkMode ? "#2A343D" : "#D8DEE6";
-            var codeBg = darkMode ? "#1F252B" : "#F1F4F7";
-            var link = darkMode ? "#7BC6FF" : "#0067C0";
+            var themeClass = darkMode ? "theme-dark" : "theme-light";
 
             return $@"<!doctype html>
 <html>
 <head>
 <meta charset='utf-8' />
-<meta http-equiv='Content-Security-Policy' content=""default-src 'self' https://yasn.local data:; img-src 'self' https://yasn.local data: file:; style-src 'unsafe-inline';"" />
+<meta http-equiv='Content-Security-Policy' content=""default-src 'self' https://yasn.local data:; img-src 'self' https://yasn.local data: file:; style-src 'self' 'unsafe-inline';"" />
 <base href='https://yasn.local/' />
-<style>
-:root {{ color-scheme: {(darkMode ? "dark" : "light")}; }}
-html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; color: {fg}; font-family: Segoe UI, Microsoft YaHei UI, sans-serif; line-height: 1.6; }}
-body {{ overflow: hidden; }}
-#page {{ height: 100%; box-sizing: border-box; overflow: auto; padding: 16px 20px; background: {bg}; border-radius: 8px; }}
-h1, h2, h3, h4, h5, h6 {{ margin: 0.8em 0 0.4em; }}
-p {{ margin: 0.4em 0 0.8em; }}
-ul, ol {{ margin: 0.4em 0 0.9em 1.4em; }}
-hr {{ border: none; border-top: 1px solid {border}; margin: 1em 0; }}
-blockquote {{ margin: 0.8em 0; padding: 0.4em 0.8em; border-left: 4px solid {border}; color: {muted}; background: {(darkMode ? "#1A2026" : "#F4F7FA")}; }}
-code {{ background: {codeBg}; border: 1px solid {border}; border-radius: 4px; padding: 0.1em 0.35em; font-family: Consolas, monospace; }}
-pre {{ background: {codeBg}; border: 1px solid {border}; border-radius: 6px; padding: 10px; overflow: auto; }}
-pre code {{ border: none; padding: 0; background: transparent; }}
-a {{ color: {link}; text-decoration: none; }}
-a:hover {{ text-decoration: underline; }}
-table {{ border-collapse: collapse; width: 100%; margin: 0.8em 0; }}
-th, td {{ border: 1px solid {border}; padding: 6px 8px; text-align: left; }}
-img {{ max-width: 100%; height: auto; border-radius: 4px; }}
-</style>
+<link rel='stylesheet' href='{styleHref}' />
 </head>
-<body>
+<body class='{themeClass}'>
 <div id='page'>
 {htmlBody}
 </div>
@@ -664,6 +646,27 @@ img {{ max-width: 100%; height: auto; border-radius: 4px; }}
                 defaultValue: FloatingWindowTaskbarVisibility.DefaultValue);
 
             ShowInTaskbar = FloatingWindowTaskbarVisibility.ShouldShowInTaskbar(NoteData.Level, modeValue);
+        }
+
+        public void RefreshPreviewStyleFromSettings(bool forceRender = true)
+        {
+            var settingsStore = new SettingsStore();
+            var selectedStyle = settingsStore.GetValue(
+                PreviewStyleManager.SettingKey,
+                shouldSync: false,
+                defaultValue: PreviewStyleManager.DefaultStyleRelativePath);
+            var resolvedStyle = PreviewStyleManager.ResolveStyle(selectedStyle);
+            var hasChanged = !string.Equals(_previewStyleRelativePath, resolvedStyle, StringComparison.OrdinalIgnoreCase);
+            if (hasChanged)
+            {
+                AppLogger.Debug($"Note {NoteData.Id} preview style changed: '{_previewStyleRelativePath}' -> '{resolvedStyle}'.");
+                _previewStyleRelativePath = resolvedStyle;
+            }
+
+            if (forceRender)
+            {
+                SchedulePreviewRender();
+            }
         }
 
         private void Timer_Tick(object sender, EventArgs e)

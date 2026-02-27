@@ -15,6 +15,7 @@ namespace YASN
         public static string NoteAssetsRoot { get; } = Path.Combine(DataDirectory, "note-assets");
         public static string NoteAttachmentsRoot { get; } = Path.Combine(NoteAssetsRoot, "attachments");
         public static string NoteBackgroundsRoot { get; } = Path.Combine(NoteAssetsRoot, "backgrounds");
+        public static string StyleRoot { get; } = Path.Combine(DataDirectory, "style");
         public static string HtmlCacheRoot { get; } = Path.Combine(DataDirectory, "html-cache");
 
         public static string SyncSettingsPath { get; } = Path.Combine(DataDirectory, "settings.sync.json");
@@ -29,6 +30,7 @@ namespace YASN
             Directory.CreateDirectory(NoteAssetsRoot);
             Directory.CreateDirectory(NoteAttachmentsRoot);
             Directory.CreateDirectory(NoteBackgroundsRoot);
+            Directory.CreateDirectory(StyleRoot);
             Directory.CreateDirectory(HtmlCacheRoot);
         }
 
