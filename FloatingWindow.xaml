@@ -5,7 +5,7 @@
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="Floating Window"
         Height="460"
-        Width="700"
+        Width="350"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -155,6 +155,16 @@
             </Setter>
         </Style>
 
+        <Style x:Key="MarkdownActionIconButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource MarkdownActionButtonStyle}">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+
         <Storyboard x:Key="CollapseEditBar">
             <DoubleAnimation Storyboard.TargetName="TitleBar"
                            Storyboard.TargetProperty="Height"
@@ -235,6 +245,7 @@
                                        FontWeight="SemiBold"/>
                         </Border>
                         <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <Button x:Name="EditorModeButton" Content="&#xE70F;" ToolTip="Switch Editor Mode" Style="{StaticResource IconTitleBarButtonStyle}" Click="EditorModeButton_Click"/>
                             <Button x:Name="ThemeToggleButton" Content="&#xE706;" ToolTip="Switch Theme" Style="{StaticResource IconTitleBarButtonStyle}" Click="ThemeToggle_Click"/>
                             <Button x:Name="PinTopButton" Content="&#xE718;" ToolTip="Pin Top" Style="{StaticResource IconTitleBarButtonStyle}" Click="PinButton_Click"/>
                             <Button x:Name="PinBottomButton" Content="&#xE74B;" ToolTip="To Bottom" Style="{StaticResource IconTitleBarButtonStyle}" Click="SendToBottom_Click"/>
@@ -251,9 +262,9 @@
                         Padding="6,4">
                     <DockPanel LastChildFill="False">
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                            <Button Content="Insert Image" Style="{StaticResource MarkdownActionButtonStyle}" Click="InsertImage_Click"/>
-                            <Button Content="Insert Attachment" Style="{StaticResource MarkdownActionButtonStyle}" Click="InsertAttachment_Click"/>
-                            <Button Content="Refresh Preview" Style="{StaticResource MarkdownActionButtonStyle}" Click="RefreshPreview_Click"/>
+                            <Button Content="&#xE91B;" ToolTip="Insert Image" Style="{StaticResource MarkdownActionIconButtonStyle}" Click="InsertImage_Click"/>
+                            <Button Content="&#xE723;" ToolTip="Insert Attachment" Style="{StaticResource MarkdownActionIconButtonStyle}" Click="InsertAttachment_Click"/>
+                            <Button Content="&#xE72C;" ToolTip="Refresh Preview" Style="{StaticResource MarkdownActionIconButtonStyle}" Click="RefreshPreview_Click"/>
                         </StackPanel>
                     </DockPanel>
                 </Border>

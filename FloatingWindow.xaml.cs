@@ -55,6 +55,9 @@ namespace YASN
         private const string IconArrowDown = "\uE74B";
         private const string IconSun = "\uE706";
         private const string IconMoon = "\uE708";
+        private const string IconModeTextOnly = "\uE8A5";
+        private const string IconModeTextAndPreview = "\uE8A9";
+        private const string IconModePreviewOnly = "\uE890";
         private const string PreviewRightClickBridgeScript = """
                                                          (() => {
                                                            const thresholdMs = 900;
@@ -104,6 +107,8 @@ namespace YASN
         private bool _isChromeExpanded = true;
         private bool _autoCollapseChromeEnabled = NoteWindowUiSettings.DefaultAutoCollapseChrome;
         private string _previewStyleRelativePath = PreviewStyleManager.DefaultStyleRelativePath;
+        private EditorDisplayMode _editorDisplayMode = EditorDisplayMode.PreviewOnly;
+        private double _lastAutoSplitBaseWidth = double.NaN;
         private DateTime _lastPreviewRightClickUtc = DateTime.MinValue;
         private DateTime _lastPreviewSurfaceRightClickUtc = DateTime.MinValue;
 
@@ -189,42 +194,112 @@ namespace YASN
 
         private void ApplyInitialDisplayMode()
         {
+            if (NoteData.LastEditorDisplayMode.HasValue)
+            {
+                SetDisplayMode(NoteData.LastEditorDisplayMode.Value, adjustWindowWidth: false);
+                return;
+            }
+
             var hasContent = !string.IsNullOrWhiteSpace(GetContent());
-            SetEditMode(!hasContent);
+            if (!hasContent)
+            {
+                SetDisplayMode(GetConfiguredEditorEnterMode(), adjustWindowWidth: false);
+                return;
+            }
+
+            SetDisplayMode(EditorDisplayMode.PreviewOnly, adjustWindowWidth: false);
         }
 
         private void SetEditMode(bool isEditMode, bool focusEditor = false)
         {
-            NoteData.IsEditMode = isEditMode;
-
-            MarkdownToolbar.Visibility = isEditMode ? Visibility.Visible : Visibility.Collapsed;
-            ContentTextBox.Visibility = isEditMode ? Visibility.Visible : Visibility.Collapsed;
-            EditorPreviewSplitter.Visibility = isEditMode ? Visibility.Visible : Visibility.Collapsed;
-
-            EditorColumn.Width = isEditMode
-                ? new GridLength(1, GridUnitType.Star)
-                : new GridLength(0);
-            SplitterColumn.Width = isEditMode
-                ? new GridLength(5)
-                : new GridLength(0);
-            PreviewColumn.Width = new GridLength(1, GridUnitType.Star);
-            UpdatePreviewContainerAppearance(isEditMode);
-
             if (isEditMode)
             {
-                SetChromeExpanded(true);
-                UpdateChromeBarsByMouseState();
-            }
-            else
-            {
-                UpdateChromeBarsByMouseState();
+                EnterConfiguredEditMode(focusEditor);
+                return;
             }
 
-            if (isEditMode && focusEditor)
+            SetDisplayMode(EditorDisplayMode.PreviewOnly);
+        }
+
+        private void EnterConfiguredEditMode(bool focusEditor = false)
+        {
+            var targetMode = GetConfiguredEditorEnterMode();
+            SetDisplayMode(targetMode, focusEditor: focusEditor && targetMode != EditorDisplayMode.PreviewOnly);
+        }
+
+        private EditorDisplayMode GetConfiguredEditorEnterMode()
+        {
+            var settingsStore = new SettingsStore();
+            return EditorDisplayModeSettings.GetEnterMode(settingsStore);
+        }
+
+        private void SetDisplayMode(
+            EditorDisplayMode mode,
+            bool focusEditor = false,
+            bool adjustWindowWidth = true)
+        {
+            var previousMode = _editorDisplayMode;
+            _editorDisplayMode = mode;
+            var shouldPersistDisplayMode = NoteData.LastEditorDisplayMode != mode;
+            if (shouldPersistDisplayMode)
             {
-                ContentTextBox.Focus();
-                ContentTextBox.CaretIndex = ContentTextBox.Text?.Length ?? 0;
+                NoteData.LastEditorDisplayMode = mode;
             }
+
+            var showEditor = mode is EditorDisplayMode.TextOnly or EditorDisplayMode.TextAndPreview;
+            var showPreview = mode is EditorDisplayMode.PreviewOnly or EditorDisplayMode.TextAndPreview;
+            var showSplitter = mode == EditorDisplayMode.TextAndPreview;
+
+            NoteData.IsEditMode = showEditor;
+            MarkdownToolbar.Visibility = showEditor ? Visibility.Visible : Visibility.Collapsed;
+            ContentTextBox.Visibility = showEditor ? Visibility.Visible : Visibility.Collapsed;
+            PreviewContainer.Visibility = showPreview ? Visibility.Visible : Visibility.Collapsed;
+            EditorPreviewSplitter.Visibility = showSplitter ? Visibility.Visible : Visibility.Collapsed;
+
+            EditorColumn.Width = showEditor
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(0);
+            SplitterColumn.Width = showSplitter
+                ? new GridLength(5)
+                : new GridLength(0);
+            PreviewColumn.Width = showPreview
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(0);
+            UpdatePreviewContainerAppearance(mode);
+            UpdateEditorModeButton();
+
+            if (adjustWindowWidth &&
+                mode == EditorDisplayMode.TextAndPreview &&
+                previousMode != EditorDisplayMode.TextAndPreview)
+            {
+                ExpandWindowWidthForSplitMode();
+            }
+            else if (adjustWindowWidth &&
+                     previousMode == EditorDisplayMode.TextAndPreview &&
+                     mode != EditorDisplayMode.TextAndPreview)
+            {
+                RestoreWindowWidthAfterSplitMode();
+            }
+
+            if (showEditor)
+            {
+                SetChromeExpanded(true);
+            }
+
+            if (shouldPersistDisplayMode)
+            {
+                NoteManager.Instance.UpdateNote(NoteData);
+            }
+
+            UpdateChromeBarsByMouseState();
+
+            if (!showEditor || !focusEditor)
+            {
+                return;
+            }
+
+            ContentTextBox.Focus();
+            ContentTextBox.CaretIndex = ContentTextBox.Text?.Length ?? 0;
         }
 
         private void UpdateChromeBarsByMouseState()
@@ -258,9 +333,9 @@ namespace YASN
             Height = Math.Max(minHeight, Height + e.VerticalChange);
         }
 
-        private void UpdatePreviewContainerAppearance(bool isEditMode)
+        private void UpdatePreviewContainerAppearance(EditorDisplayMode mode)
         {
-            if (isEditMode)
+            if (mode == EditorDisplayMode.TextAndPreview)
             {
                 PreviewContainer.Margin = new Thickness(0);
                 PreviewContainer.CornerRadius = new CornerRadius(4);
@@ -268,11 +343,19 @@ namespace YASN
                 PreviewContainer.BorderBrush = new SolidColorBrush(Color.FromArgb(0x25, 0x00, 0x00, 0x00));
                 PreviewContainer.Background = new SolidColorBrush(Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF));
             }
-            else
+            else if (mode == EditorDisplayMode.PreviewOnly)
             {
                 // Slightly overdraw vertically in preview mode to avoid revealing underlying windows during chrome collapse.
                 PreviewContainer.Margin = new Thickness(0, 0, 0, -40);
                 PreviewContainer.CornerRadius = new CornerRadius(8);
+                PreviewContainer.BorderThickness = new Thickness(0);
+                PreviewContainer.BorderBrush = Brushes.Transparent;
+                PreviewContainer.Background = Brushes.Transparent;
+            }
+            else
+            {
+                PreviewContainer.Margin = new Thickness(0);
+                PreviewContainer.CornerRadius = new CornerRadius(4);
                 PreviewContainer.BorderThickness = new Thickness(0);
                 PreviewContainer.BorderBrush = Brushes.Transparent;
                 PreviewContainer.Background = Brushes.Transparent;
@@ -908,6 +991,12 @@ namespace YASN
             WindowState = WindowState.Minimized;
         }
 
+        private void EditorModeButton_Click(object sender, RoutedEventArgs e)
+        {
+            var nextMode = GetNextEditorDisplayMode(_editorDisplayMode);
+            SetDisplayMode(nextMode, focusEditor: nextMode != EditorDisplayMode.PreviewOnly);
+        }
+
         private void MoreOptions_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button button)
@@ -1090,6 +1179,102 @@ namespace YASN
             MinimizeButton.Visibility = NoteData.Level == WindowLevel.Normal
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+        }
+
+        private static EditorDisplayMode GetNextEditorDisplayMode(EditorDisplayMode currentMode)
+        {
+            return currentMode switch
+            {
+                EditorDisplayMode.TextOnly => EditorDisplayMode.TextAndPreview,
+                EditorDisplayMode.TextAndPreview => EditorDisplayMode.PreviewOnly,
+                _ => EditorDisplayMode.TextOnly
+            };
+        }
+
+        private void UpdateEditorModeButton()
+        {
+            if (EditorModeButton == null)
+            {
+                return;
+            }
+
+            var nextMode = GetNextEditorDisplayMode(_editorDisplayMode);
+            switch (_editorDisplayMode)
+            {
+                case EditorDisplayMode.TextOnly:
+                    EditorModeButton.Content = IconModeTextOnly;
+                    EditorModeButton.ToolTip = $"Mode: Text only (Next: {GetEditorModeLabel(nextMode)})";
+                    break;
+                case EditorDisplayMode.TextAndPreview:
+                    EditorModeButton.Content = IconModeTextAndPreview;
+                    EditorModeButton.ToolTip = $"Mode: Text + Preview (Next: {GetEditorModeLabel(nextMode)})";
+                    break;
+                default:
+                    EditorModeButton.Content = IconModePreviewOnly;
+                    EditorModeButton.ToolTip = $"Mode: Preview only (Next: {GetEditorModeLabel(nextMode)})";
+                    break;
+            }
+        }
+
+        private static string GetEditorModeLabel(EditorDisplayMode mode)
+        {
+            return mode switch
+            {
+                EditorDisplayMode.TextOnly => "Text only",
+                EditorDisplayMode.TextAndPreview => "Text + Preview",
+                _ => "Preview only"
+            };
+        }
+
+        private void ExpandWindowWidthForSplitMode()
+        {
+            if (WindowState != WindowState.Normal)
+            {
+                return;
+            }
+
+            const double tolerance = 1;
+            var currentWidth = Width;
+            var baseWidth = currentWidth;
+            if (!double.IsNaN(_lastAutoSplitBaseWidth) &&
+                Math.Abs(currentWidth - (_lastAutoSplitBaseWidth * 2)) <= tolerance)
+            {
+                baseWidth = _lastAutoSplitBaseWidth;
+            }
+
+            var minWidth = MinWidth > 0 ? MinWidth : 320;
+            var targetWidth = Math.Max(minWidth, baseWidth * 2);
+            var maxWidth = Math.Max(minWidth, SystemParameters.WorkArea.Width - 20);
+            var finalWidth = Math.Min(targetWidth, maxWidth);
+            if (finalWidth <= currentWidth + tolerance)
+            {
+                return;
+            }
+
+            Width = finalWidth;
+            _lastAutoSplitBaseWidth = baseWidth;
+            AppLogger.Debug($"Auto expand width for split mode: {currentWidth:F0} -> {finalWidth:F0}");
+        }
+
+        private void RestoreWindowWidthAfterSplitMode()
+        {
+            if (WindowState != WindowState.Normal || double.IsNaN(_lastAutoSplitBaseWidth))
+            {
+                return;
+            }
+
+            const double tolerance = 1;
+            var minWidth = MinWidth > 0 ? MinWidth : 320;
+            var restoreWidth = Math.Max(minWidth, _lastAutoSplitBaseWidth);
+            var currentWidth = Width;
+            _lastAutoSplitBaseWidth = double.NaN;
+            if (currentWidth <= restoreWidth + tolerance)
+            {
+                return;
+            }
+
+            Width = restoreWidth;
+            AppLogger.Debug($"Restore width after leaving split mode: {currentWidth:F0} -> {restoreWidth:F0}");
         }
 
         private void PromptRenameTitle()

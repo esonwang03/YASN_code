@@ -34,6 +34,7 @@ namespace YASN
             var allFields = new System.Collections.Generic.List<SettingField>();
 
             var generalFields = GeneralSettingsFieldFactory.Create();
+            var editorFields = EditorSettingsFieldFactory.Create();
             var webDavFields = WebDavSettingsFieldFactory.Create();
 
             allFields.Add(generalFields.AutoStartField);
@@ -41,6 +42,7 @@ namespace YASN
             allFields.Add(generalFields.LogSizeField);
             allFields.Add(generalFields.FloatingTaskbarVisibilityField);
             allFields.Add(generalFields.PreviewStyleField);
+            allFields.Add(editorFields.EnterModeField);
             allFields.Add(webDavFields.ServerUrlField);
             allFields.Add(webDavFields.UserField);
             allFields.Add(webDavFields.PasswordField);
@@ -62,6 +64,14 @@ namespace YASN
             generalModule.Fields.Add(generalFields.FloatingTaskbarVisibilityField);
             generalModule.Fields.Add(generalFields.PreviewStyleField);
 
+            var editorModule = new SettingModule
+            {
+                Key = "editor",
+                Title = "编辑",
+                Description = "控制便签编辑行为。"
+            };
+            editorModule.Fields.Add(editorFields.EnterModeField);
+
             var webDavModule = new SettingModule
             {
                 Key = "webdav",
@@ -81,6 +91,13 @@ namespace YASN
             generalFields.FloatingTaskbarVisibilityField.Value =
                 FloatingWindowTaskbarVisibility.NormalizeValue(generalFields.FloatingTaskbarVisibilityField.Value);
             var previewStyleNormalized = ConfigurePreviewStyleField(generalFields.PreviewStyleField);
+            var normalizedEditorEnterMode = EditorDisplayModeSettings.ToValue(
+                EditorDisplayModeSettings.ParseValue(editorFields.EnterModeField.Value));
+            var editorModeNormalized = !string.Equals(
+                editorFields.EnterModeField.Value,
+                normalizedEditorEnterMode,
+                StringComparison.Ordinal);
+            editorFields.EnterModeField.Value = normalizedEditorEnterMode;
 
             generalFields.AutoStartField.OnChanged = field =>
             {
@@ -118,6 +135,15 @@ namespace YASN
             if (previewStyleNormalized)
             {
                 _settingsStore.PersistField(generalFields.PreviewStyleField);
+            }
+            editorFields.EnterModeField.OnChanged = field =>
+            {
+                _settingsStore.PersistField(field);
+                Logging.AppLogger.Info($"Editor enter mode set to '{field.Value}'.");
+            };
+            if (editorModeNormalized)
+            {
+                _settingsStore.PersistField(editorFields.EnterModeField);
             }
 
             foreach (var field in new[]
@@ -203,6 +229,7 @@ namespace YASN
             });
 
             ViewModel.Modules.Add(generalModule);
+            ViewModel.Modules.Add(editorModule);
             ViewModel.Modules.Add(webDavModule);
             NavList.SelectedIndex = 0;
         }

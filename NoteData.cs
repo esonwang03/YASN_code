@@ -16,6 +16,7 @@ namespace YASN
         private bool _isOpen;
         private bool _isEditMode;
         private bool _isDarkMode;
+        private EditorDisplayMode? _lastEditorDisplayMode;
         private string _titleBarColor;
         private string _backgroundImagePath;
         private double _backgroundImageOpacity;
@@ -157,6 +158,17 @@ namespace YASN
                 if (_isDarkMode == value) return;
                 _isDarkMode = value;
                 OnPropertyChanged(nameof(IsDarkMode));
+            }
+        }
+
+        public EditorDisplayMode? LastEditorDisplayMode
+        {
+            get => _lastEditorDisplayMode;
+            set
+            {
+                if (_lastEditorDisplayMode == value) return;
+                _lastEditorDisplayMode = value;
+                OnPropertyChanged(nameof(LastEditorDisplayMode));
             }
         }
 

@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using YASN.Logging;
+using YASN.Settings;
 
 namespace YASN
 {
@@ -107,6 +108,9 @@ namespace YASN
                         Width = n.Width,
                         Height = n.Height,
                         IsDarkMode = n.IsDarkMode,
+                        LastEditorDisplayMode = n.LastEditorDisplayMode.HasValue
+                            ? EditorDisplayModeSettings.ToValue(n.LastEditorDisplayMode.Value)
+                            : null,
                         TitleBarColor = n.TitleBarColor,
                         BackgroundImagePath = n.BackgroundImagePath,
                         BackgroundImageOpacity = n.BackgroundImageOpacity,
@@ -175,6 +179,9 @@ namespace YASN
                         Width = item.Width,
                         Height = item.Height,
                         IsDarkMode = item.IsDarkMode,
+                        LastEditorDisplayMode = EditorDisplayModeSettings.TryParseValue(item.LastEditorDisplayMode, out var loadedMode)
+                            ? loadedMode
+                            : null,
                         TitleBarColor = item.TitleBarColor,
                         BackgroundImagePath = item.BackgroundImagePath,
                         BackgroundImageOpacity = item.BackgroundImageOpacity,
@@ -273,6 +280,7 @@ namespace YASN
                         Width = item.Width,
                         Height = item.Height,
                         IsDarkMode = item.IsDarkMode,
+                        LastEditorDisplayMode = null,
                         TitleBarColor = item.TitleBarColor,
                         BackgroundImagePath = item.BackgroundImagePath,
                         BackgroundImageOpacity = item.BackgroundImageOpacity,
@@ -577,6 +585,7 @@ namespace YASN
             public double Width { get; set; }
             public double Height { get; set; }
             public bool IsDarkMode { get; set; }
+            public string? LastEditorDisplayMode { get; set; }
             public string TitleBarColor { get; set; }
             public string BackgroundImagePath { get; set; }
             public double BackgroundImageOpacity { get; set; }
