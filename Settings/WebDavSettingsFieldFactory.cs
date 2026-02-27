@@ -21,7 +21,7 @@ namespace YASN.Settings
                 ServerUrlField = new SettingField
                 {
                     Key = "webdav.server",
-                    Title = "Server URL",
+                    Title = "Webdav Server URL",
                     Description = "例如：https://dav.jianguoyun.com/dav/",
                     FieldType = SettingFieldType.Text,
                     Value = "https://dav.jianguoyun.com/dav/",
@@ -30,7 +30,7 @@ namespace YASN.Settings
                 UserField = new SettingField
                 {
                     Key = "webdav.user",
-                    Title = "用户名 / 邮箱",
+                    Title = "User",
                     Description = "用于认证的账户名。",
                     FieldType = SettingFieldType.Text,
                     ShouldSync = false
@@ -38,34 +38,34 @@ namespace YASN.Settings
                 PasswordField = new SettingField
                 {
                     Key = "webdav.password",
-                    Title = "密码 / App Token",
-                    Description = "专用应用密码。",
+                    Title = "PassWord / Token",
+                    Description = "",
                     FieldType = SettingFieldType.Text,
                     ShouldSync = false
                 },
                 RemoteField = new SettingField
                 {
                     Key = "webdav.remote",
-                    Title = "远程目录",
+                    Title = "Remote Directory",
                     Description = "例如：MyJianGuoYun/YASN",
                     FieldType = SettingFieldType.Text,
-                    Value = "/MyJianGuoYun/YASN",
+                    Value = "/YASN",
                     ShouldSync = false
                 },
                 SyncIntervalField = new SettingField
                 {
                     Key = "webdav.syncIntervalSeconds",
-                    Title = "同步间隔 (秒)",
+                    Title = "Sync Interval (Seconds)",
                     Description = "自动同步的时间间隔，最小 10 秒。",
                     FieldType = SettingFieldType.Text,
                     Value = "300",
-                    ShouldSync = false
+                    ShouldSync = true
                 },
                 AutoSyncField = new SettingField
                 {
                     Key = "webdav.autoSync",
-                    Title = "启用自动同步",
-                    Description = "显式开关控制是否执行云同步。",
+                    Title = "Enable Syncing",
+                    Description = "是否执行云同步。",
                     FieldType = SettingFieldType.Toggle,
                     BoolValue = global::YASN.App.SyncManager?.IsEnabled ?? false,
                     ShouldSync = false
@@ -77,7 +77,7 @@ namespace YASN.Settings
                     Description = "When enabled, attachments up to the threshold are copied into app data and synced.",
                     FieldType = SettingFieldType.Toggle,
                     BoolValue = AttachmentSyncSettings.DefaultAutoSyncEnabled,
-                    ShouldSync = false
+                    ShouldSync = true
                 },
                 AttachmentThresholdField = new SettingField
                 {
@@ -86,7 +86,7 @@ namespace YASN.Settings
                     Description = "Files up to this size are copied and synced; larger files keep file-system paths.",
                     FieldType = SettingFieldType.Text,
                     Value = AttachmentSyncSettings.DefaultAutoSyncThresholdMb.ToString(),
-                    ShouldSync = false
+                    ShouldSync = true
                 }
             };
         }

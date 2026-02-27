@@ -15,28 +15,28 @@ namespace YASN.Settings
             var autoStartField = new SettingField
             {
                 Key = "autoStart",
-                Title = "开机自动启动",
+                Title = "Start on Windows startup",
                 Description = "启动 Windows 时自动运行 YASN。",
                 FieldType = SettingFieldType.Toggle,
                 BoolValue = global::YASN.AutoStartManager.IsAutoStartEnabled(),
-                ShouldSync = false
+                ShouldSync = true
             };
 
             var autoCollapseNoteChromeField = new SettingField
             {
                 Key = NoteWindowUiSettings.AutoCollapseChromeKey,
-                Title = "Auto Collapse Note Window Bar",
+                Title = "Auto collapse note window bar",
                 Description = "Automatically collapse title bar and toolbar when the mouse leaves the note window.",
                 FieldType = SettingFieldType.Toggle,
                 BoolValue = NoteWindowUiSettings.DefaultAutoCollapseChrome,
-                ShouldSync = false
+                ShouldSync = true
             };
 
             var logSizeField = new SettingField
             {
                 Key = "log.maxSizeKb",
-                Title = "最大日志大小 (KB)",
-                Description = "达到上限后自动轮转日志。",
+                Title = "Max size of log file",
+                Description = "达到上限后自动轮转日志。单位为kB",
                 FieldType = SettingFieldType.Text,
                 Value = "1024",
                 ShouldSync = true
@@ -45,11 +45,11 @@ namespace YASN.Settings
             var floatingTaskbarVisibilityField = new SettingField
             {
                 Key = global::YASN.FloatingWindowTaskbarVisibility.SettingKey,
-                Title = "Floating Window 任务栏图标",
-                Description = "控制悬浮窗是否在任务栏显示。",
+                Title = "Show notes in taskbar",
+                Description = "控制Note的悬浮窗是否在任务栏显示。",
                 FieldType = SettingFieldType.Select,
                 Value = global::YASN.FloatingWindowTaskbarVisibility.DefaultValue,
-                ShouldSync = false
+                ShouldSync = true
             };
 
             floatingTaskbarVisibilityField.Options.Add(new SettingOption
