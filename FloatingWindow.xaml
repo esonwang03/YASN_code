@@ -261,10 +261,11 @@
                         Background="#36000000"
                         Padding="6,4">
                     <DockPanel LastChildFill="False">
-                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" >
                             <Button Content="&#xE91B;" ToolTip="Insert Image" Style="{StaticResource MarkdownActionIconButtonStyle}" Click="InsertImage_Click"/>
                             <Button Content="&#xE723;" ToolTip="Insert Attachment" Style="{StaticResource MarkdownActionIconButtonStyle}" Click="InsertAttachment_Click"/>
                             <Button Content="&#xE72C;" ToolTip="Refresh Preview" Style="{StaticResource MarkdownActionIconButtonStyle}" Click="RefreshPreview_Click"/>
+                            <Button Content="&#xe8fb;" ToolTip="Exit Edit mode" Style="{StaticResource MarkdownActionIconButtonStyle}" Click="ButtonBase_OnClick" ></Button>
                         </StackPanel>
                     </DockPanel>
                 </Border>

@@ -172,13 +172,13 @@ namespace YASN
 
             _markdownPipeline = MarkdownPipelineConfig.Create();
 
-            _bottomMostTimer = new System.Windows.Threading.DispatcherTimer
+            _bottomMostTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(100)
             };
             _bottomMostTimer.Tick += Timer_Tick;
 
-            _previewDebounceTimer = new System.Windows.Threading.DispatcherTimer
+            _previewDebounceTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(300)
             };
@@ -1411,13 +1411,7 @@ namespace YASN
             }
             else
             {
-                try
-                {
-                    DragMove();
-                }
-                catch
-                {
-                }
+                DragMove();
 
                 if (NoteData.Level == WindowLevel.BottomMost)
                 {
@@ -2300,6 +2294,11 @@ namespace YASN
                     EditorModeButton.ToolTip = $"Mode: Preview only (Next: {GetEditorModeLabel(nextMode)})";
                     break;
             }
+        }
+
+        private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
+        {
+            SetDisplayMode(EditorDisplayMode.PreviewOnly);
         }
     }
 }
