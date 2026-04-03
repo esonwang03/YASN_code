@@ -5,7 +5,7 @@
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="Floating Window"
         Height="460"
-        Width="350"
+        Width="400"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -244,22 +244,8 @@
                                        FontSize="13"
                                        FontWeight="SemiBold"/>
                         </Border>
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <ComboBox x:Name="EditorModeComboBox"
-                                      Width="56"
-                                      Height="24"
-                                      Margin="4,0,4,0"
-                                      BorderThickness="0"
-                                      Background="Transparent"
-                                      FontFamily="Segoe MDL2 Assets"
-                                      FontSize="14"
-                                      VerticalAlignment="Center"
-                                      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-                                      SelectionChanged="EditorModeComboBox_SelectionChanged">
-                                <ComboBoxItem Content="&#xE890;" Tag="PreviewOnly" ToolTip="阅读"/>
-                                <ComboBoxItem Content="&#xE8A5;" Tag="TextOnly" ToolTip="修改"/>
-                                <ComboBoxItem Content="&#xE8A9;" Tag="TextAndPreview" ToolTip="同时查看"/>
-                            </ComboBox>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <Button x:Name="EditorModeButton" Content="&#xE70F;" ToolTip="Switch Editor Mode" Style="{StaticResource IconTitleBarButtonStyle}" Click="EditorModeButton_Click"/>
                             <Button x:Name="ThemeToggleButton" Content="&#xE706;" ToolTip="Switch Theme" Style="{StaticResource IconTitleBarButtonStyle}" Click="ThemeToggle_Click"/>
                             <Button x:Name="PinTopButton" Content="&#xE718;" ToolTip="Pin Top" Style="{StaticResource IconTitleBarButtonStyle}" Click="PinButton_Click"/>
                             <Button x:Name="PinBottomButton" Content="&#xE74B;" ToolTip="To Bottom" Style="{StaticResource IconTitleBarButtonStyle}" Click="SendToBottom_Click"/>
