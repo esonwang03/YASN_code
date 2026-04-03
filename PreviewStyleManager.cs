@@ -245,13 +245,7 @@ namespace YASN
             normalized = string.Empty;
             if (!string.IsNullOrWhiteSpace(raw))
             {
-                try
-                {
-                    AppLogger.Warn($"Failed to normalize preview style path '{raw}'.");
-                }
-                catch
-                {
-                }
+                AppLogger.Warn($"Failed to normalize preview style path '{raw}'.");
             }
 
             return false;

@@ -33,7 +33,7 @@ namespace YASN
         private void BuildModules()
         {
             ViewModel.Modules.Clear();
-            var allFields = new System.Collections.Generic.List<SettingField>();
+            var allFields = new List<SettingField>();
 
             var generalFields = GeneralSettingsFieldFactory.Create();
             var editorFields = EditorSettingsFieldFactory.Create();

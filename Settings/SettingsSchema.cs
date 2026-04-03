@@ -49,12 +49,10 @@ namespace YASN.Settings
             get => _boolValue;
             set
             {
-                if (_boolValue != value)
-                {
-                    _boolValue = value;
-                    OnPropertyChanged();
-                    OnChanged?.Invoke(this);
-                }
+                if (_boolValue == value) return;
+                _boolValue = value;
+                OnPropertyChanged();
+                OnChanged?.Invoke(this);
             }
         }
 

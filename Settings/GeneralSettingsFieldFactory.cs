@@ -21,17 +21,17 @@ namespace YASN.Settings
                 Description = "启动 Windows 时自动运行 YASN。",
                 FieldType = SettingFieldType.Toggle,
                 BoolValue = global::YASN.AutoStartManager.IsAutoStartEnabled(),
-                ShouldSync = true
+                ShouldSync = false
             };
 
             var autoCollapseNoteChromeField = new SettingField
             {
-                Key = NoteWindowUiSettings.AutoCollapseChromeKey,
+                Key = NoteWindowUiSettings.SettingKey,
                 Title = "Auto collapse note window bar",
                 Description = "Automatically collapse title bar and toolbar when the mouse leaves the note window.",
                 FieldType = SettingFieldType.Toggle,
-                BoolValue = NoteWindowUiSettings.DefaultAutoCollapseChrome,
-                ShouldSync = true
+                BoolValue = NoteWindowUiSettings.DefaultValue,
+                ShouldSync = false
             };
 
             var logSizeField = new SettingField

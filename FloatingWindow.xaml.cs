@@ -110,10 +110,9 @@ namespace YASN
         private bool _previewReady;
         private bool _isPreviewInitInProgress;
         private bool _isPreviewDocumentReady;
-        private bool _isUpdatingEditorModeSelector;
         private bool _hasPendingPreviewScrollRestore;
         private bool _isChromeExpanded = true;
-        private bool _autoCollapseChromeEnabled = NoteWindowUiSettings.DefaultAutoCollapseChrome;
+        private bool _autoCollapseChromeEnabled = NoteWindowUiSettings.DefaultValue;
         private string _previewStyleRelativePath = PreviewStyleManager.DefaultStyleRelativePath;
         private EditorDisplayMode _editorDisplayMode = EditorDisplayMode.PreviewOnly;
         private double _singleModeWidthBeforeSplit = double.NaN;
@@ -122,7 +121,7 @@ namespace YASN
         private double _pendingPreviewScrollRatio = -1;
 
         private static FloatingWindow _currentBottomMostWindow;
-        private static readonly object _bottomMostLock = new object();
+        private static readonly Lock _bottomMostLock = new ();
         private static bool _isApplicationShuttingDown;
 
         public NoteData NoteData { get; private set; }
@@ -188,10 +187,10 @@ namespace YASN
                 await RenderPreviewAsync();
             };
 
+            RefreshChromeBehaviorFromSettings();
             _chromeHoverTimer.Interval = TimeSpan.FromMilliseconds(120);
             _chromeHoverTimer.Tick += (_, _) => UpdateChromeBarsByMouseState();
             _chromeHoverTimer.Start();
-            RefreshChromeBehaviorFromSettings();
 
             _collapseEditBar = (Storyboard)FindResource("CollapseEditBar");
             _expandEditBar = (Storyboard)FindResource("ExpandEditBar");
@@ -329,6 +328,7 @@ namespace YASN
         {
             var settingsStore = new SettingsStore();
             _autoCollapseChromeEnabled = NoteWindowUiSettings.IsAutoCollapseChromeEnabled(settingsStore);
+            AppLogger.Debug($"Load chrome behavior settings: {_autoCollapseChromeEnabled}");
             UpdateChromeBarsByMouseState();
         }
 
