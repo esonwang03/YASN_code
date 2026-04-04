@@ -1510,7 +1510,7 @@ namespace YASN
             aboutItem.Click += (_, _) =>
             {
                 MessageBox.Show(
-                    "YASN - Yet Another Sticky Notes\nv1.0.1\n\nMarkdown mode enabled.",
+                    "YASN - Yet Another Sticky Notes\nv1.0.2\n\nMarkdown mode enabled.",
                     "About YASN",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
