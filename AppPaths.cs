@@ -43,7 +43,7 @@ namespace YASN
             errorMessage = string.Empty;
             try
             {
-                var raw = string.IsNullOrWhiteSpace(value)
+                string raw = string.IsNullOrWhiteSpace(value)
                     ? Path.Combine(BaseDirectory, "data")
                     : value.Trim();
 
@@ -54,10 +54,32 @@ namespace YASN
                 Directory.CreateDirectory(normalizedPath);
                 return true;
             }
-            catch (Exception ex)
+            catch (ArgumentException ex)
             {
                 normalizedPath = string.Empty;
                 errorMessage = ex.Message;
+                System.Diagnostics.Debug.WriteLine($"Failed to normalize data directory: {ex.Message}");
+                return false;
+            }
+            catch (IOException ex)
+            {
+                normalizedPath = string.Empty;
+                errorMessage = ex.Message;
+                System.Diagnostics.Debug.WriteLine($"Failed to normalize data directory: {ex.Message}");
+                return false;
+            }
+            catch (NotSupportedException ex)
+            {
+                normalizedPath = string.Empty;
+                errorMessage = ex.Message;
+                System.Diagnostics.Debug.WriteLine($"Failed to normalize data directory: {ex.Message}");
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                normalizedPath = string.Empty;
+                errorMessage = ex.Message;
+                System.Diagnostics.Debug.WriteLine($"Failed to normalize data directory: {ex.Message}");
                 return false;
             }
         }
@@ -68,21 +90,29 @@ namespace YASN
             {
                 try
                 {
-                    var json = File.ReadAllText(LocalSettingsPath);
+                    string json = File.ReadAllText(LocalSettingsPath);
                     var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-                    if (dict != null && dict.TryGetValue(DataDirectorySettingKey, out var value) &&
-                        TryNormalizeDataDirectory(value, out var configuredPath, out _))
+                    if (dict != null && dict.TryGetValue(DataDirectorySettingKey, out string? value) &&
+                        TryNormalizeDataDirectory(value, out string? configuredPath, out _))
                     {
                         return configuredPath;
                     }
                 }
-                catch
+                catch (IOException ex)
                 {
-                    // ignore malformed local settings and fallback to default path
+                    System.Diagnostics.Debug.WriteLine($"Failed to read local settings for data directory: {ex.Message}");
+                }
+                catch (JsonException ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to read local settings for data directory: {ex.Message}");
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to read local settings for data directory: {ex.Message}");
                 }
             }
 
-            TryNormalizeDataDirectory(null, out var defaultPath, out _);
+            TryNormalizeDataDirectory(null, out string? defaultPath, out _);
             return defaultPath;
         }
 
@@ -93,21 +123,21 @@ namespace YASN
 
         public static string GetNoteAssetsDirectory(int noteId)
         {
-            var path = Path.Combine(NoteAssetsRoot, noteId.ToString());
+            string path = Path.Combine(NoteAssetsRoot, noteId.ToString(System.Globalization.CultureInfo.InvariantCulture));
             Directory.CreateDirectory(path);
             return path;
         }
 
         public static string GetNoteBackgroundDirectory(int noteId)
         {
-            var path = Path.Combine(NoteBackgroundsRoot, noteId.ToString());
+            string path = Path.Combine(NoteBackgroundsRoot, noteId.ToString(System.Globalization.CultureInfo.InvariantCulture));
             Directory.CreateDirectory(path);
             return path;
         }
 
         public static string GetNoteAttachmentsDirectory(int noteId)
         {
-            var path = Path.Combine(NoteAttachmentsRoot, noteId.ToString());
+            string path = Path.Combine(NoteAttachmentsRoot, noteId.ToString(System.Globalization.CultureInfo.InvariantCulture));
             Directory.CreateDirectory(path);
             return path;
         }

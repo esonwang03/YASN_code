@@ -1,9 +1,9 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using YASN.Logging;
 using MessageBox = ModernWpf.MessageBox;
 
 namespace YASN
@@ -16,7 +16,7 @@ namespace YASN
         public MainWindow()
         {
             InitializeComponent();
-            
+
             // Converters are already defined in MainWindow.xaml, no need to add them here
         }
 
@@ -29,29 +29,29 @@ namespace YASN
         {
             WindowListView.ItemsSource = null;
             WindowListView.ItemsSource = NoteManager.Instance.Notes;
-            
-            NoWindowsText.Visibility = NoteManager.Instance.Notes.Count == 0 
-                ? Visibility.Visible 
+
+            NoWindowsText.Visibility = NoteManager.Instance.Notes.Count == 0
+                ? Visibility.Visible
                 : Visibility.Collapsed;
         }
 
         private void CreateTopWindow_Click(object sender, RoutedEventArgs e)
         {
-            var noteData = NoteManager.Instance.CreateNote(WindowLevel.TopMost);
+            NoteData noteData = NoteManager.Instance.CreateNote(WindowLevel.TopMost);
             OpenNote(noteData);
             RefreshWindowList();
         }
 
         private void CreateBottomWindow_Click(object sender, RoutedEventArgs e)
         {
-            var noteData = NoteManager.Instance.CreateNote(WindowLevel.BottomMost);
+            NoteData noteData = NoteManager.Instance.CreateNote(WindowLevel.BottomMost);
             OpenNote(noteData);
             RefreshWindowList();
         }
 
         private void CreateNormalWindow_Click(object sender, RoutedEventArgs e)
         {
-            var noteData = NoteManager.Instance.CreateNote(WindowLevel.Normal);
+            NoteData noteData = NoteManager.Instance.CreateNote(WindowLevel.Normal);
             OpenNote(noteData);
             RefreshWindowList();
         }
@@ -73,24 +73,20 @@ namespace YASN
 
         private void DeleteNote_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is System.Windows.Controls.Button button && button.Tag is NoteData noteData)
-            {
-                var result = MessageBox.Show(
-                    $"Are you sure you want to delete '{noteData.Title}'?",
-                    "Confirm Delete",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
+            if (sender is not System.Windows.Controls.Button button || button.Tag is not NoteData noteData) return;
+            MessageBoxResult? result = MessageBox.Show(
+                $"Are you sure you want to delete '{noteData.Title}'?",
+                "Confirm Delete",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
 
-                if (result == MessageBoxResult.Yes)
-                {
-                    if (noteData.IsOpen && noteData.Window != null)
-                    {
-                        noteData.Window.Close();
-                    }
-                    NoteManager.Instance.DeleteNote(noteData);
-                    RefreshWindowList();
-                }
+            if (result != MessageBoxResult.Yes) return;
+            if (noteData.IsOpen && noteData.Window != null)
+            {
+                noteData.Window.Close();
             }
+            NoteManager.Instance.DeleteNote(noteData);
+            RefreshWindowList();
         }
 
         private void ChangeNoteLevel_Click(object sender, RoutedEventArgs e)
@@ -130,7 +126,7 @@ namespace YASN
         {
             if (!noteData.IsOpen || noteData.Window == null)
             {
-                var window = new FloatingWindow(noteData);
+                FloatingWindow window = new FloatingWindow(noteData);
                 window.Show();
             }
             else
@@ -151,7 +147,7 @@ namespace YASN
 
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
-            var settingsWindow = new SettingsWindow
+            SettingsWindow settingsWindow = new SettingsWindow
             {
                 Owner = this
             };
@@ -162,15 +158,25 @@ namespace YASN
         {
             try
             {
-                var dataDirectory = AppPaths.DataDirectory;
+                string dataDirectory = AppPaths.DataDirectory;
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = dataDirectory,
                     UseShellExecute = true
                 });
             }
-            catch (Exception ex)
+            catch (InvalidOperationException ex)
             {
+                AppLogger.Warn($"Failed to open data folder '{AppPaths.DataDirectory}': {ex.Message}");
+                MessageBox.Show(
+                    $"Failed to open data folder: {ex.Message}",
+                    "Open Folder Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                AppLogger.Warn($"Failed to open data folder '{AppPaths.DataDirectory}': {ex.Message}");
                 MessageBox.Show(
                     $"Failed to open data folder: {ex.Message}",
                     "Open Folder Failed",

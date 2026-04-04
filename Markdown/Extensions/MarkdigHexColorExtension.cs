@@ -76,36 +76,36 @@ namespace YASN.Markdown.Extensions
 
         public override bool Match(InlineProcessor processor, ref StringSlice slice)
         {
-            var text = slice.Text;
-            var start = slice.Start;
-            var end = slice.End;
+            string text = slice.Text;
+            int start = slice.Start;
+            int end = slice.End;
 
             if (start + 5 > end || text[start] != '{' || text[start + 1] != '#')
             {
                 return false;
             }
 
-            var i = start + 2;
-            var colorTokenStart = i;
+            int i = start + 2;
+            int colorTokenStart = i;
             while (i <= end && text[i] != '|')
             {
                 i++;
             }
 
-            var colorTokenLength = i - colorTokenStart;
+            int colorTokenLength = i - colorTokenStart;
             if (i > end || text[i] != '|' || colorTokenLength <= 0)
             {
                 return false;
             }
 
-            var colorToken = text.Substring(colorTokenStart, colorTokenLength);
-            if (!TryResolveColorHex(colorToken, out var colorHex))
+            string colorToken = text.Substring(colorTokenStart, colorTokenLength);
+            if (!TryResolveColorHex(colorToken, out string? colorHex))
             {
                 return false;
             }
 
             i++;
-            var contentStart = i;
+            int contentStart = i;
             while (i <= end && text[i] != '}')
             {
                 i++;
@@ -116,8 +116,8 @@ namespace YASN.Markdown.Extensions
                 return false;
             }
 
-            var content = text.Substring(contentStart, i - contentStart);
-            var inline = new HexColorInline(colorHex, content)
+            string content = text.Substring(contentStart, i - contentStart);
+            HexColorInline inline = new HexColorInline(colorHex, content)
             {
                 Span = new SourceSpan(start, i)
             };
@@ -140,7 +140,7 @@ namespace YASN.Markdown.Extensions
                 return true;
             }
 
-            if (ColorAliases.TryGetValue(token, out var aliasedHex))
+            if (ColorAliases.TryGetValue(token, out string? aliasedHex))
             {
                 colorHex = aliasedHex;
                 return true;
@@ -157,7 +157,7 @@ namespace YASN.Markdown.Extensions
 
         protected override void Write(HtmlRenderer renderer, HexColorInline obj)
         {
-            var inlineHtml = StripParagraphWrapper(global::Markdig.Markdown.ToHtml(obj.MarkdownText, InlinePipeline));
+            string inlineHtml = StripParagraphWrapper(global::Markdig.Markdown.ToHtml(obj.MarkdownText, InlinePipeline));
 
             renderer
                 .Write("<span style=\"color:")
@@ -169,7 +169,7 @@ namespace YASN.Markdown.Extensions
 
         private static string StripParagraphWrapper(string html)
         {
-            var trimmed = html.Trim();
+            string trimmed = html.Trim();
             if (trimmed.StartsWith("<p>", StringComparison.Ordinal) &&
                 trimmed.EndsWith("</p>", StringComparison.Ordinal))
             {

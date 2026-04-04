@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace YASN.Settings
 {
     internal static class AttachmentSyncSettings
@@ -9,13 +11,13 @@ namespace YASN.Settings
 
         internal static bool GetAutoSyncEnabled(SettingsStore settingsStore)
         {
-            var raw = settingsStore.GetValue(AutoSyncEnabledKey, shouldSync: false, DefaultAutoSyncEnabled.ToString());
-            return !bool.TryParse(raw, out var value) || value;
+            string raw = settingsStore.GetValue(AutoSyncEnabledKey, shouldSync: false, DefaultAutoSyncEnabled.ToString(CultureInfo.InvariantCulture));
+            return !bool.TryParse(raw, out bool value) || value;
         }
 
         private static int GetAutoSyncThresholdMb(SettingsStore settingsStore)
         {
-            var raw = settingsStore.GetValue(AutoSyncThresholdMbKey, shouldSync: false, DefaultAutoSyncThresholdMb.ToString());
+            string raw = settingsStore.GetValue(AutoSyncThresholdMbKey, shouldSync: false, DefaultAutoSyncThresholdMb.ToString(CultureInfo.InvariantCulture));
             return ParseThresholdMb(raw);
         }
 
@@ -28,22 +30,13 @@ namespace YASN.Settings
         {
             const int minMb = 1;
             const int maxMb = 1024;
-            if (int.TryParse(value, out var mb))
+            if (!int.TryParse(value, out int mb)) return DefaultAutoSyncThresholdMb;
+            return mb switch
             {
-                if (mb < minMb)
-                {
-                    return minMb;
-                }
-
-                if (mb > maxMb)
-                {
-                    return maxMb;
-                }
-
-                return mb;
-            }
-
-            return DefaultAutoSyncThresholdMb;
+                < minMb => minMb,
+                > maxMb => maxMb,
+                _ => mb
+            };
         }
     }
 }

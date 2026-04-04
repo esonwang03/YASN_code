@@ -1,7 +1,9 @@
-﻿using System.IO;
-using System.Runtime.InteropServices;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -22,11 +24,12 @@ using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
 using ContextMenu = System.Windows.Controls.ContextMenu;
 using DataFormats = System.Windows.DataFormats;
-using DrawingColor = System.Drawing.Color;
+using DragDeltaEventArgs = System.Windows.Controls.Primitives.DragDeltaEventArgs;
 using DragDropEffects = System.Windows.DragDropEffects;
 using DragEventArgs = System.Windows.DragEventArgs;
-using DragDeltaEventArgs = System.Windows.Controls.Primitives.DragDeltaEventArgs;
+using DrawingColor = System.Drawing.Color;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
+using Image = System.Drawing.Image;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MenuItem = System.Windows.Controls.MenuItem;
 using MessageBox = ModernWpf.MessageBox;
@@ -77,7 +80,7 @@ namespace YASN
                                                          })();
                                                          """;
 
-        
+
         [LibraryImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static partial bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
@@ -121,7 +124,7 @@ namespace YASN
         private double _pendingPreviewScrollRatio = -1;
 
         private static FloatingWindow _currentBottomMostWindow;
-        private static readonly Lock _bottomMostLock = new ();
+        private static readonly Lock _bottomMostLock = new();
         private static bool _isApplicationShuttingDown;
 
         public NoteData NoteData { get; private set; }
@@ -184,7 +187,7 @@ namespace YASN
             _previewDebounceTimer.Tick += async (_, _) =>
             {
                 _previewDebounceTimer.Stop();
-                await RenderPreviewAsync();
+                await RenderPreviewAsync().ConfigureAwait(false);
             };
 
             RefreshChromeBehaviorFromSettings();
@@ -209,7 +212,7 @@ namespace YASN
                 return;
             }
 
-            var hasContent = !string.IsNullOrWhiteSpace(GetContent());
+            bool hasContent = !string.IsNullOrWhiteSpace(GetContent());
             if (!hasContent)
             {
                 SetDisplayMode(GetConfiguredEditorEnterMode(), adjustWindowWidth: false);
@@ -232,13 +235,13 @@ namespace YASN
 
         private void EnterConfiguredEditMode(bool focusEditor = false)
         {
-            var targetMode = GetConfiguredEditorEnterMode();
+            EditorDisplayMode targetMode = GetConfiguredEditorEnterMode();
             SetDisplayMode(targetMode, focusEditor: focusEditor && targetMode != EditorDisplayMode.PreviewOnly);
         }
 
         private EditorDisplayMode GetConfiguredEditorEnterMode()
         {
-            var settingsStore = new SettingsStore();
+            SettingsStore settingsStore = new SettingsStore();
             return EditorDisplayModeSettings.GetEnterMode(settingsStore);
         }
 
@@ -247,17 +250,17 @@ namespace YASN
             bool focusEditor = false,
             bool adjustWindowWidth = true)
         {
-            var previousMode = _editorDisplayMode;
+            EditorDisplayMode previousMode = _editorDisplayMode;
             _editorDisplayMode = mode;
-            var shouldPersistDisplayMode = NoteData.LastEditorDisplayMode != mode;
+            bool shouldPersistDisplayMode = NoteData.LastEditorDisplayMode != mode;
             if (shouldPersistDisplayMode)
             {
                 NoteData.LastEditorDisplayMode = mode;
             }
 
-            var showEditor = mode is EditorDisplayMode.TextOnly or EditorDisplayMode.TextAndPreview;
-            var showPreview = mode is EditorDisplayMode.PreviewOnly or EditorDisplayMode.TextAndPreview;
-            var showSplitter = mode == EditorDisplayMode.TextAndPreview;
+            bool showEditor = mode is EditorDisplayMode.TextOnly or EditorDisplayMode.TextAndPreview;
+            bool showPreview = mode is EditorDisplayMode.PreviewOnly or EditorDisplayMode.TextAndPreview;
+            bool showSplitter = mode == EditorDisplayMode.TextAndPreview;
 
             NoteData.IsEditMode = showEditor;
             MarkdownToolbar.Visibility = showEditor ? Visibility.Visible : Visibility.Collapsed;
@@ -277,17 +280,18 @@ namespace YASN
             UpdatePreviewContainerAppearance(mode);
             UpdateEditorModeButton();
 
-            if (adjustWindowWidth &&
-                mode == EditorDisplayMode.TextAndPreview &&
-                previousMode != EditorDisplayMode.TextAndPreview)
+            switch (adjustWindowWidth)
             {
-                ExpandWindowWidthForSplitMode();
-            }
-            else if (adjustWindowWidth &&
-                     previousMode == EditorDisplayMode.TextAndPreview &&
-                     mode != EditorDisplayMode.TextAndPreview)
-            {
-                RestoreWindowWidthAfterSplitMode();
+                case true when
+                    mode == EditorDisplayMode.TextAndPreview &&
+                    previousMode != EditorDisplayMode.TextAndPreview:
+                    ExpandWindowWidthForSplitMode();
+                    break;
+                case true when
+                    previousMode == EditorDisplayMode.TextAndPreview &&
+                    mode != EditorDisplayMode.TextAndPreview:
+                    RestoreWindowWidthAfterSplitMode();
+                    break;
             }
 
             if (showEditor)
@@ -319,14 +323,14 @@ namespace YASN
                 return;
             }
 
-            var keepExpandedForEditor = NoteData.IsEditMode &&
+            bool keepExpandedForEditor = NoteData.IsEditMode &&
                                         (ContentTextBox.IsKeyboardFocusWithin || ContentTextBox.IsMouseOver);
             SetChromeExpanded(keepExpandedForEditor || IsMouseInsideWindow());
         }
 
         public void RefreshChromeBehaviorFromSettings()
         {
-            var settingsStore = new SettingsStore();
+            SettingsStore settingsStore = new SettingsStore();
             _autoCollapseChromeEnabled = NoteWindowUiSettings.IsAutoCollapseChromeEnabled(settingsStore);
             AppLogger.Debug($"Load chrome behavior settings: {_autoCollapseChromeEnabled}");
             UpdateChromeBarsByMouseState();
@@ -336,8 +340,8 @@ namespace YASN
         {
             const double fallbackMinWidth = 320;
             const double fallbackMinHeight = 220;
-            var minWidth = MinWidth > 0 ? MinWidth : fallbackMinWidth;
-            var minHeight = MinHeight > 0 ? MinHeight : fallbackMinHeight;
+            double minWidth = MinWidth > 0 ? MinWidth : fallbackMinWidth;
+            double minHeight = MinHeight > 0 ? MinHeight : fallbackMinHeight;
 
             Width = Math.Max(minWidth, Width + e.HorizontalChange);
             Height = Math.Max(minHeight, Height + e.VerticalChange);
@@ -380,7 +384,7 @@ namespace YASN
                 return;
             }
 
-            var radius = Math.Max(0, PreviewContainer.CornerRadius.TopLeft);
+            double radius = Math.Max(0, PreviewContainer.CornerRadius.TopLeft);
             PreviewWebView.Clip = new RectangleGeometry(
                 new Rect(0, 0, PreviewWebView.ActualWidth, PreviewWebView.ActualHeight),
                 radius,
@@ -409,7 +413,7 @@ namespace YASN
                 return false;
             }
 
-            var dipPoint = PointFromScreen(new Point(nativePoint.X, nativePoint.Y));
+            Point dipPoint = PointFromScreen(new Point(nativePoint.X, nativePoint.Y));
             return dipPoint is { X: >= 0, Y: >= 0 } &&
                    dipPoint.X <= ActualWidth &&
                    dipPoint.Y <= ActualHeight;
@@ -450,7 +454,7 @@ namespace YASN
 
         private void ContentTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            var isPasteShortcut = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.V;
+            bool isPasteShortcut = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.V;
             if (!isPasteShortcut)
             {
                 return;
@@ -470,7 +474,7 @@ namespace YASN
             {
                 if (WinFormsClipboard.ContainsImage())
                 {
-                    using var clipboardImage = WinFormsClipboard.GetImage();
+                    using Image? clipboardImage = WinFormsClipboard.GetImage();
                     if (clipboardImage != null)
                     {
                         InsertClipboardImage(clipboardImage);
@@ -493,14 +497,14 @@ namespace YASN
                     return false;
                 }
 
-                var files = System.Windows.Clipboard.GetFileDropList();
+                StringCollection files = System.Windows.Clipboard.GetFileDropList();
                 if (files.Count == 0)
                 {
                     return false;
                 }
 
-                var insertedAny = false;
-                foreach (var path in files.Cast<string>())
+                bool insertedAny = false;
+                foreach (string path in files.Cast<string>())
                 {
                     if (!File.Exists(path))
                     {
@@ -521,7 +525,12 @@ namespace YASN
 
                 return insertedAny;
             }
-            catch (Exception ex)
+            catch (ExternalException ex)
+            {
+                AppLogger.Warn($"Failed to paste clipboard content: {ex.Message}");
+                return false;
+            }
+            catch (InvalidOperationException ex)
             {
                 AppLogger.Warn($"Failed to paste clipboard content: {ex.Message}");
                 return false;
@@ -533,37 +542,56 @@ namespace YASN
             string? destPath = null;
             try
             {
-                var fileName = $"{Guid.NewGuid()}.png";
+                string fileName = $"{Guid.NewGuid()}.png";
                 destPath = Path.GetFullPath(Path.Combine(_imageDirectory, fileName));
 
-                var targetDirectory = Path.GetDirectoryName(destPath);
+                string? targetDirectory = Path.GetDirectoryName(destPath);
                 if (!string.IsNullOrEmpty(targetDirectory))
                 {
                     Directory.CreateDirectory(targetDirectory);
                 }
 
-                using var bitmap = new System.Drawing.Bitmap(image);
+                using Bitmap bitmap = new System.Drawing.Bitmap(image);
                 using (var stream = File.Create(destPath))
                 {
                     bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
                 }
 
-                var markdown = $"![clipboard-image](note-assets/{NoteData.Id}/{fileName}){Environment.NewLine}";
+                string markdown = $"![clipboard-image](note-assets/{NoteData.Id}/{fileName}){Environment.NewLine}";
                 InsertTextAtCaret(markdown);
             }
-            catch (Exception ex)
+            catch (ExternalException ex)
             {
-                if (!string.IsNullOrEmpty(destPath) && File.Exists(destPath))
-                {
-                    try
-                    {
-                        File.Delete(destPath);
-                    }
-                    catch
-                    {
-                    }
-                }
-
+                TryDeleteGeneratedFile(destPath, "pasting clipboard image");
+                AppLogger.Warn($"Failed to paste image from clipboard: {ex.Message}");
+                MessageBox.Show($"Fail to paste image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (IOException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "pasting clipboard image");
+                AppLogger.Warn($"Failed to paste image from clipboard: {ex.Message}");
+                MessageBox.Show($"Fail to paste image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "pasting clipboard image");
+                AppLogger.Warn($"Failed to paste image from clipboard: {ex.Message}");
+                MessageBox.Show($"Fail to paste image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (NotSupportedException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "pasting clipboard image");
+                AppLogger.Warn($"Failed to paste image from clipboard: {ex.Message}");
+                MessageBox.Show($"Fail to paste image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (ArgumentException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "pasting clipboard image");
+                AppLogger.Warn($"Failed to paste image from clipboard: {ex.Message}");
                 MessageBox.Show($"Fail to paste image: {ex.Message}", "Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -574,38 +602,57 @@ namespace YASN
             string? destPath = null;
             try
             {
-                var fileName = $"{Guid.NewGuid()}.png";
+                string fileName = $"{Guid.NewGuid()}.png";
                 destPath = Path.GetFullPath(Path.Combine(_imageDirectory, fileName));
 
-                var targetDirectory = Path.GetDirectoryName(destPath);
+                string? targetDirectory = Path.GetDirectoryName(destPath);
                 if (!string.IsNullOrEmpty(targetDirectory))
                 {
                     Directory.CreateDirectory(targetDirectory);
                 }
 
-                var encoder = new PngBitmapEncoder();
+                PngBitmapEncoder encoder = new PngBitmapEncoder();
                 encoder.Frames.Add(BitmapFrame.Create(imageSource));
                 using (var stream = File.Create(destPath))
                 {
                     encoder.Save(stream);
                 }
 
-                var markdown = $"![clipboard-image](note-assets/{NoteData.Id}/{fileName}){Environment.NewLine}";
+                string markdown = $"![clipboard-image](note-assets/{NoteData.Id}/{fileName}){Environment.NewLine}";
                 InsertTextAtCaret(markdown);
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
-                if (!string.IsNullOrEmpty(destPath) && File.Exists(destPath))
-                {
-                    try
-                    {
-                        File.Delete(destPath);
-                    }
-                    catch
-                    {
-                    }
-                }
-
+                TryDeleteGeneratedFile(destPath, "pasting clipboard image");
+                AppLogger.Warn($"Failed to paste image from clipboard: {ex.Message}");
+                MessageBox.Show($"Fail to paste image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "pasting clipboard image");
+                AppLogger.Warn($"Failed to paste image from clipboard: {ex.Message}");
+                MessageBox.Show($"Fail to paste image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (NotSupportedException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "pasting clipboard image");
+                AppLogger.Warn($"Failed to paste image from clipboard: {ex.Message}");
+                MessageBox.Show($"Fail to paste image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (ArgumentException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "pasting clipboard image");
+                AppLogger.Warn($"Failed to paste image from clipboard: {ex.Message}");
+                MessageBox.Show($"Fail to paste image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "pasting clipboard image");
+                AppLogger.Warn($"Failed to paste image from clipboard: {ex.Message}");
                 MessageBox.Show($"Fail to paste image: {ex.Message}", "Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -628,7 +675,7 @@ namespace YASN
             try
             {
                 PreviewWebView.DefaultBackgroundColor = DrawingColor.Transparent;
-                await PreviewWebView.EnsureCoreWebView2Async();
+                await PreviewWebView.EnsureCoreWebView2Async().ConfigureAwait(false);
                 PreviewWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 PreviewWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
 #if DEBUG
@@ -636,7 +683,7 @@ namespace YASN
 #else
                 PreviewWebView.CoreWebView2.Settings.AreDevToolsEnabled = false;
 #endif
-                await PreviewWebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(PreviewRightClickBridgeScript);
+                await PreviewWebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(PreviewRightClickBridgeScript).ConfigureAwait(false);
                 PreviewWebView.CoreWebView2.ContextMenuRequested += PreviewCoreWebView2_ContextMenuRequested;
                 PreviewWebView.CoreWebView2.NavigationStarting += PreviewCoreWebView2_NavigationStarting;
                 PreviewWebView.CoreWebView2.WebMessageReceived += PreviewCoreWebView2_WebMessageReceived;
@@ -648,9 +695,17 @@ namespace YASN
 
                 _previewReady = true;
                 ApplyPreviewClip();
-                await RenderPreviewAsync();
+                await RenderPreviewAsync().ConfigureAwait(false);
             }
-            catch (Exception ex)
+            catch (COMException ex)
+            {
+                AppLogger.Warn($"Failed to initialize WebView2: {ex.Message}");
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Warn($"Failed to initialize WebView2: {ex.Message}");
+            }
+            catch (NotSupportedException ex)
             {
                 AppLogger.Warn($"Failed to initialize WebView2: {ex.Message}");
             }
@@ -669,30 +724,30 @@ namespace YASN
 
             try
             {
-                var shouldTrackEditorCaret = ContentTextBox.Visibility == Visibility.Visible &&
+                bool shouldTrackEditorCaret = ContentTextBox.Visibility == Visibility.Visible &&
                                              ContentTextBox.IsKeyboardFocusWithin;
-                var scrollRatio = shouldTrackEditorCaret
+                double scrollRatio = shouldTrackEditorCaret
                     ? GetEditorCaretScrollRatio()
-                    : await CapturePreviewScrollRatioAsync();
+                    : await CapturePreviewScrollRatioAsync().ConfigureAwait(false);
                 _hasPendingPreviewScrollRestore = scrollRatio >= 0;
                 _pendingPreviewScrollRatio = scrollRatio;
 
-                var markdown = GetContent();
-                var htmlBody = global::Markdig.Markdown.ToHtml(markdown ?? string.Empty, _markdownPipeline);
-                var stylePath = PreviewStyleManager.ToStyleAbsolutePath(_previewStyleRelativePath);
-                var styleVersion = File.Exists(stylePath) ? GetStyleCacheToken(stylePath) : DateTime.UtcNow.Ticks;
-                var styleHref = PreviewStyleManager.BuildStyleHref(_previewStyleRelativePath, styleVersion);
+                string markdown = GetContent();
+                string htmlBody = global::Markdig.Markdown.ToHtml(markdown ?? string.Empty, _markdownPipeline);
+                string stylePath = PreviewStyleManager.ToStyleAbsolutePath(_previewStyleRelativePath);
+                long styleVersion = File.Exists(stylePath) ? GetStyleCacheToken(stylePath) : DateTime.UtcNow.Ticks;
+                string styleHref = PreviewStyleManager.BuildStyleHref(_previewStyleRelativePath, styleVersion);
 
                 if (_isPreviewDocumentReady)
                 {
-                    await UpdatePreviewDocumentAsync(htmlBody, NoteData.IsDarkMode, styleHref, scrollRatio);
+                    await UpdatePreviewDocumentAsync(htmlBody, NoteData.IsDarkMode, styleHref, scrollRatio).ConfigureAwait(false);
                     _hasPendingPreviewScrollRestore = false;
                     return;
                 }
 
-                var html = BuildHtmlPage(htmlBody, NoteData.IsDarkMode, styleHref);
+                string html = BuildHtmlPage(htmlBody, NoteData.IsDarkMode, styleHref);
 
-                var cacheDir = Path.GetDirectoryName(_htmlCachePath);
+                string? cacheDir = Path.GetDirectoryName(_htmlCachePath);
                 if (!string.IsNullOrEmpty(cacheDir))
                 {
                     Directory.CreateDirectory(cacheDir);
@@ -702,13 +757,28 @@ namespace YASN
                 PreviewContainer.Opacity = 0;
                 PreviewWebView.NavigateToString(html);
             }
-            catch (Exception ex)
+            catch (COMException ex)
+            {
+                PreviewContainer.Opacity = 1;
+                AppLogger.Warn($"Failed to render markdown preview: {ex.Message}");
+            }
+            catch (IOException ex)
+            {
+                PreviewContainer.Opacity = 1;
+                AppLogger.Warn($"Failed to render markdown preview: {ex.Message}");
+            }
+            catch (InvalidOperationException ex)
+            {
+                PreviewContainer.Opacity = 1;
+                AppLogger.Warn($"Failed to render markdown preview: {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
             {
                 PreviewContainer.Opacity = 1;
                 AppLogger.Warn($"Failed to render markdown preview: {ex.Message}");
             }
 
-            await Task.CompletedTask;
+            await Task.CompletedTask.ConfigureAwait(false);
         }
 
         private async Task UpdatePreviewDocumentAsync(string htmlBody, bool darkMode, string styleHref, double scrollRatio)
@@ -718,34 +788,34 @@ namespace YASN
                 return;
             }
 
-            var themeClass = darkMode ? "theme-dark" : "theme-light";
-            var htmlJson = JsonSerializer.Serialize(htmlBody ?? string.Empty);
-            var themeJson = JsonSerializer.Serialize(themeClass);
-            var styleJson = JsonSerializer.Serialize(styleHref);
-            var ratioLiteral = scrollRatio.ToString("0.########", CultureInfo.InvariantCulture);
+            string themeClass = darkMode ? "theme-dark" : "theme-light";
+            string htmlJson = JsonSerializer.Serialize(htmlBody ?? string.Empty);
+            string themeJson = JsonSerializer.Serialize(themeClass);
+            string styleJson = JsonSerializer.Serialize(styleHref);
+            string ratioLiteral = scrollRatio.ToString("0.########", CultureInfo.InvariantCulture);
 
-            var script = $"(() => {{ const html = {htmlJson}; const theme = {themeJson}; const styleHref = {styleJson}; const ratio = {ratioLiteral}; const stickToBottom = ratio >= 0.999; const root = document.scrollingElement || document.documentElement || document.body; const page = document.getElementById('page'); if (!root || !page) return; document.body.className = theme; const style = document.getElementById('yasn-style'); if (style && style.getAttribute('href') !== styleHref) style.setAttribute('href', styleHref); page.innerHTML = html; const apply = () => {{ const max = Math.max(0, root.scrollHeight - root.clientHeight); const target = stickToBottom ? max : Math.max(0, Math.min(1, ratio)) * max; if (typeof root.scrollTo === 'function') {{ root.scrollTo({{ top: target, behavior: stickToBottom ? 'auto' : 'smooth' }}); }} else {{ root.scrollTop = target; }} }}; apply(); requestAnimationFrame(apply); setTimeout(apply, 80); }})();";
-            await PreviewWebView.ExecuteScriptAsync(script);
+            string script = $"(() => {{ const html = {htmlJson}; const theme = {themeJson}; const styleHref = {styleJson}; const ratio = {ratioLiteral}; const stickToBottom = ratio >= 0.999; const root = document.scrollingElement || document.documentElement || document.body; const page = document.getElementById('page'); if (!root || !page) return; document.body.className = theme; const style = document.getElementById('yasn-style'); if (style && style.getAttribute('href') !== styleHref) style.setAttribute('href', styleHref); page.innerHTML = html; const apply = () => {{ const max = Math.max(0, root.scrollHeight - root.clientHeight); const target = stickToBottom ? max : Math.max(0, Math.min(1, ratio)) * max; if (typeof root.scrollTo === 'function') {{ root.scrollTo({{ top: target, behavior: stickToBottom ? 'auto' : 'smooth' }}); }} else {{ root.scrollTop = target; }} }}; apply(); requestAnimationFrame(apply); setTimeout(apply, 80); }})();";
+            await PreviewWebView.ExecuteScriptAsync(script).ConfigureAwait(false);
         }
 
         private double GetEditorCaretScrollRatio()
         {
             try
             {
-                var textLength = ContentTextBox.Text?.Length ?? 0;
+                int textLength = ContentTextBox.Text?.Length ?? 0;
                 if (textLength <= 0)
                 {
                     return 0;
                 }
 
-                var lineCount = Math.Max(1, ContentTextBox.LineCount);
+                int lineCount = Math.Max(1, ContentTextBox.LineCount);
                 if (lineCount <= 1)
                 {
                     return 0;
                 }
 
-                var caretLine = ContentTextBox.GetLineIndexFromCharacterIndex(ContentTextBox.CaretIndex);
-                var lastLine = lineCount - 1;
+                int caretLine = ContentTextBox.GetLineIndexFromCharacterIndex(ContentTextBox.CaretIndex);
+                int lastLine = lineCount - 1;
 
                 // When editing at document end (new appended lines), force preview to follow to bottom.
                 if (ContentTextBox.CaretIndex >= textLength - 1 || caretLine >= lastLine - 1)
@@ -753,11 +823,17 @@ namespace YASN
                     return 1;
                 }
 
-                var ratio = caretLine / (double)(lineCount - 1);
+                double ratio = caretLine / (double)(lineCount - 1);
                 return Math.Clamp(ratio, 0, 1);
             }
-            catch
+            catch (ArgumentOutOfRangeException ex)
             {
+                AppLogger.Debug($"Failed to compute editor caret scroll ratio: {ex.Message}");
+                return 0;
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Debug($"Failed to compute editor caret scroll ratio: {ex.Message}");
                 return 0;
             }
         }
@@ -771,17 +847,28 @@ namespace YASN
 
             try
             {
-                var script = "(() => { const root = document.scrollingElement || document.documentElement || document.body; if (!root) return -1; const max = Math.max(0, root.scrollHeight - root.clientHeight); if (max <= 0) return 0; const top = root.scrollTop || window.scrollY || 0; return top / max; })();";
-                var raw = await PreviewWebView.ExecuteScriptAsync(script);
-                if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var ratio))
+                string script = "(() => { const root = document.scrollingElement || document.documentElement || document.body; if (!root) return -1; const max = Math.max(0, root.scrollHeight - root.clientHeight); if (max <= 0) return 0; const top = root.scrollTop || window.scrollY || 0; return top / max; })();";
+                string raw = await PreviewWebView.ExecuteScriptAsync(script).ConfigureAwait(false);
+                if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out double ratio))
                 {
                     return -1;
                 }
 
                 return Math.Clamp(ratio, 0, 1);
             }
-            catch
+            catch (COMException ex)
             {
+                AppLogger.Debug($"Failed to capture preview scroll ratio: {ex.Message}");
+                return -1;
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Debug($"Failed to capture preview scroll ratio: {ex.Message}");
+                return -1;
+            }
+            catch (TaskCanceledException ex)
+            {
+                AppLogger.Debug($"Failed to capture preview scroll ratio: {ex.Message}");
                 return -1;
             }
         }
@@ -808,13 +895,21 @@ namespace YASN
 
             try
             {
-                var ratioLiteral = _pendingPreviewScrollRatio.ToString("0.########", CultureInfo.InvariantCulture);
-                var script = $"(() => {{ const ratio = {ratioLiteral}; const stickToBottom = ratio >= 0.999; const root = document.scrollingElement || document.documentElement || document.body; if (!root) return; const apply = () => {{ const max = Math.max(0, root.scrollHeight - root.clientHeight); const target = stickToBottom ? max : max * Math.max(0, Math.min(1, ratio)); if (typeof root.scrollTo === 'function') {{ root.scrollTo({{ top: target, behavior: stickToBottom ? 'auto' : 'smooth' }}); }} else {{ root.scrollTop = target; }} }}; apply(); requestAnimationFrame(apply); setTimeout(apply, 80); }})();";
-                await PreviewWebView.ExecuteScriptAsync(script);
+                string ratioLiteral = _pendingPreviewScrollRatio.ToString("0.########", CultureInfo.InvariantCulture);
+                string script = $"(() => {{ const ratio = {ratioLiteral}; const stickToBottom = ratio >= 0.999; const root = document.scrollingElement || document.documentElement || document.body; if (!root) return; const apply = () => {{ const max = Math.max(0, root.scrollHeight - root.clientHeight); const target = stickToBottom ? max : max * Math.max(0, Math.min(1, ratio)); if (typeof root.scrollTo === 'function') {{ root.scrollTo({{ top: target, behavior: stickToBottom ? 'auto' : 'smooth' }}); }} else {{ root.scrollTop = target; }} }}; apply(); requestAnimationFrame(apply); setTimeout(apply, 80); }})();";
+                await PreviewWebView.ExecuteScriptAsync(script).ConfigureAwait(false);
             }
-            catch
+            catch (COMException ex)
             {
-                // ignore restore failures
+                AppLogger.Debug($"Failed to restore preview scroll position: {ex.Message}");
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Debug($"Failed to restore preview scroll position: {ex.Message}");
+            }
+            catch (TaskCanceledException ex)
+            {
+                AppLogger.Debug($"Failed to restore preview scroll position: {ex.Message}");
             }
             finally
             {
@@ -824,7 +919,7 @@ namespace YASN
 
         private static string BuildHtmlPage(string htmlBody, bool darkMode, string styleHref)
         {
-            var themeClass = darkMode ? "theme-dark" : "theme-light";
+            string themeClass = darkMode ? "theme-dark" : "theme-light";
 
             return $@"<!doctype html>
 <html>
@@ -846,18 +941,24 @@ namespace YASN
         {
             try
             {
-                var info = new FileInfo(stylePath);
+                FileInfo info = new FileInfo(stylePath);
                 return info.LastWriteTimeUtc.Ticks ^ info.Length;
             }
-            catch
+            catch (IOException ex)
             {
+                AppLogger.Debug($"Failed to compute style cache token for '{stylePath}': {ex.Message}");
+                return DateTime.UtcNow.Ticks;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Debug($"Failed to compute style cache token for '{stylePath}': {ex.Message}");
                 return DateTime.UtcNow.Ticks;
             }
         }
 
         private void InsertImage_Click(object sender, RoutedEventArgs e)
         {
-            var openFileDialog = new OpenFileDialog
+            OpenFileDialog openFileDialog = new OpenFileDialog
             {
                 Filter = "Image File|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp",
                 Title = "Select Image to Insert"
@@ -871,7 +972,7 @@ namespace YASN
 
         private void InsertAttachment_Click(object sender, RoutedEventArgs e)
         {
-            var openFileDialog = new OpenFileDialog
+            OpenFileDialog openFileDialog = new OpenFileDialog
             {
                 Filter = "All Files|*.*",
                 Title = "Select Attachment to Insert"
@@ -887,7 +988,7 @@ namespace YASN
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
-                var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
                 if (files != null && files.Length > 0 && File.Exists(files[0]))
                 {
                     e.Effects = DragDropEffects.Copy;
@@ -902,30 +1003,53 @@ namespace YASN
 
         private void ContentTextBox_PreviewDrop(object sender, DragEventArgs e)
         {
-            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+            string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+            if (files != null && files.Length > 0 && File.Exists(files[0]))
             {
-                var files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                if (files != null && files.Length > 0 && File.Exists(files[0]))
+                if (IsImageFile(files[0]))
                 {
-                    if (IsImageFile(files[0]))
-                    {
-                        InsertImage(files[0]);
-                    }
-                    else
-                    {
-                        InsertAttachment(files[0]);
-                    }
-
-                    e.Handled = true;
+                    InsertImage(files[0]);
                 }
+                else
+                {
+                    InsertAttachment(files[0]);
+                }
+
+                e.Handled = true;
             }
         }
 
         private static bool IsImageFile(string filePath)
         {
-            var extension = Path.GetExtension(filePath).ToLowerInvariant();
-            return extension == ".png" || extension == ".jpg" || extension == ".jpeg" ||
-                   extension == ".gif" || extension == ".bmp" || extension == ".webp";
+            string extension = Path.GetExtension(filePath);
+            return string.Equals(extension, ".png", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(extension, ".jpg", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(extension, ".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(extension, ".gif", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(extension, ".bmp", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(extension, ".webp", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void TryDeleteGeneratedFile(string? path, string reason)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return;
+            }
+
+            try
+            {
+                File.Delete(path);
+            }
+            catch (IOException ex)
+            {
+                AppLogger.Debug($"Failed to clean up generated file '{path}' after {reason}: {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Debug($"Failed to clean up generated file '{path}' after {reason}: {ex.Message}");
+            }
         }
 
         private void InsertImage(string sourceFilePath)
@@ -933,29 +1057,41 @@ namespace YASN
             string destPath = null;
             try
             {
-                var fileName = $"{Guid.NewGuid()}{Path.GetExtension(sourceFilePath)}";
+                string fileName = $"{Guid.NewGuid()}{Path.GetExtension(sourceFilePath)}";
                 destPath = Path.Combine(_imageDirectory, fileName);
                 File.Copy(sourceFilePath, destPath, true);
 
-                var relativePath = $"note-assets/{NoteData.Id}/{fileName}";
-                var altText = Path.GetFileNameWithoutExtension(sourceFilePath);
-                var markdown = $"![{altText}]({relativePath}){Environment.NewLine}";
+                string relativePath = $"note-assets/{NoteData.Id}/{fileName}";
+                string altText = Path.GetFileNameWithoutExtension(sourceFilePath);
+                string markdown = $"![{altText}]({relativePath}){Environment.NewLine}";
 
                 InsertTextAtCaret(markdown);
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
-                if (destPath != null && File.Exists(destPath))
-                {
-                    try
-                    {
-                        File.Delete(destPath);
-                    }
-                    catch
-                    {
-                    }
-                }
-
+                TryDeleteGeneratedFile(destPath, "inserting image");
+                AppLogger.Warn($"Failed to insert image '{sourceFilePath}': {ex.Message}");
+                MessageBox.Show($"Fail to insert image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "inserting image");
+                AppLogger.Warn($"Failed to insert image '{sourceFilePath}': {ex.Message}");
+                MessageBox.Show($"Fail to insert image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (NotSupportedException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "inserting image");
+                AppLogger.Warn($"Failed to insert image '{sourceFilePath}': {ex.Message}");
+                MessageBox.Show($"Fail to insert image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (ArgumentException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "inserting image");
+                AppLogger.Warn($"Failed to insert image '{sourceFilePath}': {ex.Message}");
                 MessageBox.Show($"Fail to insert image: {ex.Message}", "Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -972,17 +1108,17 @@ namespace YASN
 
             try
             {
-                var fileInfo = new FileInfo(sourceFilePath);
-                var displayName = Path.GetFileName(sourceFilePath);
+                FileInfo fileInfo = new FileInfo(sourceFilePath);
+                string displayName = Path.GetFileName(sourceFilePath);
                 string linkTarget;
-                var settingsStore = new SettingsStore();
-                var autoSyncEnabled = AttachmentSyncSettings.GetAutoSyncEnabled(settingsStore);
-                var autoSyncMaxBytes = AttachmentSyncSettings.GetAutoSyncThresholdBytes(settingsStore);
+                SettingsStore settingsStore = new SettingsStore();
+                bool autoSyncEnabled = AttachmentSyncSettings.GetAutoSyncEnabled(settingsStore);
+                long autoSyncMaxBytes = AttachmentSyncSettings.GetAutoSyncThresholdBytes(settingsStore);
 
                 if (autoSyncEnabled && fileInfo.Length <= autoSyncMaxBytes)
                 {
-                    var fileName = $"{Guid.NewGuid()}{Path.GetExtension(sourceFilePath)}";
-                    var destPath = Path.Combine(_attachmentDirectory, fileName);
+                    string fileName = $"{Guid.NewGuid()}{Path.GetExtension(sourceFilePath)}";
+                    string destPath = Path.Combine(_attachmentDirectory, fileName);
                     File.Copy(sourceFilePath, destPath, true);
                     linkTarget = $"note-assets/attachments/{NoteData.Id}/{fileName}";
                 }
@@ -991,11 +1127,30 @@ namespace YASN
                     linkTarget = new Uri(sourceFilePath, UriKind.Absolute).AbsoluteUri;
                 }
 
-                var markdown = $"[{displayName}]({linkTarget}){Environment.NewLine}";
+                string markdown = $"[{displayName}]({linkTarget}){Environment.NewLine}";
                 InsertTextAtCaret(markdown);
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
+                AppLogger.Warn($"Failed to insert attachment '{sourceFilePath}': {ex.Message}");
+                MessageBox.Show($"Fail to insert attachment: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Warn($"Failed to insert attachment '{sourceFilePath}': {ex.Message}");
+                MessageBox.Show($"Fail to insert attachment: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (UriFormatException ex)
+            {
+                AppLogger.Warn($"Failed to insert attachment '{sourceFilePath}': {ex.Message}");
+                MessageBox.Show($"Fail to insert attachment: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (ArgumentException ex)
+            {
+                AppLogger.Warn($"Failed to insert attachment '{sourceFilePath}': {ex.Message}");
                 MessageBox.Show($"Fail to insert attachment: {ex.Message}", "Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -1003,8 +1158,8 @@ namespace YASN
 
         private void InsertTextAtCaret(string text)
         {
-            var index = ContentTextBox.CaretIndex;
-            var current = ContentTextBox.Text ?? string.Empty;
+            int index = ContentTextBox.CaretIndex;
+            string current = ContentTextBox.Text ?? string.Empty;
             ContentTextBox.Text = current.Insert(index, text);
             ContentTextBox.CaretIndex = index + text.Length;
             ContentTextBox.Focus();
@@ -1041,8 +1196,8 @@ namespace YASN
 
         public void RefreshTaskbarVisibilityFromSettings()
         {
-            var settingsStore = new SettingsStore();
-            var modeValue = settingsStore.GetValue(
+            SettingsStore settingsStore = new SettingsStore();
+            string modeValue = settingsStore.GetValue(
                 FloatingWindowTaskbarVisibility.SettingKey,
                 shouldSync: true,
                 defaultValue: FloatingWindowTaskbarVisibility.DefaultValue);
@@ -1052,13 +1207,13 @@ namespace YASN
 
         public void RefreshPreviewStyleFromSettings(bool forceRender = true)
         {
-            var settingsStore = new SettingsStore();
-            var selectedStyle = settingsStore.GetValue(
+            SettingsStore settingsStore = new SettingsStore();
+            string selectedStyle = settingsStore.GetValue(
                 PreviewStyleManager.SettingKey,
                 shouldSync: false,
                 defaultValue: PreviewStyleManager.DefaultStyleRelativePath);
-            var resolvedStyle = PreviewStyleManager.ResolveStyle(selectedStyle);
-            var hasChanged = !string.Equals(_previewStyleRelativePath, resolvedStyle, StringComparison.OrdinalIgnoreCase);
+            string resolvedStyle = PreviewStyleManager.ResolveStyle(selectedStyle);
+            bool hasChanged = !string.Equals(_previewStyleRelativePath, resolvedStyle, StringComparison.OrdinalIgnoreCase);
             if (hasChanged)
             {
                 AppLogger.Debug($"Note {NoteData.Id} preview style changed: '{_previewStyleRelativePath}' -> '{resolvedStyle}'.");
@@ -1081,8 +1236,8 @@ namespace YASN
                 _debugSourceStyleWatcher?.Dispose();
                 _debugSourceStyleWatcher = null;
 
-                var activeStylePath = PreviewStyleManager.ToStyleAbsolutePath(_previewStyleRelativePath);
-                var activeDirectory = Path.GetDirectoryName(activeStylePath);
+                string activeStylePath = PreviewStyleManager.ToStyleAbsolutePath(_previewStyleRelativePath);
+                string? activeDirectory = Path.GetDirectoryName(activeStylePath);
                 if (!string.IsNullOrEmpty(activeDirectory))
                 {
                     Directory.CreateDirectory(activeDirectory);
@@ -1101,41 +1256,52 @@ namespace YASN
                 }
 
 #if DEBUG
-                var sourceStylePath = TryResolveDebugSourceStylePath(_previewStyleRelativePath);
-                if (!string.IsNullOrEmpty(sourceStylePath) &&
-                    !string.Equals(sourceStylePath, activeStylePath, StringComparison.OrdinalIgnoreCase) &&
-                    File.Exists(sourceStylePath))
+                string? sourceStylePath = TryResolveDebugSourceStylePath(_previewStyleRelativePath);
+                if (string.IsNullOrEmpty(sourceStylePath) ||
+                    string.Equals(sourceStylePath, activeStylePath, StringComparison.OrdinalIgnoreCase) ||
+                    !File.Exists(sourceStylePath)) return;
                 {
-                    var sourceDirectory = Path.GetDirectoryName(sourceStylePath);
-                    if (!string.IsNullOrEmpty(sourceDirectory))
+                    string? sourceDirectory = Path.GetDirectoryName(sourceStylePath);
+                    if (string.IsNullOrEmpty(sourceDirectory)) return;
+                    _debugSourceStyleWatcher = new FileSystemWatcher(sourceDirectory, Path.GetFileName(sourceStylePath))
                     {
-                        _debugSourceStyleWatcher = new FileSystemWatcher(sourceDirectory, Path.GetFileName(sourceStylePath))
-                        {
-                            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime | NotifyFilters.FileName,
-                            EnableRaisingEvents = true
-                        };
+                        NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime | NotifyFilters.FileName,
+                        EnableRaisingEvents = true
+                    };
 
-                        void SyncAndRefresh()
+                    void SyncAndRefresh()
+                    {
+                        try
                         {
-                            try
-                            {
-                                File.Copy(sourceStylePath, activeStylePath, overwrite: true);
-                            }
-                            catch
-                            {
-                            }
-
-                            QueuePreviewStyleRefresh();
+                            File.Copy(sourceStylePath, activeStylePath, overwrite: true);
+                        }
+                        catch (IOException ex)
+                        {
+                            AppLogger.Debug($"Failed to sync preview style from '{sourceStylePath}' to '{activeStylePath}': {ex.Message}");
+                        }
+                        catch (UnauthorizedAccessException ex)
+                        {
+                            AppLogger.Debug($"Failed to sync preview style from '{sourceStylePath}' to '{activeStylePath}': {ex.Message}");
                         }
 
-                        _debugSourceStyleWatcher.Changed += (_, _) => SyncAndRefresh();
-                        _debugSourceStyleWatcher.Created += (_, _) => SyncAndRefresh();
-                        _debugSourceStyleWatcher.Renamed += (_, _) => SyncAndRefresh();
+                        QueuePreviewStyleRefresh();
                     }
+
+                    _debugSourceStyleWatcher.Changed += (_, _) => SyncAndRefresh();
+                    _debugSourceStyleWatcher.Created += (_, _) => SyncAndRefresh();
+                    _debugSourceStyleWatcher.Renamed += (_, _) => SyncAndRefresh();
                 }
 #endif
             }
-            catch (Exception ex)
+            catch (IOException ex)
+            {
+                AppLogger.Warn($"Failed to configure preview style watcher: {ex.Message}");
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Warn($"Failed to configure preview style watcher: {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
             {
                 AppLogger.Warn($"Failed to configure preview style watcher: {ex.Message}");
             }
@@ -1154,24 +1320,33 @@ namespace YASN
         {
             try
             {
-                var baseDir = new DirectoryInfo(AppPaths.BaseDirectory);
-                for (var current = baseDir; current != null; current = current.Parent)
+                DirectoryInfo baseDir = new DirectoryInfo(AppPaths.BaseDirectory);
+                for (DirectoryInfo? current = baseDir; current != null; current = current.Parent)
                 {
-                    var csproj = Path.Combine(current.FullName, "YASN.csproj");
+                    string csproj = Path.Combine(current.FullName, "YASN.csproj");
                     if (!File.Exists(csproj))
                     {
                         continue;
                     }
 
-                    var candidate = Path.Combine(current.FullName, "style", relativeStylePath.Replace('/', Path.DirectorySeparatorChar));
+                    string candidate = Path.Combine(current.FullName, "style", relativeStylePath.Replace('/', Path.DirectorySeparatorChar));
                     if (File.Exists(candidate))
                     {
                         return candidate;
                     }
                 }
             }
-            catch
+            catch (IOException ex)
             {
+                AppLogger.Debug($"Failed to resolve debug preview style path '{relativeStylePath}': {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Debug($"Failed to resolve debug preview style path '{relativeStylePath}': {ex.Message}");
+            }
+            catch (ArgumentException ex)
+            {
+                AppLogger.Debug($"Failed to resolve debug preview style path '{relativeStylePath}': {ex.Message}");
             }
 
             return null;
@@ -1192,7 +1367,7 @@ namespace YASN
             _hwnd = new WindowInteropHelper(this).Handle;
             RefreshTaskbarVisibilityFromSettings();
             ApplyWindowLevel();
-            await InitializePreviewAsync();
+            await InitializePreviewAsync().ConfigureAwait(false);
             SchedulePreviewRender();
             UpdateChromeBarsByMouseState();
         }
@@ -1220,7 +1395,7 @@ namespace YASN
         private void FloatingWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
 #if DEBUG
-            var isOpenDevToolsShortcut = e.Key == Key.F12 ||
+            bool isOpenDevToolsShortcut = e.Key == Key.F12 ||
                                          (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.I);
             if (isOpenDevToolsShortcut)
             {
@@ -1228,7 +1403,11 @@ namespace YASN
                 {
                     PreviewWebView.CoreWebView2?.OpenDevToolsWindow();
                 }
-                catch (Exception ex)
+                catch (COMException ex)
+                {
+                    AppLogger.Warn($"Failed to open WebView2 DevTools: {ex.Message}");
+                }
+                catch (InvalidOperationException ex)
                 {
                     AppLogger.Warn($"Failed to open WebView2 DevTools: {ex.Message}");
                 }
@@ -1260,9 +1439,9 @@ namespace YASN
                 return;
             }
 
-            var now = DateTime.UtcNow;
-            var threshold = TimeSpan.FromMilliseconds(900);
-            var isDoubleRightClick = now - _lastPreviewSurfaceRightClickUtc <= threshold;
+            DateTime now = DateTime.UtcNow;
+            TimeSpan threshold = TimeSpan.FromMilliseconds(900);
+            bool isDoubleRightClick = now - _lastPreviewSurfaceRightClickUtc <= threshold;
             _lastPreviewSurfaceRightClickUtc = now;
             if (!isDoubleRightClick)
             {
@@ -1281,9 +1460,9 @@ namespace YASN
                 return;
             }
 
-            var now = DateTime.UtcNow;
-            var threshold = TimeSpan.FromMilliseconds(900);
-            var isDoubleRightClick = now - _lastPreviewRightClickUtc <= threshold;
+            DateTime now = DateTime.UtcNow;
+            TimeSpan threshold = TimeSpan.FromMilliseconds(900);
+            bool isDoubleRightClick = now - _lastPreviewRightClickUtc <= threshold;
             _lastPreviewRightClickUtc = now;
 
             e.Handled = true;
@@ -1308,8 +1487,14 @@ namespace YASN
             {
                 message = e.TryGetWebMessageAsString();
             }
-            catch
+            catch (COMException ex)
             {
+                AppLogger.Debug($"Failed to read preview web message: {ex.Message}");
+                return;
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Debug($"Failed to read preview web message: {ex.Message}");
                 return;
             }
 
@@ -1328,7 +1513,7 @@ namespace YASN
                 return;
             }
 
-            if (!TryResolveOpenTarget(e.Uri, out var openTarget))
+            if (!TryResolveOpenTarget(e.Uri, out string? openTarget))
             {
                 return;
             }
@@ -1349,7 +1534,7 @@ namespace YASN
             {
                 if (uri.IsFile)
                 {
-                    var localPath = uri.LocalPath;
+                    string localPath = uri.LocalPath;
                     if (File.Exists(localPath))
                     {
                         openTarget = localPath;
@@ -1359,9 +1544,9 @@ namespace YASN
                 else if (string.Equals(uri.Scheme, "https", StringComparison.OrdinalIgnoreCase) &&
                          string.Equals(uri.Host, "yasn.local", StringComparison.OrdinalIgnoreCase))
                 {
-                    var localRelative = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/'))
+                    string localRelative = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/'))
                         .Replace('/', Path.DirectorySeparatorChar);
-                    var localPath = Path.Combine(AppPaths.DataDirectory, localRelative);
+                    string localPath = Path.Combine(AppPaths.DataDirectory, localRelative);
                     if (File.Exists(localPath))
                     {
                         openTarget = localPath;
@@ -1389,15 +1574,28 @@ namespace YASN
         {
             try
             {
-                var startInfo = new ProcessStartInfo
+                ProcessStartInfo startInfo = new ProcessStartInfo
                 {
                     FileName = target,
                     UseShellExecute = true
                 };
                 Process.Start(startInfo);
             }
-            catch (Exception ex)
+            catch (Win32Exception ex)
             {
+                AppLogger.Warn($"Failed to open target '{target}': {ex.Message}");
+                MessageBox.Show($"Fail to open attachment: {ex.Message}", "Open Failed",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (FileNotFoundException ex)
+            {
+                AppLogger.Warn($"Failed to open target '{target}': {ex.Message}");
+                MessageBox.Show($"Fail to open attachment: {ex.Message}", "Open Failed",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Warn($"Failed to open target '{target}': {ex.Message}");
                 MessageBox.Show($"Fail to open attachment: {ex.Message}", "Open Failed",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -1439,56 +1637,52 @@ namespace YASN
                 return;
             }
 
-            var contextMenu = new ContextMenu();
+            ContextMenu contextMenu = new ContextMenu();
 
-            var renameTitleItem = new MenuItem { Header = "Edit Title" };
+            MenuItem renameTitleItem = new MenuItem { Header = "Edit Title" };
             renameTitleItem.Click += (_, _) => PromptRenameTitle();
 
-            var showMainWindowItem = new MenuItem { Header = "Open MainWindow" };
+            MenuItem showMainWindowItem = new MenuItem { Header = "Open MainWindow" };
             showMainWindowItem.Click += (_, _) =>
             {
-                if (Application.Current is App app && app.MainWindow != null)
-                {
-                    app.MainWindow.Show();
-                    app.MainWindow.WindowState = WindowState.Normal;
-                    app.MainWindow.Activate();
-                }
+                if (Application.Current is not App app || app.MainWindow == null) return;
+                app.MainWindow.Show();
+                app.MainWindow.WindowState = WindowState.Normal;
+                app.MainWindow.Activate();
             };
 
-            var createNoteItem = new MenuItem { Header = "Create New Note" };
+            MenuItem createNoteItem = new MenuItem { Header = "Create New Note" };
             createNoteItem.Click += (_, _) =>
             {
-                var newNote = NoteManager.Instance.CreateNote();
+                NoteData newNote = NoteManager.Instance.CreateNote();
                 new FloatingWindow(newNote).Show();
             };
 
-            var createTopMostNoteItem = new MenuItem { Header = "Create TopMost Note" };
+            MenuItem createTopMostNoteItem = new MenuItem { Header = "Create TopMost Note" };
             createTopMostNoteItem.Click += (_, _) =>
             {
-                var newNote = NoteManager.Instance.CreateNote(WindowLevel.TopMost);
+                NoteData newNote = NoteManager.Instance.CreateNote(WindowLevel.TopMost);
                 new FloatingWindow(newNote).Show();
             };
 
-            var deleteNoteItem = new MenuItem { Header = "Delete Note" };
+            MenuItem deleteNoteItem = new MenuItem { Header = "Delete Note" };
             deleteNoteItem.Click += (_, _) =>
             {
-                var result = MessageBox.Show(
+                MessageBoxResult? result = MessageBox.Show(
                     "Are you sure you want to delete this note?",
                     "Delete",
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Question);
 
-                if (result == MessageBoxResult.Yes)
-                {
-                    NoteManager.Instance.DeleteNote(NoteData);
-                    Close();
-                }
+                if (result != MessageBoxResult.Yes) return;
+                NoteManager.Instance.DeleteNote(NoteData);
+                Close();
             };
 
-            var clearContentItem = new MenuItem { Header = "Clear Content" };
+            MenuItem clearContentItem = new MenuItem { Header = "Clear Content" };
             clearContentItem.Click += (_, _) =>
             {
-                var result = MessageBox.Show(
+                MessageBoxResult? result = MessageBox.Show(
                     "Are you sure you want to clear the current content?",
                     "Clear Content",
                     MessageBoxButton.YesNo,
@@ -1500,13 +1694,13 @@ namespace YASN
                 }
             };
 
-            var changeTitleBarColorItem = new MenuItem { Header = "Change Title Bar Color" };
+            MenuItem changeTitleBarColorItem = new MenuItem { Header = "Change Title Bar Color" };
             changeTitleBarColorItem.Click += (_, _) => ShowColorPicker();
 
-            var backgroundImageItem = new MenuItem { Header = "Background Image" };
+            MenuItem backgroundImageItem = new MenuItem { Header = "Background Image" };
             backgroundImageItem.Click += (_, _) => ShowBackgroundImageMenu(button);
 
-            var aboutItem = new MenuItem { Header = "About" };
+            MenuItem aboutItem = new MenuItem { Header = "About" };
             aboutItem.Click += (_, _) =>
             {
                 MessageBox.Show(
@@ -1606,16 +1800,11 @@ namespace YASN
 
         private void UpdateTitleBarButtons()
         {
-            if (MinimizeButton == null)
-            {
-                return;
-            }
-
-            MinimizeButton.Visibility = NoteData.Level == WindowLevel.Normal
+            MinimizeButton?.Visibility = NoteData.Level == WindowLevel.Normal
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }
-        
+
         private void ExpandWindowWidthForSplitMode()
         {
             if (WindowState != WindowState.Normal)
@@ -1628,16 +1817,16 @@ namespace YASN
                 _singleModeWidthBeforeSplit = Width;
             }
 
-            var minWidth = MinWidth > 0 ? MinWidth : 320;
-            var targetWidth = Math.Max(minWidth, _singleModeWidthBeforeSplit * 2);
-            var maxWidth = Math.Max(minWidth, SystemParameters.WorkArea.Width - 20);
-            var finalWidth = Math.Min(targetWidth, maxWidth);
+            double minWidth = MinWidth > 0 ? MinWidth : 320;
+            double targetWidth = Math.Max(minWidth, _singleModeWidthBeforeSplit * 2);
+            double maxWidth = Math.Max(minWidth, SystemParameters.WorkArea.Width - 20);
+            double finalWidth = Math.Min(targetWidth, maxWidth);
             if (Math.Abs(finalWidth - Width) <= 1)
             {
                 return;
             }
 
-            var currentWidth = Width;
+            double currentWidth = Width;
             Width = finalWidth;
             AppLogger.Debug($"Auto expand width for split mode: {currentWidth:F0} -> {finalWidth:F0}");
         }
@@ -1649,9 +1838,9 @@ namespace YASN
                 return;
             }
 
-            var minWidth = MinWidth > 0 ? MinWidth : 320;
-            var restoreWidth = Math.Max(minWidth, _singleModeWidthBeforeSplit);
-            var currentWidth = Width;
+            double minWidth = MinWidth > 0 ? MinWidth : 320;
+            double restoreWidth = Math.Max(minWidth, _singleModeWidthBeforeSplit);
+            double currentWidth = Width;
             _singleModeWidthBeforeSplit = double.NaN;
             if (Math.Abs(currentWidth - restoreWidth) <= 1)
             {
@@ -1664,13 +1853,13 @@ namespace YASN
 
         private void PromptRenameTitle()
         {
-            var input = ShowTitleInputDialog(NoteData.Title);
+            string? input = ShowTitleInputDialog(NoteData.Title);
             if (input == null)
             {
                 return;
             }
 
-            var newTitle = input.Trim();
+            string newTitle = input.Trim();
             if (string.IsNullOrEmpty(newTitle))
             {
                 MessageBox.Show(
@@ -1686,7 +1875,7 @@ namespace YASN
                 return;
             }
 
-            var hasDuplicate = NoteManager.Instance.Notes.Any(n =>
+            bool hasDuplicate = NoteManager.Instance.Notes.Any(n =>
                 n.Id != NoteData.Id &&
                 string.Equals((n.Title ?? string.Empty).Trim(), newTitle, StringComparison.OrdinalIgnoreCase));
             if (hasDuplicate)
@@ -1706,7 +1895,7 @@ namespace YASN
 
         private string? ShowTitleInputDialog(string initialValue)
         {
-            var dialog = new Window
+            Window dialog = new Window
             {
                 Title = "Edit Title",
                 Width = 360,
@@ -1717,30 +1906,30 @@ namespace YASN
                 WindowStyle = WindowStyle.ToolWindow
             };
 
-            var grid = new Grid { Margin = new Thickness(14) };
+            Grid grid = new Grid { Margin = new Thickness(14) };
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-            var prompt = new TextBlock
+            TextBlock prompt = new TextBlock
             {
                 Text = "New Title",
                 Margin = new Thickness(0, 0, 0, 8)
             };
 
-            var inputBox = new System.Windows.Controls.TextBox
+            System.Windows.Controls.TextBox inputBox = new System.Windows.Controls.TextBox
             {
                 Text = initialValue ?? string.Empty,
                 Margin = new Thickness(0, 0, 0, 12)
             };
 
-            var buttonPanel = new StackPanel
+            StackPanel buttonPanel = new StackPanel
             {
                 Orientation = System.Windows.Controls.Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right
             };
 
-            var okButton = new Button
+            Button okButton = new Button
             {
                 Content = "Confirm",
                 Width = 72,
@@ -1748,7 +1937,7 @@ namespace YASN
                 Margin = new Thickness(0, 0, 8, 0)
             };
 
-            var cancelButton = new Button
+            Button cancelButton = new Button
             {
                 Content = "Cancel",
                 Width = 72,
@@ -1790,7 +1979,7 @@ namespace YASN
 
         private void UpdateStatusText()
         {
-            var levelPrefix = NoteData.Level switch
+            string levelPrefix = NoteData.Level switch
             {
                 WindowLevel.TopMost => "[T] ",
                 WindowLevel.BottomMost => "[B] ",
@@ -1823,7 +2012,7 @@ namespace YASN
                     {
                         if (_currentBottomMostWindow != null && _currentBottomMostWindow != this)
                         {
-                            var previousWindow = _currentBottomMostWindow;
+                            FloatingWindow previousWindow = _currentBottomMostWindow;
                             _currentBottomMostWindow = null;
                             previousWindow.Dispatcher.Invoke(() => previousWindow.SetWindowLevel(WindowLevel.Normal));
                         }
@@ -1922,13 +2111,21 @@ namespace YASN
 
             try
             {
-                var themeClass = isDarkMode ? "theme-dark" : "theme-light";
-                var script = $"(() => {{ if (document.body) document.body.className = '{themeClass}'; }})();";
-                await PreviewWebView.ExecuteScriptAsync(script);
+                string themeClass = isDarkMode ? "theme-dark" : "theme-light";
+                string script = $"(() => {{ if (document.body) document.body.className = '{themeClass}'; }})();";
+                await PreviewWebView.ExecuteScriptAsync(script).ConfigureAwait(false);
             }
-            catch
+            catch (COMException ex)
             {
-                // ignore immediate theme apply failures
+                AppLogger.Debug($"Failed to apply preview theme class: {ex.Message}");
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Debug($"Failed to apply preview theme class: {ex.Message}");
+            }
+            catch (TaskCanceledException ex)
+            {
+                AppLogger.Debug($"Failed to apply preview theme class: {ex.Message}");
             }
         }
 
@@ -1971,17 +2168,23 @@ namespace YASN
         {
             try
             {
-                var color = (Color)ColorConverter.ConvertFromString(colorHex);
+                Color color = (Color)ColorConverter.ConvertFromString(colorHex);
                 TitleBar.Background = new SolidColorBrush(color);
             }
-            catch
+            catch (FormatException ex)
             {
+                AppLogger.Warn($"Failed to apply title bar color '{colorHex}': {ex.Message}");
+                TitleBar.Background = new SolidColorBrush(Color.FromArgb(0xE6, 0xD4, 0xC5, 0xE0));
+            }
+            catch (NotSupportedException ex)
+            {
+                AppLogger.Warn($"Failed to apply title bar color '{colorHex}': {ex.Message}");
                 TitleBar.Background = new SolidColorBrush(Color.FromArgb(0xE6, 0xD4, 0xC5, 0xE0));
             }
         }
         private void ShowColorPicker()
         {
-            var colorPickerWindow = new Window
+            Window colorPickerWindow = new Window
             {
                 Title = "Title Bar Color",
                 Width = 390,
@@ -1992,7 +2195,7 @@ namespace YASN
                 WindowStyle = WindowStyle.ToolWindow
             };
 
-            var stackPanel = new StackPanel { Margin = new Thickness(18) };
+            StackPanel stackPanel = new StackPanel { Margin = new Thickness(18) };
             stackPanel.Children.Add(new TextBlock
             {
                 Text = "Choose a preset color",
@@ -2000,13 +2203,13 @@ namespace YASN
                 Margin = new Thickness(0, 0, 0, 10)
             });
 
-            var colorsGrid = new Grid { Margin = new Thickness(0, 0, 0, 18) };
+            Grid colorsGrid = new Grid { Margin = new Thickness(0, 0, 0, 18) };
             colorsGrid.ColumnDefinitions.Add(new ColumnDefinition());
             colorsGrid.ColumnDefinitions.Add(new ColumnDefinition());
             colorsGrid.ColumnDefinitions.Add(new ColumnDefinition());
 
-            var presetColors = new[]
-            {
+            (string, string)[] presetColors =
+            [
                 ("#E6D4C5E0", "Lavender"),
                 ("#E6FFB6C1", "Rose"),
                 ("#E6B0E0E6", "Sky"),
@@ -2015,10 +2218,10 @@ namespace YASN
                 ("#E6F5DEB3", "Sand"),
                 ("#E6E6E6FA", "Soft Indigo"),
                 ("#E6FFE4E1", "Mist")
-            };
+            ];
 
-            var row = 0;
-            var col = 0;
+            int row = 0;
+            int col = 0;
             foreach (var (colorHex, colorName) in presetColors)
             {
                 if (col == 0)
@@ -2026,7 +2229,7 @@ namespace YASN
                     colorsGrid.RowDefinitions.Add(new RowDefinition());
                 }
 
-                var button = new Button
+                Button button = new Button
                 {
                     Width = 108,
                     Height = 56,
@@ -2038,7 +2241,7 @@ namespace YASN
 
                 button.Click += (s, _) =>
                 {
-                    var selectedColor = (s as Button)?.Tag as string;
+                    string? selectedColor = (s as Button)?.Tag as string;
                     if (!string.IsNullOrEmpty(selectedColor))
                     {
                         NoteData.TitleBarColor = selectedColor;
@@ -2067,12 +2270,12 @@ namespace YASN
 
         private void ShowBackgroundImageMenu(Button anchorButton)
         {
-            var contextMenu = new ContextMenu();
+            ContextMenu contextMenu = new ContextMenu();
 
-            var selectImageItem = new MenuItem { Header = "Select Background Image" };
+            MenuItem selectImageItem = new MenuItem { Header = "Select Background Image" };
             selectImageItem.Click += (_, _) =>
             {
-                var openFileDialog = new OpenFileDialog
+                OpenFileDialog openFileDialog = new OpenFileDialog
                 {
                     Filter = "Image File|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp",
                     Title = "Select Background Image"
@@ -2084,10 +2287,10 @@ namespace YASN
                 }
             };
 
-            var clearBackgroundItem = new MenuItem { Header = "Clear Background Image" };
+            MenuItem clearBackgroundItem = new MenuItem { Header = "Clear Background Image" };
             clearBackgroundItem.Click += (_, _) => ClearBackgroundImage();
 
-            var adjustOpacityItem = new MenuItem { Header = "Adjust Background Opacity" };
+            MenuItem adjustOpacityItem = new MenuItem { Header = "Adjust Background Opacity" };
             adjustOpacityItem.Click += (_, _) => ShowOpacityAdjuster();
 
             contextMenu.Items.Add(selectImageItem);
@@ -2104,7 +2307,7 @@ namespace YASN
             string destPath = null;
             try
             {
-                var fileName = $"background{Path.GetExtension(sourceFilePath)}";
+                string fileName = $"background{Path.GetExtension(sourceFilePath)}";
                 destPath = Path.Combine(_backgroundImageDirectory, fileName);
 
                 if (File.Exists(destPath))
@@ -2118,19 +2321,24 @@ namespace YASN
                 ApplyBackgroundImage(destPath);
                 NoteManager.Instance.UpdateNote(NoteData);
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
-                if (destPath != null && File.Exists(destPath))
-                {
-                    try
-                    {
-                        File.Delete(destPath);
-                    }
-                    catch
-                    {
-                    }
-                }
-
+                TryDeleteGeneratedFile(destPath, "setting background image");
+                AppLogger.Warn($"Failed to set background image from '{sourceFilePath}': {ex.Message}");
+                MessageBox.Show($"Fail to set background image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "setting background image");
+                AppLogger.Warn($"Failed to set background image from '{sourceFilePath}': {ex.Message}");
+                MessageBox.Show($"Fail to set background image: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (ArgumentException ex)
+            {
+                TryDeleteGeneratedFile(destPath, "setting background image");
+                AppLogger.Warn($"Failed to set background image from '{sourceFilePath}': {ex.Message}");
                 MessageBox.Show($"Fail to set background image: {ex.Message}", "Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -2146,7 +2354,7 @@ namespace YASN
 
             try
             {
-                var bitmap = new BitmapImage();
+                BitmapImage bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
@@ -2154,8 +2362,19 @@ namespace YASN
 
                 BackgroundImageBrush.ImageSource = bitmap;
             }
-            catch
+            catch (IOException ex)
             {
+                AppLogger.Debug($"Failed to load background image '{imagePath}': {ex.Message}");
+                BackgroundImageBrush.ImageSource = null;
+            }
+            catch (NotSupportedException ex)
+            {
+                AppLogger.Debug($"Failed to load background image '{imagePath}': {ex.Message}");
+                BackgroundImageBrush.ImageSource = null;
+            }
+            catch (UriFormatException ex)
+            {
+                AppLogger.Debug($"Failed to load background image '{imagePath}': {ex.Message}");
                 BackgroundImageBrush.ImageSource = null;
             }
         }
@@ -2173,20 +2392,24 @@ namespace YASN
 
             try
             {
-                foreach (var file in Directory.GetFiles(_backgroundImageDirectory))
+                foreach (string file in Directory.GetFiles(_backgroundImageDirectory))
                 {
-                        File.Delete(file);
+                    File.Delete(file);
                 }
             }
-            catch (Exception ex) 
+            catch (IOException ex)
             {
-                AppLogger.Debug(ex.Message);
+                AppLogger.Debug($"Failed to clear background image files in '{_backgroundImageDirectory}': {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Debug($"Failed to clear background image files in '{_backgroundImageDirectory}': {ex.Message}");
             }
         }
 
         private void ShowOpacityAdjuster()
         {
-            var opacityWindow = new Window
+            Window opacityWindow = new Window
             {
                 Title = "Background Opacity",
                 Width = 300,
@@ -2197,7 +2420,7 @@ namespace YASN
                 WindowStyle = WindowStyle.ToolWindow
             };
 
-            var stackPanel = new StackPanel { Margin = new Thickness(20) };
+            StackPanel stackPanel = new StackPanel { Margin = new Thickness(20) };
             stackPanel.Children.Add(new TextBlock
             {
                 Text = "Background opacity",
@@ -2205,7 +2428,7 @@ namespace YASN
                 Margin = new Thickness(0, 0, 0, 10)
             });
 
-            var slider = new Slider
+            Slider slider = new Slider
             {
                 Minimum = 0.05,
                 Maximum = 1.0,
@@ -2215,7 +2438,7 @@ namespace YASN
                 Margin = new Thickness(0, 0, 0, 10)
             };
 
-            var valueText = new TextBlock
+            TextBlock valueText = new TextBlock
             {
                 Text = $"Current: {BackgroundImageBorder.Opacity:F2}",
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -2240,7 +2463,7 @@ namespace YASN
 
         private async void RefreshPreview_Click(object sender, RoutedEventArgs e)
         {
-            await RenderPreviewAsync();
+            await RenderPreviewAsync().ConfigureAwait(false);
         }
 
         // For Editor mode switching in title bar
@@ -2255,10 +2478,10 @@ namespace YASN
         }
         private void EditorModeButton_Click(object sender, RoutedEventArgs e)
         {
-            var nextMode = GetNextEditorDisplayMode(_editorDisplayMode);
+            EditorDisplayMode nextMode = GetNextEditorDisplayMode(_editorDisplayMode);
             SetDisplayMode(nextMode, focusEditor: nextMode != EditorDisplayMode.PreviewOnly);
         }
-        
+
         private static string GetEditorModeLabel(EditorDisplayMode mode)
         {
             return mode switch
@@ -2268,16 +2491,16 @@ namespace YASN
                 _ => "Preview only"
             };
         }
-        
+
         private void UpdateEditorModeButton()
         {
-            // for collapse 
+            // for collapse
             if (EditorModeButton == null)
             {
                 return;
             }
 
-            var nextMode = GetNextEditorDisplayMode(_editorDisplayMode);
+            EditorDisplayMode nextMode = GetNextEditorDisplayMode(_editorDisplayMode);
             switch (_editorDisplayMode)
             {
                 case EditorDisplayMode.TextOnly:

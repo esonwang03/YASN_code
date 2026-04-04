@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using YASN.Logging;
 
 namespace YASN.Settings
 {
@@ -19,10 +20,10 @@ namespace YASN.Settings
 
         public void ApplyValues(IEnumerable<SettingField> fields)
         {
-            foreach (var field in fields)
+            foreach (SettingField field in fields)
             {
-                var map = field.ShouldSync ? _syncSettings : _localSettings;
-                if (!map.TryGetValue(field.Key, out var value))
+                Dictionary<string, string> map = field.ShouldSync ? _syncSettings : _localSettings;
+                if (!map.TryGetValue(field.Key, out string? value))
                 {
                     continue;
                 }
@@ -32,7 +33,7 @@ namespace YASN.Settings
                     switch (field.FieldType)
                     {
                         case SettingFieldType.Toggle:
-                            if (bool.TryParse(value, out var boolValue))
+                            if (bool.TryParse(value, out bool boolValue))
                             {
                                 field.BoolValue = boolValue;
                             }
@@ -42,19 +43,23 @@ namespace YASN.Settings
                             break;
                     }
                 }
-                catch
+                catch (FormatException ex)
                 {
-                    // Ignore malformed values and keep defaults
+                    AppLogger.Debug($"Failed to apply setting '{field.Key}': {ex.Message}");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    AppLogger.Debug($"Failed to apply setting '{field.Key}': {ex.Message}");
                 }
             }
         }
 
         public void PersistField(SettingField field)
         {
-            var map = field.ShouldSync ? _syncSettings : _localSettings;
-            var path = field.ShouldSync ? _syncPath : _localPath;
-            var value = field.FieldType == SettingFieldType.Toggle
-                ? field.BoolValue.ToString()
+            Dictionary<string, string> map = field.ShouldSync ? _syncSettings : _localSettings;
+            string path = field.ShouldSync ? _syncPath : _localPath;
+            string value = field.FieldType == SettingFieldType.Toggle
+                ? field.BoolValue.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 : field.Value ?? string.Empty;
 
             map[field.Key] = value;
@@ -63,7 +68,7 @@ namespace YASN.Settings
 
         public string GetValue(string key, bool shouldSync, string defaultValue = "")
         {
-            var map = shouldSync ? _syncSettings : _localSettings;
+            Dictionary<string, string> map = shouldSync ? _syncSettings : _localSettings;
             return map.GetValueOrDefault(key, defaultValue);
         }
 
@@ -72,26 +77,39 @@ namespace YASN.Settings
             errorMessage = string.Empty;
             try
             {
-                var directory = Path.GetDirectoryName(path);
+                string? directory = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(directory))
                 {
                     Directory.CreateDirectory(directory);
                 }
 
-                var payload = new SettingsExportPayload
+                SettingsExportPayload payload = new SettingsExportPayload
                 {
                     SchemaVersion = 1,
                     SyncSettings = new Dictionary<string, string>(_syncSettings),
                     LocalSettings = new Dictionary<string, string>(_localSettings)
                 };
 
-                var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+                string json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(path, json);
                 return true;
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
                 errorMessage = ex.Message;
+                AppLogger.Warn($"Failed to export settings to '{path}': {ex.Message}");
+                return false;
+            }
+            catch (JsonException ex)
+            {
+                errorMessage = ex.Message;
+                AppLogger.Warn($"Failed to export settings to '{path}': {ex.Message}");
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                errorMessage = ex.Message;
+                AppLogger.Warn($"Failed to export settings to '{path}': {ex.Message}");
                 return false;
             }
         }
@@ -107,8 +125,8 @@ namespace YASN.Settings
                     return false;
                 }
 
-                var json = File.ReadAllText(path);
-                var payload = JsonSerializer.Deserialize<SettingsExportPayload>(json);
+                string json = File.ReadAllText(path);
+                SettingsExportPayload? payload = JsonSerializer.Deserialize<SettingsExportPayload>(json);
                 if (payload == null)
                 {
                     errorMessage = "Invalid settings file.";
@@ -118,12 +136,12 @@ namespace YASN.Settings
                 _syncSettings.Clear();
                 _localSettings.Clear();
 
-                foreach (var kv in payload.SyncSettings)
+                foreach (KeyValuePair<string, string> kv in payload.SyncSettings)
                 {
                     _syncSettings[kv.Key] = kv.Value ?? string.Empty;
                 }
 
-                foreach (var kv in payload.LocalSettings)
+                foreach (KeyValuePair<string, string> kv in payload.LocalSettings)
                 {
                     _localSettings[kv.Key] = kv.Value ?? string.Empty;
                 }
@@ -132,9 +150,22 @@ namespace YASN.Settings
                 SaveDictionary(_localSettings, _localPath);
                 return true;
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
                 errorMessage = ex.Message;
+                AppLogger.Warn($"Failed to import settings from '{path}': {ex.Message}");
+                return false;
+            }
+            catch (JsonException ex)
+            {
+                errorMessage = ex.Message;
+                AppLogger.Warn($"Failed to import settings from '{path}': {ex.Message}");
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                errorMessage = ex.Message;
+                AppLogger.Warn($"Failed to import settings from '{path}': {ex.Message}");
                 return false;
             }
         }
@@ -145,13 +176,21 @@ namespace YASN.Settings
             {
                 if (File.Exists(path))
                 {
-                    var json = File.ReadAllText(path);
+                    string json = File.ReadAllText(path);
                     return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new Dictionary<string, string>();
                 }
             }
-            catch
+            catch (IOException ex)
             {
-                // Ignore corrupt files and start fresh
+                AppLogger.Debug($"Failed to load settings dictionary from '{path}': {ex.Message}");
+            }
+            catch (JsonException ex)
+            {
+                AppLogger.Debug($"Failed to load settings dictionary from '{path}': {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Debug($"Failed to load settings dictionary from '{path}': {ex.Message}");
             }
 
             return new Dictionary<string, string>();
@@ -161,18 +200,26 @@ namespace YASN.Settings
         {
             try
             {
-                var directory = Path.GetDirectoryName(path);
+                string? directory = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(directory))
                 {
                     Directory.CreateDirectory(directory);
                 }
 
-                var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+                string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(path, json);
             }
-            catch
+            catch (IOException ex)
             {
-                // Swallow IO errors to avoid crashing settings UI
+                AppLogger.Warn($"Failed to save settings dictionary to '{path}': {ex.Message}");
+            }
+            catch (JsonException ex)
+            {
+                AppLogger.Warn($"Failed to save settings dictionary to '{path}': {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Warn($"Failed to save settings dictionary to '{path}': {ex.Message}");
             }
         }
 

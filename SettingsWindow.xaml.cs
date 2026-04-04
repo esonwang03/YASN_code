@@ -1,6 +1,9 @@
-﻿using System.IO;
+using System.Globalization;
+using System.IO;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using YASN.Settings;
 using YASN.Sync.WebDav;
@@ -33,11 +36,11 @@ namespace YASN
         private void BuildModules()
         {
             ViewModel.Modules.Clear();
-            var allFields = new List<SettingField>();
+            List<SettingField> allFields = new List<SettingField>();
 
-            var generalFields = GeneralSettingsFieldFactory.Create();
-            var editorFields = EditorSettingsFieldFactory.Create();
-            var webDavFields = WebDavSettingsFieldFactory.Create();
+            GeneralSettingFields generalFields = GeneralSettingsFieldFactory.Create();
+            EditorSettingFields editorFields = EditorSettingsFieldFactory.Create();
+            WebDavSettingFields webDavFields = WebDavSettingsFieldFactory.Create();
 
             allFields.Add(generalFields.AutoStartField);
             allFields.Add(generalFields.AutoCollapseNoteChromeField);
@@ -55,7 +58,7 @@ namespace YASN
             allFields.Add(webDavFields.AttachmentAutoSyncField);
             allFields.Add(webDavFields.AttachmentThresholdField);
 
-            var generalModule = new SettingModule
+            SettingModule generalModule = new SettingModule
             {
                 Key = "general",
                 Title = "通用",
@@ -68,7 +71,7 @@ namespace YASN
             generalModule.Fields.Add(generalFields.PreviewStyleField);
             generalModule.Fields.Add(generalFields.DataDirectoryField);
 
-            var editorModule = new SettingModule
+            SettingModule editorModule = new SettingModule
             {
                 Key = "editor",
                 Title = "编辑",
@@ -76,7 +79,7 @@ namespace YASN
             };
             editorModule.Fields.Add(editorFields.EnterModeField);
 
-            var webDavModule = new SettingModule
+            SettingModule webDavModule = new SettingModule
             {
                 Key = "webdav",
                 Title = "云同步",
@@ -94,10 +97,10 @@ namespace YASN
             _settingsStore.ApplyValues(allFields);
             generalFields.FloatingTaskbarVisibilityField.Value =
                 FloatingWindowTaskbarVisibility.NormalizeValue(generalFields.FloatingTaskbarVisibilityField.Value);
-            var previewStyleNormalized = ConfigurePreviewStyleField(generalFields.PreviewStyleField);
-            var normalizedEditorEnterMode = EditorDisplayModeSettings.ToValue(
+            bool previewStyleNormalized = ConfigurePreviewStyleField(generalFields.PreviewStyleField);
+            string normalizedEditorEnterMode = EditorDisplayModeSettings.ToValue(
                 EditorDisplayModeSettings.ParseValue(editorFields.EnterModeField.Value));
-            var editorModeNormalized = !string.Equals(
+            bool editorModeNormalized = !string.Equals(
                 editorFields.EnterModeField.Value,
                 normalizedEditorEnterMode,
                 StringComparison.Ordinal);
@@ -125,7 +128,7 @@ namespace YASN
             };
             generalFields.PreviewStyleField.OnChanged = field =>
             {
-                var resolved = PreviewStyleManager.ResolveStyle(field.Value);
+                string resolved = PreviewStyleManager.ResolveStyle(field.Value);
                 if (!string.Equals(field.Value, resolved, StringComparison.OrdinalIgnoreCase))
                 {
                     field.Value = resolved;
@@ -170,7 +173,7 @@ namespace YASN
             webDavFields.AttachmentAutoSyncField.OnChanged = f => _settingsStore.PersistField(f);
             webDavFields.AttachmentThresholdField.OnChanged = f =>
             {
-                var normalized = AttachmentSyncSettings.ParseThresholdMb(f.Value).ToString();
+                string normalized = AttachmentSyncSettings.ParseThresholdMb(f.Value).ToString(CultureInfo.InvariantCulture);
                 if (!string.Equals(f.Value, normalized, StringComparison.Ordinal))
                 {
                     f.Value = normalized;
@@ -218,8 +221,8 @@ namespace YASN
                 ExecuteAsync = async () =>
                 {
                     var options = BuildWebDavOptions(webDavFields.ServerUrlField, webDavFields.UserField, webDavFields.PasswordField);
-                    using var client = new WebDavSyncClient(options);
-                    var ok = await client.TestConnectionAsync(NormalizeDirectory(webDavFields.RemoteField.Value));
+                    using WebDavSyncClient client = new WebDavSyncClient(options);
+                    bool ok = await client.TestConnectionAsync(NormalizeDirectory(webDavFields.RemoteField.Value)).ConfigureAwait(false);
                     return ok ? "连接成功" : $"连接失败: {client.LastError ?? "未知错误"}";
                 }
             });
@@ -235,11 +238,11 @@ namespace YASN
                     }
 
                     var options = BuildWebDavOptions(webDavFields.ServerUrlField, webDavFields.UserField, webDavFields.PasswordField);
-                    var client = new WebDavSyncClient(options);
-                    var enabled = webDavFields.AutoSyncField.BoolValue;
-                    var intervalSeconds = ParseSyncInterval(webDavFields.SyncIntervalField.Value);
+                    WebDavSyncClient client = new WebDavSyncClient(options);
+                    bool enabled = webDavFields.AutoSyncField.BoolValue;
+                    int intervalSeconds = ParseSyncInterval(webDavFields.SyncIntervalField.Value);
                     ApplySyncInterval(webDavFields.SyncIntervalField.Value);
-                    var configured = await App.SyncManager.ConfigureAsync(client, NormalizeDirectory(webDavFields.RemoteField.Value), enabled, intervalSeconds);
+                    bool configured = await App.SyncManager.ConfigureAsync(client, NormalizeDirectory(webDavFields.RemoteField.Value), enabled, intervalSeconds).ConfigureAwait(false);
                     return configured ? "WebDAV 已保存并生效。" : "WebDAV 配置失败。";
                 }
             });
@@ -252,7 +255,7 @@ namespace YASN
 
         private string ExportSettings()
         {
-            var dialog = new SaveFileDialog
+            SaveFileDialog dialog = new SaveFileDialog
             {
                 Title = "Export Settings",
                 Filter = "YASN Settings (*.yasnsettings.json)|*.yasnsettings.json|JSON (*.json)|*.json|All Files (*.*)|*.*",
@@ -264,13 +267,13 @@ namespace YASN
                 return "已取消导出。";
             }
 
-            var ok = _settingsStore.ExportToFile(dialog.FileName, out var errorMessage);
+            bool ok = _settingsStore.ExportToFile(dialog.FileName, out string? errorMessage);
             return ok ? $"设置已导出到: {dialog.FileName}" : $"导出失败: {errorMessage}";
         }
 
         private string ImportSettings()
         {
-            var dialog = new OpenFileDialog
+            OpenFileDialog dialog = new OpenFileDialog
             {
                 Title = "Import Settings",
                 Filter = "YASN Settings (*.yasnsettings.json)|*.yasnsettings.json|JSON (*.json)|*.json|All Files (*.*)|*.*",
@@ -283,7 +286,7 @@ namespace YASN
                 return "已取消导入。";
             }
 
-            var ok = _settingsStore.ImportFromFile(dialog.FileName, out var errorMessage);
+            bool ok = _settingsStore.ImportFromFile(dialog.FileName, out string? errorMessage);
             if (!ok)
             {
                 return $"导入失败: {errorMessage}";
@@ -295,7 +298,7 @@ namespace YASN
 
         private string ApplyDataDirectory(SettingField dataDirectoryField)
         {
-            if (!AppPaths.TryNormalizeDataDirectory(dataDirectoryField.Value, out var normalizedPath, out var errorMessage))
+            if (!AppPaths.TryNormalizeDataDirectory(dataDirectoryField.Value, out string? normalizedPath, out string? errorMessage))
             {
                 return $"数据目录无效: {errorMessage}";
             }
@@ -307,7 +310,7 @@ namespace YASN
 
         private string BrowseDataDirectory(SettingField dataDirectoryField)
         {
-            if (TryBrowseDataDirectory(dataDirectoryField, out var selectedPath))
+            if (TryBrowseDataDirectory(dataDirectoryField, out string? selectedPath))
             {
                 dataDirectoryField.Value = selectedPath;
                 return $"已选择数据目录: {selectedPath}";
@@ -323,7 +326,7 @@ namespace YASN
                 return;
             }
 
-            if (TryBrowseDataDirectory(field, out var selectedPath))
+            if (TryBrowseDataDirectory(field, out string? selectedPath))
             {
                 field.Value = selectedPath;
             }
@@ -333,13 +336,13 @@ namespace YASN
         {
             selectedPath = string.Empty;
 
-            var initialPath = AppPaths.DataDirectory;
-            if (!string.IsNullOrWhiteSpace(field.Value) && AppPaths.TryNormalizeDataDirectory(field.Value, out var normalized, out _))
+            string initialPath = AppPaths.DataDirectory;
+            if (!string.IsNullOrWhiteSpace(field.Value) && AppPaths.TryNormalizeDataDirectory(field.Value, out string? normalized, out _))
             {
                 initialPath = normalized;
             }
 
-            using var dialog = new FolderBrowserDialog
+            using FolderBrowserDialog dialog = new FolderBrowserDialog
             {
                 Description = "选择 YASN 数据目录",
                 UseDescriptionForTitle = true,
@@ -372,8 +375,8 @@ namespace YASN
 
         private void HandleAutoStartChanged(SettingField field)
         {
-            var enabled = field.BoolValue;
-            var success = enabled
+            bool enabled = field.BoolValue;
+            bool success = enabled
                 ? AutoStartManager.EnableAutoStart()
                 : AutoStartManager.DisableAutoStart();
 
@@ -398,20 +401,61 @@ namespace YASN
                         module.Status = "执行中...";
                     }
 
-                    var message = await (action.ExecuteAsync?.Invoke() ?? Task.FromResult(string.Empty));
+                    string message = await ((action.ExecuteAsync?.Invoke() ?? Task.FromResult(string.Empty)).ConfigureAwait(false));
 
                     if (module != null)
                     {
                         module.Status = message;
                     }
                 }
-                catch (Exception ex)
+                catch (HttpRequestException ex)
                 {
-                    var module = FindModuleForAction(action);
+                    SettingModule? module = FindModuleForAction(action);
                     if (module != null)
                     {
                         module.Status = $"操作失败: {ex.Message}";
                     }
+                    Logging.AppLogger.Warn($"Settings action '{action.Key}' failed: {ex.Message}");
+                }
+                catch (IOException ex)
+                {
+                    SettingModule? module = FindModuleForAction(action);
+                    if (module != null)
+                    {
+                        module.Status = $"鎿嶄綔澶辫触: {ex.Message}";
+                    }
+
+                    Logging.AppLogger.Warn($"Settings action '{action.Key}' failed: {ex.Message}");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    SettingModule? module = FindModuleForAction(action);
+                    if (module != null)
+                    {
+                        module.Status = $"鎿嶄綔澶辫触: {ex.Message}";
+                    }
+
+                    Logging.AppLogger.Warn($"Settings action '{action.Key}' failed: {ex.Message}");
+                }
+                catch (TaskCanceledException ex)
+                {
+                    SettingModule? module = FindModuleForAction(action);
+                    if (module != null)
+                    {
+                        module.Status = $"鎿嶄綔澶辫触: {ex.Message}";
+                    }
+
+                    Logging.AppLogger.Warn($"Settings action '{action.Key}' failed: {ex.Message}");
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    SettingModule? module = FindModuleForAction(action);
+                    if (module != null)
+                    {
+                        module.Status = $"鎿嶄綔澶辫触: {ex.Message}";
+                    }
+
+                    Logging.AppLogger.Warn($"Settings action '{action.Key}' failed: {ex.Message}");
                 }
                 finally
                 {
@@ -420,14 +464,14 @@ namespace YASN
             }
         }
 
-        private SettingModule FindModuleForAction(SettingAction action)
+        private SettingModule? FindModuleForAction(SettingAction action)
         {
             return ViewModel.Modules.FirstOrDefault(m => m.Actions.Contains(action));
         }
 
         private static void ApplyFloatingWindowTaskbarVisibilityToOpenWindows()
         {
-            foreach (var note in NoteManager.Instance.Notes)
+            foreach (NoteData note in NoteManager.Instance.Notes)
             {
                 note.Window?.RefreshTaskbarVisibilityFromSettings();
             }
@@ -435,7 +479,7 @@ namespace YASN
 
         private static void ApplyNoteChromeAutoCollapseToOpenWindows()
         {
-            foreach (var note in NoteManager.Instance.Notes)
+            foreach (NoteData note in NoteManager.Instance.Notes)
             {
                 note.Window?.RefreshChromeBehaviorFromSettings();
             }
@@ -443,7 +487,7 @@ namespace YASN
 
         private static void ApplyPreviewStyleToOpenWindows()
         {
-            foreach (var note in NoteManager.Instance.Notes)
+            foreach (NoteData note in NoteManager.Instance.Notes)
             {
                 note.Window?.RefreshPreviewStyleFromSettings();
             }
@@ -452,7 +496,7 @@ namespace YASN
         private static bool ConfigurePreviewStyleField(SettingField field)
         {
             field.Options.Clear();
-            foreach (var stylePath in PreviewStyleManager.ListStyles())
+            foreach (string stylePath in PreviewStyleManager.ListStyles())
             {
                 field.Options.Add(new SettingOption
                 {
@@ -461,15 +505,15 @@ namespace YASN
                 });
             }
 
-            var resolved = PreviewStyleManager.ResolveStyle(field.Value);
-            var changed = !string.Equals(field.Value, resolved, StringComparison.OrdinalIgnoreCase);
+            string resolved = PreviewStyleManager.ResolveStyle(field.Value);
+            bool changed = !string.Equals(field.Value, resolved, StringComparison.OrdinalIgnoreCase);
             field.Value = resolved;
             return changed;
         }
 
         private void ApplyLogSize(string value)
         {
-            if (int.TryParse(value, out var kb) && kb > 0)
+            if (int.TryParse(value, out int kb) && kb > 0)
             {
                 Logging.AppLogger.SetMaxSizeKb(kb);
                 Logging.AppLogger.Debug($"日志大小限制设置为 {kb} KB");
@@ -482,15 +526,15 @@ namespace YASN
 
         private void ApplySyncInterval(string value)
         {
-            var seconds = ParseSyncInterval(value);
+            int seconds = ParseSyncInterval(value);
             App.SyncManager?.SetIntervalSeconds(seconds);
             Logging.AppLogger.Debug($"同步间隔设为 {seconds} 秒");
         }
 
-        private int ParseSyncInterval(string value)
+        private static int ParseSyncInterval(string value)
         {
             const int defaultSeconds = 300;
-            if (int.TryParse(value, out var seconds) && seconds > 0)
+            if (int.TryParse(value, out int seconds) && seconds > 0)
             {
                 return Math.Max(10, seconds);
             }
@@ -518,15 +562,15 @@ namespace YASN
                     return;
                 }
 
-                var container = ModuleItemsControl.ItemContainerGenerator.ContainerFromItem(module) as FrameworkElement;
+                FrameworkElement? container = ModuleItemsControl.ItemContainerGenerator.ContainerFromItem(module) as FrameworkElement;
                 if (container == null)
                 {
                     return;
                 }
 
                 container.UpdateLayout();
-                var transform = container.TransformToAncestor(ModuleScrollViewer);
-                var point = transform.Transform(new Point(0, 0));
+                GeneralTransform transform = container.TransformToAncestor(ModuleScrollViewer);
+                Point point = transform.Transform(new Point(0, 0));
                 ModuleScrollViewer.ScrollToVerticalOffset(point.Y + ModuleScrollViewer.VerticalOffset);
             }), DispatcherPriority.Background);
         }

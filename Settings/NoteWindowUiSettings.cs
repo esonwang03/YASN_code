@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace YASN.Settings
 {
     internal static class NoteWindowUiSettings
@@ -7,12 +9,12 @@ namespace YASN.Settings
 
         internal static bool IsAutoCollapseChromeEnabled(SettingsStore settingsStore)
         {
-            var raw = settingsStore.GetValue(
+            string raw = settingsStore.GetValue(
                 SettingKey,
                 shouldSync: false,
-                DefaultValue.ToString());
+                DefaultValue.ToString(CultureInfo.InvariantCulture));
 
-            return !bool.TryParse(raw, out var enabled) || enabled;
+            return !bool.TryParse(raw, out bool enabled) || enabled;
         }
     }
 }

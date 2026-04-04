@@ -33,7 +33,15 @@ namespace YASN
                     EnsureDefaultStyleExists();
                     _initialized = true;
                 }
-                catch (Exception ex)
+                catch (IOException ex)
+                {
+                    AppLogger.Warn($"Failed to initialize style directory: {ex.Message}");
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    AppLogger.Warn($"Failed to initialize style directory: {ex.Message}");
+                }
+                catch (NotSupportedException ex)
                 {
                     AppLogger.Warn($"Failed to initialize style directory: {ex.Message}");
                 }
@@ -45,7 +53,7 @@ namespace YASN
             EnsureInitialized();
             try
             {
-                var files = Directory.GetFiles(AppPaths.StyleRoot, "*.css", SearchOption.AllDirectories)
+                List<string> files = Directory.GetFiles(AppPaths.StyleRoot, "*.css", SearchOption.AllDirectories)
                     .Select(ToStyleRelativePath)
                     .Where(path => !string.IsNullOrWhiteSpace(path))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -60,17 +68,27 @@ namespace YASN
                 AppLogger.Debug($"Discovered {files.Count} preview style file(s).");
                 return files;
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
                 AppLogger.Warn($"Failed to enumerate preview styles: {ex.Message}");
-                return new[] { DefaultStyleRelativePath };
+                return [DefaultStyleRelativePath];
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Warn($"Failed to enumerate preview styles: {ex.Message}");
+                return [DefaultStyleRelativePath];
+            }
+            catch (NotSupportedException ex)
+            {
+                AppLogger.Warn($"Failed to enumerate preview styles: {ex.Message}");
+                return [DefaultStyleRelativePath];
             }
         }
 
         internal static string ResolveStyle(string? configuredStyle)
         {
             EnsureInitialized();
-            if (!TryNormalizeStylePath(configuredStyle, out var normalized))
+            if (!TryNormalizeStylePath(configuredStyle, out string? normalized))
             {
                 if (!string.IsNullOrWhiteSpace(configuredStyle))
                 {
@@ -80,7 +98,7 @@ namespace YASN
                 return DefaultStyleRelativePath;
             }
 
-            var absolutePath = ToStyleAbsolutePath(normalized);
+            string absolutePath = ToStyleAbsolutePath(normalized);
             if (File.Exists(absolutePath))
             {
                 return normalized;
@@ -92,8 +110,8 @@ namespace YASN
 
         internal static string BuildStyleHref(string styleRelativePath, long cacheToken)
         {
-            var resolved = ResolveStyle(styleRelativePath);
-            var encodedPath = string.Join("/",
+            string resolved = ResolveStyle(styleRelativePath);
+            string encodedPath = string.Join("/",
                 resolved.Split('/', StringSplitOptions.RemoveEmptyEntries)
                     .Select(Uri.EscapeDataString));
             return $"style/{encodedPath}?v={cacheToken}";
@@ -102,22 +120,22 @@ namespace YASN
         internal static string ToStyleAbsolutePath(string styleRelativePath)
         {
             EnsureInitialized();
-            var normalized = TryNormalizePathWithoutFallback(styleRelativePath, out var parsed)
+            string normalized = TryNormalizePathWithoutFallback(styleRelativePath, out string? parsed)
                 ? parsed
                 : DefaultStyleRelativePath;
-            var localRelative = normalized.Replace('/', Path.DirectorySeparatorChar);
+            string localRelative = normalized.Replace('/', Path.DirectorySeparatorChar);
             return Path.Combine(AppPaths.StyleRoot, localRelative);
         }
 
         private static void EnsureDefaultStyleExists()
         {
-            var path = Path.Combine(AppPaths.StyleRoot, DefaultStyleRelativePath);
+            string path = Path.Combine(AppPaths.StyleRoot, DefaultStyleRelativePath);
             if (File.Exists(path))
             {
                 return;
             }
 
-            var bundledPath = Path.Combine(BundledStyleRoot, DefaultStyleRelativePath);
+            string bundledPath = Path.Combine(BundledStyleRoot, DefaultStyleRelativePath);
             if (File.Exists(bundledPath))
             {
                 File.Copy(bundledPath, path, overwrite: false);
@@ -134,30 +152,28 @@ namespace YASN
         {
             if (!Directory.Exists(BundledStyleRoot))
             {
-                if (!_missingBundleDirLogged)
-                {
-                    AppLogger.Warn($"Bundled style directory not found: {BundledStyleRoot}");
-                    _missingBundleDirLogged = true;
-                }
+                if (_missingBundleDirLogged) return;
+                AppLogger.Warn($"Bundled style directory not found: {BundledStyleRoot}");
+                _missingBundleDirLogged = true;
 
                 return;
             }
 
-            foreach (var sourcePath in Directory.GetFiles(BundledStyleRoot, "*.css", SearchOption.AllDirectories))
+            foreach (string sourcePath in Directory.GetFiles(BundledStyleRoot, "*.css", SearchOption.AllDirectories))
             {
-                var relative = Path.GetRelativePath(BundledStyleRoot, sourcePath);
-                var destination = Path.Combine(AppPaths.StyleRoot, relative);
-                var destinationDir = Path.GetDirectoryName(destination);
+                string relative = Path.GetRelativePath(BundledStyleRoot, sourcePath);
+                string destination = Path.Combine(AppPaths.StyleRoot, relative);
+                string? destinationDir = Path.GetDirectoryName(destination);
                 if (!string.IsNullOrEmpty(destinationDir))
                 {
                     Directory.CreateDirectory(destinationDir);
                 }
 
-                var shouldCopy = !File.Exists(destination);
+                bool shouldCopy = !File.Exists(destination);
                 if (!shouldCopy)
                 {
-                    var sourceWriteTime = File.GetLastWriteTimeUtc(sourcePath);
-                    var destinationWriteTime = File.GetLastWriteTimeUtc(destination);
+                    DateTime sourceWriteTime = File.GetLastWriteTimeUtc(sourcePath);
+                    DateTime destinationWriteTime = File.GetLastWriteTimeUtc(destination);
                     shouldCopy = sourceWriteTime > destinationWriteTime;
                 }
 
@@ -181,14 +197,14 @@ namespace YASN
 
             try
             {
-                var candidate = raw.Trim();
+                string candidate = raw.Trim();
                 if (Path.IsPathRooted(candidate))
                 {
                     return false;
                 }
 
-                var fullStyleRoot = Path.GetFullPath(AppPaths.StyleRoot);
-                var fullCandidate = Path.GetFullPath(Path.Combine(AppPaths.StyleRoot, candidate));
+                string fullStyleRoot = Path.GetFullPath(AppPaths.StyleRoot);
+                string fullCandidate = Path.GetFullPath(Path.Combine(AppPaths.StyleRoot, candidate));
                 if (!fullCandidate.StartsWith(fullStyleRoot, StringComparison.OrdinalIgnoreCase))
                 {
                     return false;
@@ -199,7 +215,7 @@ namespace YASN
                     return false;
                 }
 
-                var relative = Path.GetRelativePath(fullStyleRoot, fullCandidate)
+                string relative = Path.GetRelativePath(fullStyleRoot, fullCandidate)
                     .Replace('\\', '/')
                     .Trim();
                 if (string.IsNullOrWhiteSpace(relative) ||
@@ -212,8 +228,24 @@ namespace YASN
                 normalized = relative;
                 return true;
             }
-            catch
+            catch (ArgumentException ex)
             {
+                AppLogger.Debug($"Failed to normalize preview style path '{raw}': {ex.Message}");
+                return false;
+            }
+            catch (IOException ex)
+            {
+                AppLogger.Debug($"Failed to normalize preview style path '{raw}': {ex.Message}");
+                return false;
+            }
+            catch (NotSupportedException ex)
+            {
+                AppLogger.Debug($"Failed to normalize preview style path '{raw}': {ex.Message}");
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Debug($"Failed to normalize preview style path '{raw}': {ex.Message}");
                 return false;
             }
         }
@@ -222,15 +254,31 @@ namespace YASN
         {
             try
             {
-                var relative = Path.GetRelativePath(AppPaths.StyleRoot, fullPath)
+                string relative = Path.GetRelativePath(AppPaths.StyleRoot, fullPath)
                     .Replace('\\', '/')
                     .Trim();
-                return TryNormalizePathWithoutFallback(relative, out var normalized)
+                return TryNormalizePathWithoutFallback(relative, out string? normalized)
                     ? normalized
                     : string.Empty;
             }
-            catch
+            catch (ArgumentException ex)
             {
+                AppLogger.Debug($"Failed to convert style path '{fullPath}' to relative path: {ex.Message}");
+                return string.Empty;
+            }
+            catch (IOException ex)
+            {
+                AppLogger.Debug($"Failed to convert style path '{fullPath}' to relative path: {ex.Message}");
+                return string.Empty;
+            }
+            catch (NotSupportedException ex)
+            {
+                AppLogger.Debug($"Failed to convert style path '{fullPath}' to relative path: {ex.Message}");
+                return string.Empty;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Debug($"Failed to convert style path '{fullPath}' to relative path: {ex.Message}");
                 return string.Empty;
             }
         }

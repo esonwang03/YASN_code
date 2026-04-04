@@ -10,16 +10,16 @@ namespace YASN
     public static class FloatingWindowTaskbarVisibility
     {
         public const string SettingKey = "floatingWindow.taskbarVisibility";
-        public const string AlwaysShowValue = "alwaysshow";
-        public const string AlwaysHideValue = "alwayshide";
-        public const string HideTopMostOnlyValue = "hidetopmostonly";
+        public const string AlwaysShowValue = "ALWAYSSHOW";
+        public const string AlwaysHideValue = "ALWAYSHIDE";
+        public const string HideTopMostOnlyValue = "HIDETOPMOSTONLY";
 
         // Keep old behavior for compatibility: floating windows were hidden from taskbar by default.
         public const string DefaultValue = AlwaysHideValue;
 
         private static FloatingWindowTaskbarVisibilityMode ParseMode(string value)
         {
-            return (value ?? string.Empty).Trim().ToLowerInvariant() switch
+            return (value ?? string.Empty).Trim().ToUpperInvariant() switch
             {
                 AlwaysShowValue => FloatingWindowTaskbarVisibilityMode.AlwaysShow,
                 HideTopMostOnlyValue => FloatingWindowTaskbarVisibilityMode.HideTopMostOnly,

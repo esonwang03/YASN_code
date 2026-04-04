@@ -49,7 +49,7 @@ namespace YASN.Settings
 
         internal static EditorDisplayMode GetEnterMode(SettingsStore settingsStore)
         {
-            var raw = settingsStore.GetValue(
+            string raw = settingsStore.GetValue(
                 SettingKey,
                 shouldSync: false,
                 defaultValue: DefaultValue);

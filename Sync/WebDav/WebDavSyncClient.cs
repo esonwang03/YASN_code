@@ -1,9 +1,6 @@
-﻿using System;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Threading.Tasks;
 using WebDav;
 using YASN.Logging;
 
@@ -15,61 +12,41 @@ namespace YASN.Sync.WebDav
     public class WebDavSyncClient : ISyncClient
     {
         private readonly IWebDavClient _client;
+        private readonly HttpClientHandler _httpClientHandler;
+        private readonly HttpClient _httpClient;
 
         public string BackendName => "WebDAV";
-        public string LastError { get; private set; }
+        public string? LastError { get; private set; }
 
         public WebDavSyncClient(WebDavOptions options)
         {
             if (string.IsNullOrWhiteSpace(options.ServerUrl))
                 throw new ArgumentException("ServerUrl is required", nameof(options));
 
-            var handler = new HttpClientHandler
-            {
-                PreAuthenticate = true,
-                UseDefaultCredentials = false,
-                UseProxy = false
-            };
-
-            if (options.AllowInvalidCertificates)
-            {
-                handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-            }
-
-            if (!string.IsNullOrEmpty(options.Username))
-            {
-                handler.Credentials = new NetworkCredential(options.Username, options.Password);
-            }
-
-            var httpClient = new HttpClient(handler)
+            _httpClientHandler = CreateHttpClientHandler(options);
+            _httpClient = new HttpClient(_httpClientHandler, disposeHandler: false)
             {
                 BaseAddress = BuildBaseAddress(options.ServerUrl),
                 Timeout = TimeSpan.FromSeconds(30)
             };
 
-            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("YASN-WebDav/1.0");
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("YASN-WebDav/1.0");
 
-            _client = new WebDavClient(httpClient);
+            _client = new WebDavClient(_httpClient);
         }
 
         public async Task<bool> TestConnectionAsync(string remotePath)
         {
-            var path = NormalizeRemotePath(remotePath);
+            string path = NormalizeRemotePath(remotePath);
 
             try
             {
-                var response = await _client.Propfind(path, new PropfindParameters
+                PropfindResponse response = await _client.Propfind(path, new PropfindParameters
                 {
                     ApplyTo = ApplyTo.Propfind.ResourceOnly
-                });
+                }).ConfigureAwait(false);
 
-                if (response.IsSuccessful)
-                {
-                    LastError = null;
-                    return true;
-                }
-
-                if (!string.IsNullOrEmpty(path) && await EnsureDirectoryAsync(path))
+                if (response.IsSuccessful || !string.IsNullOrEmpty(path) && await EnsureDirectoryAsync(path).ConfigureAwait(false))
                 {
                     LastError = null;
                     return true;
@@ -78,30 +55,42 @@ namespace YASN.Sync.WebDav
                 LastError = response.Description ?? $"WebDAV status {response.StatusCode}";
                 return false;
             }
-            catch (Exception ex)
+            catch (HttpRequestException ex)
             {
                 LastError = ex.Message;
-                AppLogger.Warn($"WebDAV test failed: {ex}");
+                AppLogger.Warn($"WebDAV test failed: {ex.Message}");
+                return false;
+            }
+            catch (InvalidOperationException ex)
+            {
+                LastError = ex.Message;
+                AppLogger.Warn($"WebDAV test failed: {ex.Message}");
+                return false;
+            }
+            catch (TaskCanceledException ex)
+            {
+                LastError = ex.Message;
+                AppLogger.Warn($"WebDAV test failed: {ex.Message}");
                 return false;
             }
         }
 
         public async Task<bool> EnsureDirectoryAsync(string remotePath)
         {
-            var normalized = NormalizeRemotePath(remotePath);
+            string normalized = NormalizeRemotePath(remotePath);
 
             if (string.IsNullOrEmpty(normalized))
             {
                 return true;
             }
 
-            var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            var current = string.Empty;
+            string[] segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            string current = string.Empty;
 
-            foreach (var segment in segments)
+            foreach (string segment in segments)
             {
                 current = string.IsNullOrEmpty(current) ? segment : $"{current}/{segment}";
-                var response = await _client.Mkcol(current);
+                WebDavResponse response = await _client.Mkcol(current).ConfigureAwait(false);
 
                 if (response.IsSuccessful || response.StatusCode == (int)HttpStatusCode.MethodNotAllowed)
                 {
@@ -124,7 +113,7 @@ namespace YASN.Sync.WebDav
 
         public async Task<bool> UploadFileAsync(string localFilePath, string remoteFilePath)
         {
-            var path = NormalizeRemotePath(remoteFilePath);
+            string path = NormalizeRemotePath(remoteFilePath);
 
             if (!File.Exists(localFilePath))
             {
@@ -134,74 +123,139 @@ namespace YASN.Sync.WebDav
 
             try
             {
-                await using var stream = File.OpenRead(localFilePath);
-                var response = await _client.PutFile(path, stream, "application/octet-stream");
-
-                if (response.IsSuccessful)
+                FileStream stream = File.OpenRead(localFilePath);
+                await using (stream.ConfigureAwait(false))
                 {
-                    LastError = null;
-                    return true;
-                }
+                    WebDavResponse response = await _client.PutFile(path, stream, "application/octet-stream").ConfigureAwait(false);
 
-                LastError = response.Description ?? $"Upload failed with status {response.StatusCode}";
-                return false;
+                    if (response.IsSuccessful)
+                    {
+                        LastError = null;
+                        return true;
+                    }
+
+                    LastError = response.Description ?? $"Upload failed with status {response.StatusCode}";
+                    return false;
+                }
             }
-            catch (Exception ex)
+            catch (HttpRequestException ex)
             {
                 LastError = ex.Message;
-                AppLogger.Debug($"WebDAV upload failed: {ex}");
+                AppLogger.Debug($"WebDAV upload failed: {ex.Message}");
+                return false;
+            }
+            catch (IOException ex)
+            {
+                LastError = ex.Message;
+                AppLogger.Debug($"WebDAV upload failed: {ex.Message}");
+                return false;
+            }
+            catch (InvalidOperationException ex)
+            {
+                LastError = ex.Message;
+                AppLogger.Debug($"WebDAV upload failed: {ex.Message}");
+                return false;
+            }
+            catch (TaskCanceledException ex)
+            {
+                LastError = ex.Message;
+                AppLogger.Debug($"WebDAV upload failed: {ex.Message}");
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                LastError = ex.Message;
+                AppLogger.Debug($"WebDAV upload failed: {ex.Message}");
                 return false;
             }
         }
 
         public async Task<bool> DownloadFileAsync(string remoteFilePath, string localFilePath)
         {
-            var path = NormalizeRemotePath(remoteFilePath);
+            string path = NormalizeRemotePath(remoteFilePath);
 
             try
             {
-                var response = await _client.GetRawFile(path);
+                WebDavStreamResponse response = await _client.GetRawFile(path).ConfigureAwait(false);
                 if (!response.IsSuccessful || response.Stream == null)
                 {
                     LastError = response.Description ?? $"Download failed with status {response.StatusCode}";
                     return false;
                 }
 
-                var directory = Path.GetDirectoryName(localFilePath);
+                string? directory = Path.GetDirectoryName(localFilePath);
                 if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
                 {
                     Directory.CreateDirectory(directory);
                 }
 
-                await using var responseStream = response.Stream;
-                await using var fileStream = File.Create(localFilePath);
-                await responseStream.CopyToAsync(fileStream);
+                Stream responseStream = response.Stream;
+                FileStream fileStream = File.Create(localFilePath);
+                await using (responseStream.ConfigureAwait(false))
+                await using (fileStream.ConfigureAwait(false))
+                {
+                    await responseStream.CopyToAsync(fileStream).ConfigureAwait(false);
+                }
 
                 LastError = null;
                 return true;
             }
-            catch (Exception ex)
+            catch (HttpRequestException ex)
             {
                 LastError = ex.Message;
-                AppLogger.Debug($"WebDAV download failed: {ex}");
+                AppLogger.Debug($"WebDAV download failed: {ex.Message}");
+                return false;
+            }
+            catch (IOException ex)
+            {
+                LastError = ex.Message;
+                AppLogger.Debug($"WebDAV download failed: {ex.Message}");
+                return false;
+            }
+            catch (InvalidOperationException ex)
+            {
+                LastError = ex.Message;
+                AppLogger.Debug($"WebDAV download failed: {ex.Message}");
+                return false;
+            }
+            catch (TaskCanceledException ex)
+            {
+                LastError = ex.Message;
+                AppLogger.Debug($"WebDAV download failed: {ex.Message}");
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                LastError = ex.Message;
+                AppLogger.Debug($"WebDAV download failed: {ex.Message}");
                 return false;
             }
         }
 
         public async Task<bool> FileExistsAsync(string remoteFilePath)
         {
-            var path = NormalizeRemotePath(remoteFilePath);
+            string path = NormalizeRemotePath(remoteFilePath);
 
             try
             {
-                var response = await _client.Propfind(path, new PropfindParameters
+                PropfindResponse response = await _client.Propfind(path, new PropfindParameters
                 {
                     ApplyTo = ApplyTo.Propfind.ResourceOnly
-                });
+                }).ConfigureAwait(false);
 
                 return response.IsSuccessful;
             }
-            catch (Exception ex)
+            catch (HttpRequestException ex)
+            {
+                AppLogger.Debug($"WebDAV exists check failed: {ex.Message}");
+                return false;
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Debug($"WebDAV exists check failed: {ex.Message}");
+                return false;
+            }
+            catch (TaskCanceledException ex)
             {
                 AppLogger.Debug($"WebDAV exists check failed: {ex.Message}");
                 return false;
@@ -210,37 +264,47 @@ namespace YASN.Sync.WebDav
 
         public async Task<DateTime?> GetFileLastModifiedAsync(string remoteFilePath)
         {
-            var path = NormalizeRemotePath(remoteFilePath);
+            string path = NormalizeRemotePath(remoteFilePath);
 
             try
             {
-                var response = await _client.Propfind(path, new PropfindParameters
+                PropfindResponse response = await _client.Propfind(path, new PropfindParameters
                 {
                     ApplyTo = ApplyTo.Propfind.ResourceOnly
-                });
+                }).ConfigureAwait(false);
 
                 if (!response.IsSuccessful)
                 {
                     return null;
                 }
 
-                var resource = response.Resources?.FirstOrDefault();
+                WebDavResource? resource = response.Resources?.FirstOrDefault();
                 return resource?.LastModifiedDate;
             }
-            catch (Exception ex)
+            catch (HttpRequestException ex)
+            {
+                AppLogger.Debug($"WebDAV last-modified check failed: {ex.Message}");
+                return null;
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Debug($"WebDAV last-modified check failed: {ex.Message}");
+                return null;
+            }
+            catch (TaskCanceledException ex)
             {
                 AppLogger.Debug($"WebDAV last-modified check failed: {ex.Message}");
                 return null;
             }
         }
 
-        public async Task<string> GetFileHashAsync(string remoteFilePath)
+        public async Task<string?> GetFileHashAsync(string remoteFilePath)
         {
-            var path = NormalizeRemotePath(remoteFilePath);
+            string path = NormalizeRemotePath(remoteFilePath);
 
             try
             {
-                var response = await _client.GetRawFile(path);
+                WebDavStreamResponse response = await _client.GetRawFile(path).ConfigureAwait(false);
                 if (!response.IsSuccessful || response.Stream == null)
                 {
                     return null;
@@ -251,7 +315,17 @@ namespace YASN.Sync.WebDav
                     return FileHashUtil.ComputeStreamHash(response.Stream);
                 }
             }
-            catch (Exception ex)
+            catch (HttpRequestException ex)
+            {
+                AppLogger.Debug($"WebDAV hash failed: {ex.Message}");
+                return null;
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Debug($"WebDAV hash failed: {ex.Message}");
+                return null;
+            }
+            catch (TaskCanceledException ex)
             {
                 AppLogger.Debug($"WebDAV hash failed: {ex.Message}");
                 return null;
@@ -260,16 +334,41 @@ namespace YASN.Sync.WebDav
 
         public void Dispose()
         {
-            _client?.Dispose();
+            _client.Dispose();
+            _httpClient.Dispose();
+            _httpClientHandler.Dispose();
+        }
+
+        private static HttpClientHandler CreateHttpClientHandler(WebDavOptions options)
+        {
+            HttpClientHandler handler = new HttpClientHandler
+            {
+                PreAuthenticate = true,
+                UseDefaultCredentials = false,
+                UseProxy = false,
+                CheckCertificateRevocationList = true
+            };
+
+            if (options.AllowInvalidCertificates)
+            {
+                handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+            }
+
+            if (!string.IsNullOrEmpty(options.Username))
+            {
+                handler.Credentials = new NetworkCredential(options.Username, options.Password);
+            }
+
+            return handler;
         }
 
         private static Uri BuildBaseAddress(string baseAddress)
         {
-            var formatted = baseAddress.TrimEnd('/') + "/";
+            string formatted = baseAddress.TrimEnd('/') + "/";
             return new Uri(formatted);
         }
 
-        private static string NormalizeRemotePath(string remotePath)
+        private static string NormalizeRemotePath(string? remotePath)
         {
             return (remotePath ?? string.Empty).Trim().Trim('/');
         }

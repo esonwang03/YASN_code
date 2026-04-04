@@ -14,7 +14,7 @@ namespace YASN.Settings
     {
         internal static GeneralSettingFields Create()
         {
-            var autoStartField = new SettingField
+            SettingField autoStartField = new SettingField
             {
                 Key = "autoStart",
                 Title = "Start on Windows startup",
@@ -24,7 +24,7 @@ namespace YASN.Settings
                 ShouldSync = false
             };
 
-            var autoCollapseNoteChromeField = new SettingField
+            SettingField autoCollapseNoteChromeField = new SettingField
             {
                 Key = NoteWindowUiSettings.SettingKey,
                 Title = "Auto collapse note window bar",
@@ -34,7 +34,7 @@ namespace YASN.Settings
                 ShouldSync = false
             };
 
-            var logSizeField = new SettingField
+            SettingField logSizeField = new SettingField
             {
                 Key = "log.maxSizeKb",
                 Title = "Max size of log file",
@@ -44,7 +44,7 @@ namespace YASN.Settings
                 ShouldSync = true
             };
 
-            var floatingTaskbarVisibilityField = new SettingField
+            SettingField floatingTaskbarVisibilityField = new SettingField
             {
                 Key = global::YASN.FloatingWindowTaskbarVisibility.SettingKey,
                 Title = "Show notes in taskbar",
@@ -70,7 +70,7 @@ namespace YASN.Settings
                 Value = global::YASN.FloatingWindowTaskbarVisibility.HideTopMostOnlyValue
             });
 
-            var previewStyleField = new SettingField
+            SettingField previewStyleField = new SettingField
             {
                 Key = global::YASN.PreviewStyleManager.SettingKey,
                 Title = "Markdown preview style",
@@ -85,7 +85,7 @@ namespace YASN.Settings
                 Value = global::YASN.PreviewStyleManager.DefaultStyleRelativePath
             });
 
-            var dataDirectoryField = new SettingField
+            SettingField dataDirectoryField = new SettingField
             {
                 Key = global::YASN.AppPaths.DataDirectorySettingKey,
                 Title = "Data directory",

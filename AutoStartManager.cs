@@ -1,12 +1,10 @@
-using System;
 using System.IO;
+using System.Security;
 using Microsoft.Win32;
+using YASN.Logging;
 
 namespace YASN
 {
-    /// <summary>
-    /// ����Ӧ�ó��򿪻�����������
-    /// </summary>
     public static class AutoStartManager
     {
         private const string AppName = "YASN";
@@ -17,90 +15,112 @@ namespace YASN
         {
             try
             {
-                using var key = Registry.CurrentUser.OpenSubKey(RegistryKey, false);
+                using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RegistryKey, false);
                 if (key == null)
                     return false;
 
-                var value = key.GetValue(AppName) as string;
+                string? value = key.GetValue(AppName) as string;
                 if (string.IsNullOrEmpty(value))
                     return false;
 
-                var currentPath = GetApplicationPath();
+                string currentPath = GetApplicationPath();
                 return value.Equals(currentPath, StringComparison.OrdinalIgnoreCase);
             }
-            catch
+            catch (IOException ex)
             {
+                AppLogger.Warn($"Failed to read auto-start setting: {ex.Message}");
+                return false;
+            }
+            catch (SecurityException ex)
+            {
+                AppLogger.Warn($"Failed to read auto-start setting: {ex.Message}");
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Warn($"Failed to read auto-start setting: {ex.Message}");
                 return false;
             }
         }
-        
+
         public static bool EnableAutoStart()
         {
             try
             {
-                using (var key = Registry.CurrentUser.OpenSubKey(RegistryKey, true))
-                {
-                    if (key == null)
-                        return false;
+                using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RegistryKey, true);
+                if (key == null)
+                    return false;
 
-                    var applicationPath = GetApplicationPath();
-                    key.SetValue(AppName, applicationPath);
-                    return true;
-                }
+                string applicationPath = GetApplicationPath();
+                key.SetValue(AppName, applicationPath);
+                return true;
             }
-            catch (Exception)
+            catch (IOException ex)
             {
+                AppLogger.Warn($"Failed to enable auto-start: {ex.Message}");
+                return false;
+            }
+            catch (SecurityException ex)
+            {
+                AppLogger.Warn($"Failed to enable auto-start: {ex.Message}");
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Warn($"Failed to enable auto-start: {ex.Message}");
                 return false;
             }
         }
-        
+
         public static bool DisableAutoStart()
         {
             try
             {
-                using (var key = Registry.CurrentUser.OpenSubKey(RegistryKey, true))
+                using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RegistryKey, true);
+                if (key == null)
+                    return false;
+
+                if (key.GetValue(AppName) != null)
                 {
-                    if (key == null)
-                        return false;
-                    
-                    if (key.GetValue(AppName) != null)
-                    {
-                        key.DeleteValue(AppName, false);
-                    }
-                    return true;
+                    key.DeleteValue(AppName, false);
                 }
+                return true;
             }
-            catch (Exception)
+            catch (IOException ex)
             {
+                AppLogger.Warn($"Failed to disable auto-start: {ex.Message}");
+                return false;
+            }
+            catch (SecurityException ex)
+            {
+                AppLogger.Warn($"Failed to disable auto-start: {ex.Message}");
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Warn($"Failed to disable auto-start: {ex.Message}");
                 return false;
             }
         }
-        
+
         public static bool ToggleAutoStart()
         {
-            if (IsAutoStartEnabled())
-            {
-                return DisableAutoStart();
-            }
-            else
-            {
-                return EnableAutoStart();
-            }
+            return IsAutoStartEnabled() ? DisableAutoStart() : EnableAutoStart();
         }
-        
+
         private static string GetApplicationPath()
         {
-            var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+            string? exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
             if (string.IsNullOrEmpty(exePath))
             {
                 exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
             }
-            
+
             if (exePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
             {
                 exePath = Path.ChangeExtension(exePath, ".exe");
             }
-            
+
             return $"\"{exePath}\"";
         }
     }

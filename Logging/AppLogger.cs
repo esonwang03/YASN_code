@@ -1,4 +1,7 @@
+using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Security;
 using System.Text.Json;
 using Microsoft.Toolkit.Uwp.Notifications;
 
@@ -64,9 +67,21 @@ namespace YASN.Logging
                     ShowToast(level, message);
                 }
             }
-            catch
+            catch (IOException ex)
             {
-                // Avoid throwing from logger
+                ReportInternalFailure("Write", ex);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                ReportInternalFailure("Write", ex);
+            }
+            catch (NotSupportedException ex)
+            {
+                ReportInternalFailure("Write", ex);
+            }
+            catch (SecurityException ex)
+            {
+                ReportInternalFailure("Write", ex);
             }
         }
 
@@ -77,16 +92,24 @@ namespace YASN.Logging
             {
                 Console.WriteLine(line);
             }
-            catch
+            catch (IOException ex)
             {
-                // ignore terminal output failures
+                ReportInternalFailure("WriteToTerminalInDebug", ex);
+            }
+            catch (ObjectDisposedException ex)
+            {
+                ReportInternalFailure("WriteToTerminalInDebug", ex);
+            }
+            catch (SecurityException ex)
+            {
+                ReportInternalFailure("WriteToTerminalInDebug", ex);
             }
 #endif
         }
 
         private static void EnsureDirectory()
         {
-            var dir = Path.GetDirectoryName(LogPath);
+            string? dir = Path.GetDirectoryName(LogPath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             {
                 Directory.CreateDirectory(dir);
@@ -99,10 +122,10 @@ namespace YASN.Logging
             {
                 if (File.Exists(LogPath))
                 {
-                    var info = new FileInfo(LogPath);
+                    FileInfo info = new FileInfo(LogPath);
                     if (info.Length >= _maxBytes)
                     {
-                        var bakPath = LogPath + ".bak";
+                        string bakPath = LogPath + ".bak";
                         if (File.Exists(bakPath))
                         {
                             File.Delete(bakPath);
@@ -111,9 +134,21 @@ namespace YASN.Logging
                     }
                 }
             }
-            catch
+            catch (IOException ex)
             {
-                // ignore rotation failures
+                ReportInternalFailure("RotateIfNeeded", ex);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                ReportInternalFailure("RotateIfNeeded", ex);
+            }
+            catch (NotSupportedException ex)
+            {
+                ReportInternalFailure("RotateIfNeeded", ex);
+            }
+            catch (SecurityException ex)
+            {
+                ReportInternalFailure("RotateIfNeeded", ex);
             }
         }
 
@@ -127,9 +162,17 @@ namespace YASN.Logging
                     .AddText(message)
                     .Show(toast => { toast.ExpirationTime = DateTimeOffset.Now.AddSeconds(_toastExpirationSeconds); });
             }
-            catch
+            catch (COMException ex)
             {
-                // Toast failures should not crash the app
+                ReportInternalFailure("ShowToast", ex);
+            }
+            catch (InvalidOperationException ex)
+            {
+                ReportInternalFailure("ShowToast", ex);
+            }
+            catch (ArgumentException ex)
+            {
+                ReportInternalFailure("ShowToast", ex);
             }
         }
 
@@ -150,25 +193,47 @@ namespace YASN.Logging
             {
                 if (File.Exists(AppPaths.LocalSettingsPath))
                 {
-                    var json = File.ReadAllText(AppPaths.LocalSettingsPath);
+                    string json = File.ReadAllText(AppPaths.LocalSettingsPath);
                     var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-                    if (dict != null && dict.TryGetValue("log.maxSizeKb", out var value) &&
-                        int.TryParse(value, out var kb) && kb > 0)
+                    if (dict != null && dict.TryGetValue("log.maxSizeKb", out string? value) &&
+                        int.TryParse(value, out int kb) && kb > 0)
                     {
                         SetMaxSizeKb(kb);
                     }
 
-                    if (dict != null && dict.TryGetValue("log.toastExpirationSeconds", out var toastSeconds) &&
-                        int.TryParse(toastSeconds, out var seconds) && seconds > 0)
+                    if (dict != null && dict.TryGetValue("log.toastExpirationSeconds", out string? toastSeconds) &&
+                        int.TryParse(toastSeconds, out int seconds) && seconds > 0)
                     {
                         SetToastExpirationSeconds(seconds);
                     }
                 }
             }
-            catch
+            catch (IOException ex)
             {
-                // ignore
+                ReportInternalFailure("LoadMaxSizeFromLocalSettings", ex);
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                ReportInternalFailure("LoadMaxSizeFromLocalSettings", ex);
+            }
+            catch (JsonException ex)
+            {
+                ReportInternalFailure("LoadMaxSizeFromLocalSettings", ex);
+            }
+            catch (NotSupportedException ex)
+            {
+                ReportInternalFailure("LoadMaxSizeFromLocalSettings", ex);
+            }
+            catch (SecurityException ex)
+            {
+                ReportInternalFailure("LoadMaxSizeFromLocalSettings", ex);
+            }
+        }
+
+        [Conditional("DEBUG")]
+        private static void ReportInternalFailure(string operation, Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"AppLogger.{operation} failed: {ex}");
         }
     }
 }

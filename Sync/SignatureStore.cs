@@ -1,7 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using YASN.Logging;
 
 namespace YASN.Sync
 {
@@ -19,9 +18,9 @@ namespace YASN.Sync
             _signatures = LoadFromFile(path);
         }
 
-        public string Get(string fileName)
+        public string? Get(string fileName)
         {
-            return fileName != null && _signatures.TryGetValue(fileName, out var hash) ? hash : null;
+            return fileName != null && _signatures.TryGetValue(fileName, out string? hash) ? hash : null;
         }
 
         public void Set(string fileName, string hash)
@@ -38,13 +37,13 @@ namespace YASN.Sync
 
         public void Save()
         {
-            var directory = Path.GetDirectoryName(_path);
+            string? directory = Path.GetDirectoryName(_path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
             }
 
-            var json = JsonSerializer.Serialize(_signatures);
+            string json = JsonSerializer.Serialize(_signatures);
             File.WriteAllText(_path, json);
         }
 
@@ -57,14 +56,25 @@ namespace YASN.Sync
                     return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 }
 
-                var json = File.ReadAllText(path);
-                var data = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                string json = File.ReadAllText(path);
+                Dictionary<string, string>? data = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
                 return data != null
                     ? new Dictionary<string, string>(data, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             }
-            catch
+            catch (IOException ex)
             {
+                AppLogger.Warn($"Failed to load signature store from '{path}': {ex.Message}");
+                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+            catch (JsonException ex)
+            {
+                AppLogger.Warn($"Failed to load signature store from '{path}': {ex.Message}");
+                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Warn($"Failed to load signature store from '{path}': {ex.Message}");
                 return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             }
         }

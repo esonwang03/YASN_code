@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace YASN.Settings
 {
     internal sealed class WebDavSettingFields
@@ -85,7 +87,7 @@ namespace YASN.Settings
                     Title = "Attachment Sync Threshold (MB)",
                     Description = "Files up to this size are copied and synced; larger files keep file-system paths.",
                     FieldType = SettingFieldType.Text,
-                    Value = AttachmentSyncSettings.DefaultAutoSyncThresholdMb.ToString(),
+                    Value = AttachmentSyncSettings.DefaultAutoSyncThresholdMb.ToString(CultureInfo.InvariantCulture),
                     ShouldSync = true
                 }
             };

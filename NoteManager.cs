@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -11,7 +12,7 @@ namespace YASN
     public class NoteManager
     {
         private static NoteManager _instance;
-        private static readonly object _lock = new object();
+        private static readonly Lock _lock = new Lock();
 
         private const string LegacySaveFileName = "notes.json";
         private const int CurrentSchemaVersion = 2;
@@ -44,7 +45,7 @@ namespace YASN
 
         public NoteData CreateNote(WindowLevel level = WindowLevel.Normal)
         {
-            var note = new NoteData
+            NoteData note = new NoteData
             {
                 Id = _nextId++,
                 Title = $"Note #{_nextId - 1}",
@@ -80,21 +81,21 @@ namespace YASN
             Notes.Remove(note);
             TryDeleteFile(AppPaths.GetNoteMarkdownPath(note.Id));
             TryDeleteFile(AppPaths.GetNoteHtmlCachePath(note.Id));
-            TryDeleteDirectory(Path.Combine(AppPaths.NoteAssetsRoot, note.Id.ToString()));
-            TryDeleteDirectory(Path.Combine(AppPaths.NoteBackgroundsRoot, note.Id.ToString()));
+            TryDeleteDirectory(Path.Combine(AppPaths.NoteAssetsRoot, note.Id.ToString(CultureInfo.InvariantCulture)));
+            TryDeleteDirectory(Path.Combine(AppPaths.NoteBackgroundsRoot, note.Id.ToString(CultureInfo.InvariantCulture)));
             Save();
         }
 
-        public void Save()
+        private void Save()
         {
             try
             {
-                var options = new JsonSerializerOptions
+                JsonSerializerOptions options = new JsonSerializerOptions
                 {
                     WriteIndented = true
                 };
 
-                var index = new NoteIndexDto
+                NoteIndexDto index = new NoteIndexDto
                 {
                     SchemaVersion = CurrentSchemaVersion,
                     UpdatedAtUtc = DateTime.UtcNow,
@@ -120,14 +121,26 @@ namespace YASN
 
                 WriteTextFile(IndexFilePath, JsonSerializer.Serialize(index, options));
 
-                foreach (var note in Notes)
+                foreach (NoteData note in Notes)
                 {
                     WriteTextFile(AppPaths.GetNoteMarkdownPath(note.Id), note.Content ?? string.Empty);
                 }
 
                 // AppLogger.Debug($"Saved {Notes.Count} notes to {IndexFilePath} (schema v{CurrentSchemaVersion})");
             }
-            catch (Exception ex)
+            catch (IOException ex)
+            {
+                AppLogger.Warn($"Failed to save notes: {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Warn($"Failed to save notes: {ex.Message}");
+            }
+            catch (JsonException ex)
+            {
+                AppLogger.Warn($"Failed to save notes: {ex.Message}");
+            }
+            catch (NotSupportedException ex)
             {
                 AppLogger.Warn($"Failed to save notes: {ex.Message}");
             }
@@ -151,24 +164,24 @@ namespace YASN
                     return;
                 }
 
-                var json = File.ReadAllText(IndexFilePath);
+                string json = File.ReadAllText(IndexFilePath);
                 var (items, schemaVersion) = ParseIndexItems(json);
-                if (items == null)
+                if (items.Length == 0 && schemaVersion == 0)
                 {
                     return;
                 }
 
-                var shouldRewrite = schemaVersion < CurrentSchemaVersion;
-                foreach (var item in items)
+                bool shouldRewrite = schemaVersion < CurrentSchemaVersion;
+                foreach (NoteMetadataDto item in items)
                 {
-                    var content = ReadMarkdownContent(item.Id);
+                    string content = ReadMarkdownContent(item.Id);
                     if (string.IsNullOrEmpty(content) && !string.IsNullOrEmpty(item.Content))
                     {
                         content = NormalizeLegacyContent(item.Content);
                         shouldRewrite = true;
                     }
 
-                    var note = new NoteData
+                    NoteData note = new NoteData
                     {
                         Id = item.Id,
                         Title = item.Title ?? $"Note #{item.Id}",
@@ -202,23 +215,39 @@ namespace YASN
 
                 AppLogger.Debug($"Loaded {Notes.Count} notes from {IndexFilePath}");
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
-                AppLogger.Debug($"Failed to load notes: {ex.Message}\nStack trace: {ex.StackTrace}");
+                AppLogger.Debug($"Failed to load notes: {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Debug($"Failed to load notes: {ex.Message}");
+            }
+            catch (JsonException ex)
+            {
+                AppLogger.Debug($"Failed to load notes: {ex.Message}");
+            }
+            catch (NotSupportedException ex)
+            {
+                AppLogger.Debug($"Failed to load notes: {ex.Message}");
             }
         }
 
         public void RestoreOpenNotes()
         {
-            var openNotes = Notes.Where(n => n.IsOpen).ToList();
-            foreach (var note in openNotes)
+            List<NoteData> openNotes = Notes.Where(n => n.IsOpen).ToList();
+            foreach (NoteData note in openNotes)
             {
                 try
                 {
-                    var window = new FloatingWindow(note);
+                    FloatingWindow window = new FloatingWindow(note);
                     window.Show();
                 }
-                catch (Exception ex)
+                catch (InvalidOperationException ex)
+                {
+                    AppLogger.Debug($"Failed to restore note window {note.Id}: {ex.Message}");
+                }
+                catch (Win32Exception ex)
                 {
                     AppLogger.Debug($"Failed to restore note window {note.Id}: {ex.Message}");
                 }
@@ -227,7 +256,7 @@ namespace YASN
 
         public void ReloadNotes()
         {
-            foreach (var note in Notes.Where(n => n.IsOpen).ToList())
+            foreach (NoteData note in Notes.Where(n => n.IsOpen).ToList())
             {
                 note.Window?.Close();
             }
@@ -239,13 +268,13 @@ namespace YASN
 
         private void TryMigrateLegacyStorage()
         {
-            var legacyCandidates = new[]
+            string[] legacyCandidates = new[]
             {
                 AppPaths.LegacyNotesFilePath,
                 Path.Combine(AppDomain.CurrentDomain.BaseDirectory, LegacySaveFileName)
             };
 
-            var legacyPath = legacyCandidates.FirstOrDefault(File.Exists);
+            string? legacyPath = legacyCandidates.FirstOrDefault(File.Exists);
             if (string.IsNullOrEmpty(legacyPath))
             {
                 return;
@@ -253,21 +282,21 @@ namespace YASN
 
             try
             {
-                var legacyJson = File.ReadAllText(legacyPath);
-                var legacyItems = JsonSerializer.Deserialize<LegacyNoteDataDto[]>(legacyJson);
+                string legacyJson = File.ReadAllText(legacyPath);
+                LegacyNoteDataDto[]? legacyItems = JsonSerializer.Deserialize<LegacyNoteDataDto[]>(legacyJson);
                 if (legacyItems == null || legacyItems.Length == 0)
                 {
                     return;
                 }
 
-                var backupPath = Path.Combine(AppPaths.DataDirectory, "notes.v1.backup.json");
+                string backupPath = Path.Combine(AppPaths.DataDirectory, "notes.v1.backup.json");
                 if (!File.Exists(backupPath))
                 {
                     WriteTextFile(backupPath, legacyJson);
                 }
 
                 Notes.Clear();
-                foreach (var item in legacyItems)
+                foreach (LegacyNoteDataDto item in legacyItems)
                 {
                     Notes.Add(new NoteData
                     {
@@ -292,7 +321,19 @@ namespace YASN
                 Save();
                 AppLogger.Debug($"Migrated {Notes.Count} legacy notes from {legacyPath}");
             }
-            catch (Exception ex)
+            catch (IOException ex)
+            {
+                AppLogger.Debug($"Failed to migrate legacy notes: {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Debug($"Failed to migrate legacy notes: {ex.Message}");
+            }
+            catch (JsonException ex)
+            {
+                AppLogger.Debug($"Failed to migrate legacy notes: {ex.Message}");
+            }
+            catch (NotSupportedException ex)
             {
                 AppLogger.Debug($"Failed to migrate legacy notes: {ex.Message}");
             }
@@ -302,24 +343,35 @@ namespace YASN
         {
             try
             {
-                using var doc = JsonDocument.Parse(json);
+                using JsonDocument doc = JsonDocument.Parse(json);
                 if (doc.RootElement.ValueKind == JsonValueKind.Array)
                 {
                     var notes = JsonSerializer.Deserialize<NoteMetadataDto[]>(json);
-                    return (notes, 1);
+                    return (notes ?? Array.Empty<NoteMetadataDto>(), 1);
                 }
 
                 if (doc.RootElement.ValueKind != JsonValueKind.Object)
                 {
-                    return (null, 0);
+                    return (Array.Empty<NoteMetadataDto>(), 0);
                 }
 
-                var index = JsonSerializer.Deserialize<NoteIndexDto>(json);
+                NoteIndexDto? index = JsonSerializer.Deserialize<NoteIndexDto>(json);
                 return (index?.Notes ?? Array.Empty<NoteMetadataDto>(), index?.SchemaVersion ?? 1);
             }
-            catch
+            catch (JsonException ex)
             {
-                return (null, 0);
+                AppLogger.Debug($"Failed to parse notes index: {ex.Message}");
+                return (Array.Empty<NoteMetadataDto>(), 0);
+            }
+            catch (NotSupportedException ex)
+            {
+                AppLogger.Debug($"Failed to parse notes index: {ex.Message}");
+                return (Array.Empty<NoteMetadataDto>(), 0);
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Debug($"Failed to parse notes index: {ex.Message}");
+                return (Array.Empty<NoteMetadataDto>(), 0);
             }
         }
 
@@ -327,11 +379,17 @@ namespace YASN
         {
             try
             {
-                var path = AppPaths.GetNoteMarkdownPath(noteId);
+                string path = AppPaths.GetNoteMarkdownPath(noteId);
                 return File.Exists(path) ? File.ReadAllText(path) : string.Empty;
             }
-            catch
+            catch (IOException ex)
             {
+                AppLogger.Debug($"Failed to read note content for note {noteId}: {ex.Message}");
+                return string.Empty;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Debug($"Failed to read note content for note {noteId}: {ex.Message}");
                 return string.Empty;
             }
         }
@@ -352,13 +410,13 @@ namespace YASN
         {
             try
             {
-                var sb = new StringBuilder();
-                var skipStack = new Stack<bool>();
-                var skipDestination = false;
-                var ucSkipCount = 1;
-                var pendingSkip = 0;
+                StringBuilder sb = new StringBuilder();
+                Stack<bool> skipStack = new Stack<bool>();
+                bool skipDestination = false;
+                int ucSkipCount = 1;
+                int pendingSkip = 0;
 
-                for (var i = 0; i < rtf.Length; i++)
+                for (int i = 0; i < rtf.Length; i++)
                 {
                     if (pendingSkip > 0)
                     {
@@ -366,7 +424,7 @@ namespace YASN
                         continue;
                     }
 
-                    var c = rtf[i];
+                    char c = rtf[i];
                     if (c == '{')
                     {
                         skipStack.Push(skipDestination);
@@ -386,7 +444,7 @@ namespace YASN
                             break;
                         }
 
-                        var next = rtf[++i];
+                        char next = rtf[++i];
                         if (next == '\\' || next == '{' || next == '}')
                         {
                             if (!skipDestination)
@@ -407,8 +465,8 @@ namespace YASN
                         {
                             if (i + 2 < rtf.Length)
                             {
-                                var hex = rtf.Substring(i + 1, 2);
-                                if (byte.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b) && !skipDestination)
+                                string hex = rtf.Substring(i + 1, 2);
+                                if (byte.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte b) && !skipDestination)
                                 {
                                     sb.Append((char)b);
                                 }
@@ -436,35 +494,35 @@ namespace YASN
                             continue;
                         }
 
-                        var wordStart = i;
+                        int wordStart = i;
                         while (i < rtf.Length && char.IsLetter(rtf[i]))
                         {
                             i++;
                         }
 
-                        var word = rtf.Substring(wordStart, i - wordStart);
-                        var sign = 1;
+                        string word = rtf.Substring(wordStart, i - wordStart);
+                        int sign = 1;
                         if (i < rtf.Length && (rtf[i] == '-' || rtf[i] == '+'))
                         {
                             sign = rtf[i] == '-' ? -1 : 1;
                             i++;
                         }
 
-                        var numStart = i;
+                        int numStart = i;
                         while (i < rtf.Length && char.IsDigit(rtf[i]))
                         {
                             i++;
                         }
 
-                        var hasParam = i > numStart;
-                        var param = 0;
+                        bool hasParam = i > numStart;
+                        int param = 0;
                         if (hasParam)
                         {
                             int.TryParse(rtf.Substring(numStart, i - numStart), out param);
                             param *= sign;
                         }
 
-                        var hasDelimiterSpace = i < rtf.Length && rtf[i] == ' ';
+                        bool hasDelimiterSpace = i < rtf.Length && rtf[i] == ' ';
                         if (!hasDelimiterSpace)
                         {
                             i--;
@@ -492,7 +550,7 @@ namespace YASN
                             case "u":
                                 if (hasParam)
                                 {
-                                    var codePoint = param;
+                                    int codePoint = param;
                                     if (codePoint < 0)
                                     {
                                         codePoint += 65536;
@@ -518,17 +576,23 @@ namespace YASN
                     }
                 }
 
-                return sb.ToString().Replace("\r\n", "\n").TrimEnd();
+                return sb.ToString().Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd();
             }
-            catch
+            catch (ArgumentOutOfRangeException ex)
             {
+                AppLogger.Debug($"Failed to convert RTF note content: {ex.Message}");
+                return rtf;
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Debug($"Failed to convert RTF note content: {ex.Message}");
                 return rtf;
             }
         }
 
         private static void WriteTextFile(string path, string content)
         {
-            var directory = Path.GetDirectoryName(path);
+            string? directory = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(directory))
             {
                 Directory.CreateDirectory(directory);
@@ -546,9 +610,13 @@ namespace YASN
                     File.Delete(path);
                 }
             }
-            catch
+            catch (IOException ex)
             {
-                // ignored
+                AppLogger.Debug($"Failed to delete file '{path}': {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Debug($"Failed to delete file '{path}': {ex.Message}");
             }
         }
 
@@ -561,9 +629,13 @@ namespace YASN
                     Directory.Delete(path, true);
                 }
             }
-            catch
+            catch (IOException ex)
             {
-                // ignored
+                AppLogger.Debug($"Failed to delete directory '{path}': {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLogger.Debug($"Failed to delete directory '{path}': {ex.Message}");
             }
         }
 

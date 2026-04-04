@@ -9,7 +9,7 @@ namespace YASN.Settings
     {
         internal static EditorSettingFields Create()
         {
-            var enterModeField = new SettingField
+            SettingField enterModeField = new SettingField
             {
                 Key = EditorDisplayModeSettings.SettingKey,
                 Title = "Edit Mode",
