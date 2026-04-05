@@ -84,6 +84,22 @@
                                                           Tag="{Binding}"
                                                           CommandParameter="BottomMost"
                                                           Click="ChangeNoteLevel_Click"/>
+                                                <Separator/>
+                                                <MenuItem Header="Quick Move"
+                                                          Tag="{Binding}"
+                                                          Click="QuickMoveNote_Click"/>
+                                                <MenuItem Header="Quick Move + Resize"
+                                                          Tag="{Binding}"
+                                                          Click="QuickMoveAndResizeNote_Click"/>
+                                                <MenuItem Header="Quick Resize"
+                                                          Tag="{Binding}"
+                                                          Click="QuickResizeNote_Click"/>
+                                                <MenuItem Header="Move To Mouse Monitor"
+                                                          Tag="{Binding}"
+                                                          Click="MoveNoteToMouseMonitor_Click"/>
+                                                <MenuItem Header="Restore Default Size"
+                                                          Tag="{Binding}"
+                                                          Click="RestoreDefaultSizeForNote_Click"/>
                                             </ContextMenu>
                                         </Border.ContextMenu>
                                         <Grid>
@@ -211,6 +227,16 @@
                             Margin="0,0,0,10"
                             Click="Settings_Click"
                             Background="#9B59B6"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontSize="13"
+                            Cursor="Hand"/>
+
+                    <Button Content="Restore Selected Default Size"
+                            Padding="12,8"
+                            Margin="0,0,0,10"
+                            Click="RestoreSelectedDefaultSize_Click"
+                            Background="#E67E22"
                             Foreground="White"
                             BorderThickness="0"
                             FontSize="13"

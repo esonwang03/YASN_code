@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using YASN.Logging;
+using YASN.WindowLayout;
 using MessageBox = ModernWpf.MessageBox;
 
 namespace YASN
@@ -133,6 +134,94 @@ namespace YASN
             {
                 noteData.Window.Activate();
             }
+        }
+
+        private FloatingWindow EnsureNoteWindow(NoteData noteData)
+        {
+            OpenNote(noteData);
+            return noteData.Window!;
+        }
+
+        private static void RestoreDefaultSize(NoteData noteData)
+        {
+            if (noteData == null)
+            {
+                return;
+            }
+
+            noteData.Width = NoteManager.DefaultNoteWidth;
+            noteData.Height = NoteManager.DefaultNoteHeight;
+            NoteManager.Instance.UpdateNote(noteData);
+
+            if (noteData.Window != null)
+            {
+                FloatingWindowQuickActions.RestoreDefaultSize(noteData.Window);
+            }
+        }
+
+        private void QuickMoveNote_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.MenuItem menuItem || menuItem.Tag is not NoteData noteData)
+            {
+                return;
+            }
+
+            FloatingWindowQuickActions.ShowQuickMove(EnsureNoteWindow(noteData));
+        }
+
+        private void QuickMoveAndResizeNote_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.MenuItem menuItem || menuItem.Tag is not NoteData noteData)
+            {
+                return;
+            }
+
+            FloatingWindowQuickActions.ShowQuickMoveAndResize(EnsureNoteWindow(noteData));
+        }
+
+        private void QuickResizeNote_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.MenuItem menuItem || menuItem.Tag is not NoteData noteData)
+            {
+                return;
+            }
+
+            FloatingWindowQuickActions.ShowQuickResize(EnsureNoteWindow(noteData));
+        }
+
+        private void MoveNoteToMouseMonitor_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.MenuItem menuItem || menuItem.Tag is not NoteData noteData)
+            {
+                return;
+            }
+
+            FloatingWindowQuickActions.MoveToMouseMonitor(EnsureNoteWindow(noteData));
+        }
+
+        private void RestoreDefaultSizeForNote_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.MenuItem menuItem || menuItem.Tag is not NoteData noteData)
+            {
+                return;
+            }
+
+            RestoreDefaultSize(noteData);
+        }
+
+        private void RestoreSelectedDefaultSize_Click(object sender, RoutedEventArgs e)
+        {
+            if (WindowListView.SelectedItem is not NoteData noteData)
+            {
+                MessageBox.Show(
+                    "Select a note first.",
+                    "Restore Default Size",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            RestoreDefaultSize(noteData);
         }
 
         private void HideToTray_Click(object sender, RoutedEventArgs e)

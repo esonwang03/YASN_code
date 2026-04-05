@@ -17,6 +17,7 @@ using Markdig;
 using Microsoft.Web.WebView2.Core;
 using YASN.Logging;
 using YASN.Settings;
+using YASN.WindowLayout;
 using Application = System.Windows.Application;
 using Brushes = System.Windows.Media.Brushes;
 using Button = System.Windows.Controls.Button;
@@ -187,7 +188,7 @@ namespace YASN
             _previewDebounceTimer.Tick += async (_, _) =>
             {
                 _previewDebounceTimer.Stop();
-                await RenderPreviewAsync().ConfigureAwait(false);
+                await RenderPreviewAsync();
             };
 
             RefreshChromeBehaviorFromSettings();
@@ -675,7 +676,7 @@ namespace YASN
             try
             {
                 PreviewWebView.DefaultBackgroundColor = DrawingColor.Transparent;
-                await PreviewWebView.EnsureCoreWebView2Async().ConfigureAwait(false);
+                await PreviewWebView.EnsureCoreWebView2Async();
                 PreviewWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 PreviewWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
 #if DEBUG
@@ -683,7 +684,7 @@ namespace YASN
 #else
                 PreviewWebView.CoreWebView2.Settings.AreDevToolsEnabled = false;
 #endif
-                await PreviewWebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(PreviewRightClickBridgeScript).ConfigureAwait(false);
+                await PreviewWebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(PreviewRightClickBridgeScript);
                 PreviewWebView.CoreWebView2.ContextMenuRequested += PreviewCoreWebView2_ContextMenuRequested;
                 PreviewWebView.CoreWebView2.NavigationStarting += PreviewCoreWebView2_NavigationStarting;
                 PreviewWebView.CoreWebView2.WebMessageReceived += PreviewCoreWebView2_WebMessageReceived;
@@ -695,7 +696,7 @@ namespace YASN
 
                 _previewReady = true;
                 ApplyPreviewClip();
-                await RenderPreviewAsync().ConfigureAwait(false);
+                await RenderPreviewAsync();
             }
             catch (COMException ex)
             {
@@ -728,7 +729,7 @@ namespace YASN
                                              ContentTextBox.IsKeyboardFocusWithin;
                 double scrollRatio = shouldTrackEditorCaret
                     ? GetEditorCaretScrollRatio()
-                    : await CapturePreviewScrollRatioAsync().ConfigureAwait(false);
+                    : await CapturePreviewScrollRatioAsync();
                 _hasPendingPreviewScrollRestore = scrollRatio >= 0;
                 _pendingPreviewScrollRatio = scrollRatio;
 
@@ -740,7 +741,7 @@ namespace YASN
 
                 if (_isPreviewDocumentReady)
                 {
-                    await UpdatePreviewDocumentAsync(htmlBody, NoteData.IsDarkMode, styleHref, scrollRatio).ConfigureAwait(false);
+                    await UpdatePreviewDocumentAsync(htmlBody, NoteData.IsDarkMode, styleHref, scrollRatio);
                     _hasPendingPreviewScrollRestore = false;
                     return;
                 }
@@ -778,7 +779,7 @@ namespace YASN
                 AppLogger.Warn($"Failed to render markdown preview: {ex.Message}");
             }
 
-            await Task.CompletedTask.ConfigureAwait(false);
+            await Task.CompletedTask;
         }
 
         private async Task UpdatePreviewDocumentAsync(string htmlBody, bool darkMode, string styleHref, double scrollRatio)
@@ -795,7 +796,7 @@ namespace YASN
             string ratioLiteral = scrollRatio.ToString("0.########", CultureInfo.InvariantCulture);
 
             string script = $"(() => {{ const html = {htmlJson}; const theme = {themeJson}; const styleHref = {styleJson}; const ratio = {ratioLiteral}; const stickToBottom = ratio >= 0.999; const root = document.scrollingElement || document.documentElement || document.body; const page = document.getElementById('page'); if (!root || !page) return; document.body.className = theme; const style = document.getElementById('yasn-style'); if (style && style.getAttribute('href') !== styleHref) style.setAttribute('href', styleHref); page.innerHTML = html; const apply = () => {{ const max = Math.max(0, root.scrollHeight - root.clientHeight); const target = stickToBottom ? max : Math.max(0, Math.min(1, ratio)) * max; if (typeof root.scrollTo === 'function') {{ root.scrollTo({{ top: target, behavior: stickToBottom ? 'auto' : 'smooth' }}); }} else {{ root.scrollTop = target; }} }}; apply(); requestAnimationFrame(apply); setTimeout(apply, 80); }})();";
-            await PreviewWebView.ExecuteScriptAsync(script).ConfigureAwait(false);
+            await PreviewWebView.ExecuteScriptAsync(script);
         }
 
         private double GetEditorCaretScrollRatio()
@@ -848,7 +849,7 @@ namespace YASN
             try
             {
                 string script = "(() => { const root = document.scrollingElement || document.documentElement || document.body; if (!root) return -1; const max = Math.max(0, root.scrollHeight - root.clientHeight); if (max <= 0) return 0; const top = root.scrollTop || window.scrollY || 0; return top / max; })();";
-                string raw = await PreviewWebView.ExecuteScriptAsync(script).ConfigureAwait(false);
+                string raw = await PreviewWebView.ExecuteScriptAsync(script);
                 if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out double ratio))
                 {
                     return -1;
@@ -897,7 +898,7 @@ namespace YASN
             {
                 string ratioLiteral = _pendingPreviewScrollRatio.ToString("0.########", CultureInfo.InvariantCulture);
                 string script = $"(() => {{ const ratio = {ratioLiteral}; const stickToBottom = ratio >= 0.999; const root = document.scrollingElement || document.documentElement || document.body; if (!root) return; const apply = () => {{ const max = Math.max(0, root.scrollHeight - root.clientHeight); const target = stickToBottom ? max : max * Math.max(0, Math.min(1, ratio)); if (typeof root.scrollTo === 'function') {{ root.scrollTo({{ top: target, behavior: stickToBottom ? 'auto' : 'smooth' }}); }} else {{ root.scrollTop = target; }} }}; apply(); requestAnimationFrame(apply); setTimeout(apply, 80); }})();";
-                await PreviewWebView.ExecuteScriptAsync(script).ConfigureAwait(false);
+                await PreviewWebView.ExecuteScriptAsync(script);
             }
             catch (COMException ex)
             {
@@ -1367,7 +1368,7 @@ namespace YASN
             _hwnd = new WindowInteropHelper(this).Handle;
             RefreshTaskbarVisibilityFromSettings();
             ApplyWindowLevel();
-            await InitializePreviewAsync().ConfigureAwait(false);
+            await InitializePreviewAsync();
             SchedulePreviewRender();
             UpdateChromeBarsByMouseState();
         }
@@ -1618,6 +1619,17 @@ namespace YASN
             }
         }
 
+        private void TitleBar_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement placementTarget)
+            {
+                return;
+            }
+
+            ShowTitleBarContextMenu(placementTarget);
+            e.Handled = true;
+        }
+
         private void MinimizeButton_Click(object sender, RoutedEventArgs e)
         {
             if (NoteData.Level != WindowLevel.Normal)
@@ -1632,15 +1644,26 @@ namespace YASN
 
         private void MoreOptions_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is not Button button)
+            if (sender is not FrameworkElement placementTarget)
             {
                 return;
             }
 
+            ShowTitleBarContextMenu(placementTarget);
+        }
+
+        private void ShowTitleBarContextMenu(FrameworkElement placementTarget)
+        {
             ContextMenu contextMenu = new ContextMenu();
 
             MenuItem renameTitleItem = new MenuItem { Header = "Edit Title" };
             renameTitleItem.Click += (_, _) => PromptRenameTitle();
+
+            MenuItem quickMoveItem = new MenuItem { Header = "Quick Move" };
+            quickMoveItem.Click += (_, _) => FloatingWindowQuickActions.ShowQuickMove(this);
+
+            MenuItem quickMoveAndResizeItem = new MenuItem { Header = "Quick Move + Resize" };
+            quickMoveAndResizeItem.Click += (_, _) => FloatingWindowQuickActions.ShowQuickMoveAndResize(this);
 
             MenuItem showMainWindowItem = new MenuItem { Header = "Open MainWindow" };
             showMainWindowItem.Click += (_, _) =>
@@ -1698,7 +1721,7 @@ namespace YASN
             changeTitleBarColorItem.Click += (_, _) => ShowColorPicker();
 
             MenuItem backgroundImageItem = new MenuItem { Header = "Background Image" };
-            backgroundImageItem.Click += (_, _) => ShowBackgroundImageMenu(button);
+            backgroundImageItem.Click += (_, _) => ShowBackgroundImageMenu(placementTarget);
 
             MenuItem aboutItem = new MenuItem { Header = "About" };
             aboutItem.Click += (_, _) =>
@@ -1712,6 +1735,9 @@ namespace YASN
 
             contextMenu.Items.Add(renameTitleItem);
             contextMenu.Items.Add(new Separator());
+            contextMenu.Items.Add(quickMoveItem);
+            contextMenu.Items.Add(quickMoveAndResizeItem);
+            contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(showMainWindowItem);
             contextMenu.Items.Add(createNoteItem);
             contextMenu.Items.Add(createTopMostNoteItem);
@@ -1724,8 +1750,8 @@ namespace YASN
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(aboutItem);
 
-            contextMenu.PlacementTarget = button;
-            contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            contextMenu.PlacementTarget = placementTarget;
+            contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
             contextMenu.IsOpen = true;
         }
 
@@ -1737,6 +1763,11 @@ namespace YASN
         private void ThemeToggle_Click(object sender, RoutedEventArgs e)
         {
             ToggleTheme();
+        }
+
+        private void QuickResizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            FloatingWindowQuickActions.ShowQuickResize(this);
         }
 
         private void SendToBottom_Click(object sender, RoutedEventArgs e)
@@ -2113,7 +2144,7 @@ namespace YASN
             {
                 string themeClass = isDarkMode ? "theme-dark" : "theme-light";
                 string script = $"(() => {{ if (document.body) document.body.className = '{themeClass}'; }})();";
-                await PreviewWebView.ExecuteScriptAsync(script).ConfigureAwait(false);
+                await PreviewWebView.ExecuteScriptAsync(script);
             }
             catch (COMException ex)
             {
@@ -2161,6 +2192,19 @@ namespace YASN
                 MarkdownToolbar.Background = new SolidColorBrush(Color.FromArgb(0x30, 0xE0, 0xE0, 0xE0));
                 ContentTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0x2C, 0x3E, 0x50));
                 ContentTextBox.Background = new SolidColorBrush(Color.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
+            }
+        }
+
+        internal void ReapplyWindowLevelAfterQuickLayout()
+        {
+            switch (NoteData.Level)
+            {
+                case WindowLevel.BottomMost:
+                    ApplyWindowLevel();
+                    break;
+                case WindowLevel.TopMost:
+                    Topmost = true;
+                    break;
             }
         }
 
@@ -2268,7 +2312,7 @@ namespace YASN
             colorPickerWindow.ShowDialog();
         }
 
-        private void ShowBackgroundImageMenu(Button anchorButton)
+        private void ShowBackgroundImageMenu(FrameworkElement anchorElement)
         {
             ContextMenu contextMenu = new ContextMenu();
 
@@ -2297,8 +2341,8 @@ namespace YASN
             contextMenu.Items.Add(clearBackgroundItem);
             contextMenu.Items.Add(adjustOpacityItem);
 
-            contextMenu.PlacementTarget = anchorButton;
-            contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            contextMenu.PlacementTarget = anchorElement;
+            contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
             contextMenu.IsOpen = true;
         }
 
@@ -2463,7 +2507,7 @@ namespace YASN
 
         private async void RefreshPreview_Click(object sender, RoutedEventArgs e)
         {
-            await RenderPreviewAsync().ConfigureAwait(false);
+            await RenderPreviewAsync();
         }
 
         // For Editor mode switching in title bar

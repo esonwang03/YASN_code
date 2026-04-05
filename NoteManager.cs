@@ -16,6 +16,8 @@ namespace YASN
 
         private const string LegacySaveFileName = "notes.json";
         private const int CurrentSchemaVersion = 2;
+        public const double DefaultNoteWidth = 760;
+        public const double DefaultNoteHeight = 460;
 
         private static string IndexFilePath => AppPaths.NotesIndexPath;
 
@@ -53,8 +55,8 @@ namespace YASN
                 Level = level,
                 Left = 100,
                 Top = 100,
-                Width = 760,
-                Height = 460,
+                Width = DefaultNoteWidth,
+                Height = DefaultNoteHeight,
                 IsOpen = false
             };
 
