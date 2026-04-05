@@ -122,3 +122,4 @@ $tf/
 *.swo
 
 .dotnet_cli/
+.dotnet/

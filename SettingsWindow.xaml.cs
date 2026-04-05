@@ -388,80 +388,67 @@ namespace YASN
             Logging.AppLogger.Debug($"Auto-start {(field.BoolValue ? "enabled" : "disabled")}");
         }
 
+        /// <summary>
+        /// Executes a settings action and marshals all WPF state changes back onto the UI dispatcher.
+        /// </summary>
         private async void ActionButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button && button.Tag is SettingAction action)
+            if (sender is not Button button || button.Tag is not SettingAction action)
             {
-                button.IsEnabled = false;
-                try
-                {
-                    var module = FindModuleForAction(action);
-                    if (module != null)
-                    {
-                        module.Status = "执行中...";
-                    }
-
-                    string message = await ((action.ExecuteAsync?.Invoke() ?? Task.FromResult(string.Empty)).ConfigureAwait(false));
-
-                    if (module != null)
-                    {
-                        module.Status = message;
-                    }
-                }
-                catch (HttpRequestException ex)
-                {
-                    SettingModule? module = FindModuleForAction(action);
-                    if (module != null)
-                    {
-                        module.Status = $"操作失败: {ex.Message}";
-                    }
-                    Logging.AppLogger.Warn($"Settings action '{action.Key}' failed: {ex.Message}");
-                }
-                catch (IOException ex)
-                {
-                    SettingModule? module = FindModuleForAction(action);
-                    if (module != null)
-                    {
-                        module.Status = $"鎿嶄綔澶辫触: {ex.Message}";
-                    }
-
-                    Logging.AppLogger.Warn($"Settings action '{action.Key}' failed: {ex.Message}");
-                }
-                catch (InvalidOperationException ex)
-                {
-                    SettingModule? module = FindModuleForAction(action);
-                    if (module != null)
-                    {
-                        module.Status = $"鎿嶄綔澶辫触: {ex.Message}";
-                    }
-
-                    Logging.AppLogger.Warn($"Settings action '{action.Key}' failed: {ex.Message}");
-                }
-                catch (TaskCanceledException ex)
-                {
-                    SettingModule? module = FindModuleForAction(action);
-                    if (module != null)
-                    {
-                        module.Status = $"鎿嶄綔澶辫触: {ex.Message}";
-                    }
-
-                    Logging.AppLogger.Warn($"Settings action '{action.Key}' failed: {ex.Message}");
-                }
-                catch (UnauthorizedAccessException ex)
-                {
-                    SettingModule? module = FindModuleForAction(action);
-                    if (module != null)
-                    {
-                        module.Status = $"鎿嶄綔澶辫触: {ex.Message}";
-                    }
-
-                    Logging.AppLogger.Warn($"Settings action '{action.Key}' failed: {ex.Message}");
-                }
-                finally
-                {
-                    button.IsEnabled = true;
-                }
+                return;
             }
+
+            SettingModule? module = FindModuleForAction(action);
+            await SetActionButtonEnabledAsync(button, false).ConfigureAwait(true);
+
+            try
+            {
+                await SetModuleStatusAsync(module, "执行中...").ConfigureAwait(true);
+                string message = await (action.ExecuteAsync?.Invoke() ?? Task.FromResult(string.Empty)).ConfigureAwait(true);
+                await SetModuleStatusAsync(module, message).ConfigureAwait(true);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or TaskCanceledException or UnauthorizedAccessException)
+            {
+                await SetModuleStatusAsync(module, $"操作失败: {ex.Message}").ConfigureAwait(true);
+                Logging.AppLogger.Warn($"Settings action '{action.Key}' failed: {ex.Message}");
+            }
+            finally
+            {
+                await SetActionButtonEnabledAsync(button, true).ConfigureAwait(true);
+            }
+        }
+
+        /// <summary>
+        /// Updates the action button state on the owning dispatcher to avoid cross-thread access violations.
+        /// </summary>
+        private static Task SetActionButtonEnabledAsync(Button button, bool isEnabled)
+        {
+            if (button.Dispatcher.CheckAccess())
+            {
+                button.IsEnabled = isEnabled;
+                return Task.CompletedTask;
+            }
+
+            return button.Dispatcher.InvokeAsync(() => button.IsEnabled = isEnabled).Task;
+        }
+
+        /// <summary>
+        /// Updates the module status on the window dispatcher because the status is bound to WPF UI elements.
+        /// </summary>
+        private Task SetModuleStatusAsync(SettingModule? module, string status)
+        {
+            if (module == null)
+            {
+                return Task.CompletedTask;
+            }
+
+            if (Dispatcher.CheckAccess())
+            {
+                module.Status = status;
+                return Task.CompletedTask;
+            }
+
+            return Dispatcher.InvokeAsync(() => module.Status = status).Task;
         }
 
         private SettingModule? FindModuleForAction(SettingAction action)
