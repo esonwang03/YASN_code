@@ -1619,7 +1619,7 @@ namespace YASN
             }
         }
 
-        private void TitleBar_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        private void TitleBar_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (sender is not FrameworkElement placementTarget)
             {
@@ -1640,17 +1640,6 @@ namespace YASN
             WindowState = WindowState.Minimized;
         }
 
-
-
-        private void MoreOptions_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not FrameworkElement placementTarget)
-            {
-                return;
-            }
-
-            ShowTitleBarContextMenu(placementTarget);
-        }
 
         private void ShowTitleBarContextMenu(FrameworkElement placementTarget)
         {

@@ -227,29 +227,23 @@
                         Height="40"
                         Background="#E6D4C5E0"
                         CornerRadius="5,5,0,0"
-                        PreviewMouseRightButtonUp="TitleBar_MouseRightButtonUp"
-                        MouseRightButtonUp="TitleBar_MouseRightButtonUp">
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                        MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"
+                        MouseRightButtonDown="TitleBar_MouseRightButtonDown">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-
-                        <Border Grid.Column="0"
-                                Background="Transparent"
-                                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"
-                                PreviewMouseRightButtonUp="TitleBar_MouseRightButtonUp"
-                                MouseRightButtonUp="TitleBar_MouseRightButtonUp">
-                            <TextBlock x:Name="StatusText"
-                                       Text="Note #1"
-                                       PreviewMouseRightButtonUp="TitleBar_MouseRightButtonUp"
-                                       MouseRightButtonUp="TitleBar_MouseRightButtonUp"
-                                       VerticalAlignment="Center"
-                                       HorizontalAlignment="Center"
-                                       Foreground="#2C3E50"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"/>
-                        </Border>
+                        
+                        <TextBlock Grid.Column="0"
+                                   x:Name="StatusText"
+                                   Text="Note #1"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   Foreground="#2C3E50"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"/>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                             <Button x:Name="EditorModeButton" Content="&#xE70F;" ToolTip="Switch Editor Mode" Style="{StaticResource IconTitleBarButtonStyle}" Click="EditorModeButton_Click"/>
                             <Button x:Name="ThemeToggleButton" Content="&#xE706;" ToolTip="Switch Theme" Style="{StaticResource IconTitleBarButtonStyle}" Click="ThemeToggle_Click"/>
