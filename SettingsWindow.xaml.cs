@@ -137,7 +137,7 @@ namespace YASN
 
                 _settingsStore.PersistField(field);
                 ApplyPreviewStyleToOpenWindows();
-                Logging.AppLogger.Info($"Preview style switched to '{resolved}'.");
+                Logging.AppLogger.Debug($"Preview style switched to '{resolved}'.");
             };
             if (previewStyleNormalized)
             {
@@ -146,14 +146,14 @@ namespace YASN
             editorFields.EnterModeField.OnChanged = field =>
             {
                 _settingsStore.PersistField(field);
-                Logging.AppLogger.Info($"Editor enter mode set to '{field.Value}'.");
+                Logging.AppLogger.Debug($"Editor enter mode set to '{field.Value}'.");
             };
             if (editorModeNormalized)
             {
                 _settingsStore.PersistField(editorFields.EnterModeField);
             }
 
-            foreach (var field in new[]
+            foreach (SettingField field in new[]
                      {
                          webDavFields.ServerUrlField,
                          webDavFields.UserField,
@@ -258,8 +258,8 @@ namespace YASN
             SaveFileDialog dialog = new SaveFileDialog
             {
                 Title = "Export Settings",
-                Filter = "YASN Settings (*.yasnsettings.json)|*.yasnsettings.json|JSON (*.json)|*.json|All Files (*.*)|*.*",
-                FileName = $"yasn-settings-{DateTime.Now:yyyyMMdd-HHmmss}.yasnsettings.json"
+                Filter = "YASN Settings (*.json)|*.json|JSON (*.json)|*.json|All Files (*.*)|*.*",
+                FileName = $"yasn-settings-{DateTime.Now:yyyyMMdd-HHmmss}.json"
             };
 
             if (dialog.ShowDialog(this) != true)
@@ -276,7 +276,7 @@ namespace YASN
             OpenFileDialog dialog = new OpenFileDialog
             {
                 Title = "Import Settings",
-                Filter = "YASN Settings (*.yasnsettings.json)|*.yasnsettings.json|JSON (*.json)|*.json|All Files (*.*)|*.*",
+                Filter = "YASN Settings (*.json)|*.json|JSON (*.json)|*.json|All Files (*.*)|*.*",
                 CheckFileExists = true,
                 Multiselect = false
             };
@@ -503,11 +503,11 @@ namespace YASN
             if (int.TryParse(value, out int kb) && kb > 0)
             {
                 Logging.AppLogger.SetMaxSizeKb(kb);
-                Logging.AppLogger.Debug($"日志大小限制设置为 {kb} KB");
+                Logging.AppLogger.Debug($"Log file size set to {kb} KB");
             }
             else
             {
-                Logging.AppLogger.Warn("无效的日志大小，需要为正整数 KB");
+                Logging.AppLogger.Warn("Invalid log file size KB");
             }
         }
 
@@ -515,7 +515,7 @@ namespace YASN
         {
             int seconds = ParseSyncInterval(value);
             App.SyncManager?.SetIntervalSeconds(seconds);
-            Logging.AppLogger.Debug($"同步间隔设为 {seconds} 秒");
+            Logging.AppLogger.Debug($"Sync interval set to {seconds} s");
         }
 
         private static int ParseSyncInterval(string value)
@@ -526,7 +526,7 @@ namespace YASN
                 return Math.Max(10, seconds);
             }
 
-            Logging.AppLogger.Warn("同步间隔需要为正整数秒，已回落至默认值");
+            Logging.AppLogger.Warn("Int seconds needed");
             return defaultSeconds;
         }
 

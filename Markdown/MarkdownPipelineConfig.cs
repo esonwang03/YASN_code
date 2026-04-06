@@ -1,7 +1,7 @@
 using Markdig;
 using YASN.Markdown.Extensions;
 
-namespace YASN
+namespace YASN.Markdown
 {
     internal static class MarkdownPipelineConfig
     {

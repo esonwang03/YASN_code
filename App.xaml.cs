@@ -1,8 +1,10 @@
 using System.IO;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Threading;
 using YASN.Logging;
 using YASN.Sync;
+using YASN.Sync.WebDav;
 using MessageBox = ModernWpf.MessageBox;
 
 namespace YASN
@@ -30,6 +32,7 @@ namespace YASN
 
             // Initialize WebDAV sync manager
             SyncManager = new SyncManager();
+            _ = InitializeSavedSyncConfigurationAsync();
             PreviewStyleManager.EnsureInitialized();
             AppLogger.Info("YASN Started");
 
@@ -197,6 +200,34 @@ namespace YASN
 
             _notifyIcon?.Dispose();
             Current.Shutdown();
+        }
+
+        /// <summary>
+        /// Restores persisted WebDAV sync configuration after the app starts.
+        /// </summary>
+        private static async Task InitializeSavedSyncConfigurationAsync()
+        {
+            if (SyncManager == null)
+            {
+                return;
+            }
+
+            try
+            {
+                await WebDavSyncBootstrapper.TryConfigureFromSavedSettingsAsync(SyncManager).ConfigureAwait(false);
+            }
+            catch (HttpRequestException ex)
+            {
+                AppLogger.Warn($"Failed to initialize WebDAV sync at startup: {ex.Message}");
+            }
+            catch (IOException ex)
+            {
+                AppLogger.Warn($"Failed to initialize WebDAV sync at startup: {ex.Message}");
+            }
+            catch (TaskCanceledException ex)
+            {
+                AppLogger.Warn($"Failed to initialize WebDAV sync at startup: {ex.Message}");
+            }
         }
     }
 }

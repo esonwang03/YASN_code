@@ -16,6 +16,7 @@ using System.Windows.Threading;
 using Markdig;
 using Microsoft.Web.WebView2.Core;
 using YASN.Logging;
+using YASN.Markdown;
 using YASN.Settings;
 using YASN.WindowLayout;
 using Application = System.Windows.Application;

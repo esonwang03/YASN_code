@@ -91,7 +91,7 @@ namespace YASN
                 try
                 {
                     string json = File.ReadAllText(LocalSettingsPath);
-                    var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                    Dictionary<string, string>? dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
                     if (dict != null && dict.TryGetValue(DataDirectorySettingKey, out string? value) &&
                         TryNormalizeDataDirectory(value, out string? configuredPath, out _))
                     {

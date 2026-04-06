@@ -92,41 +92,8 @@ namespace YASN
         {
             try
             {
-                JsonSerializerOptions options = new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                };
-
-                NoteIndexDto index = new NoteIndexDto
-                {
-                    SchemaVersion = CurrentSchemaVersion,
-                    UpdatedAtUtc = DateTime.UtcNow,
-                    Notes = Notes.Select(n => new NoteMetadataDto
-                    {
-                        Id = n.Id,
-                        Title = n.Title,
-                        Level = n.Level,
-                        Left = n.Left,
-                        Top = n.Top,
-                        Width = n.Width,
-                        Height = n.Height,
-                        IsDarkMode = n.IsDarkMode,
-                        LastEditorDisplayMode = n.LastEditorDisplayMode.HasValue
-                            ? EditorDisplayModeSettings.ToValue(n.LastEditorDisplayMode.Value)
-                            : null,
-                        TitleBarColor = n.TitleBarColor,
-                        BackgroundImagePath = n.BackgroundImagePath,
-                        BackgroundImageOpacity = n.BackgroundImageOpacity,
-                        IsOpen = n.IsOpen
-                    }).ToArray()
-                };
-
-                WriteTextFile(IndexFilePath, JsonSerializer.Serialize(index, options));
-
-                foreach (NoteData note in Notes)
-                {
-                    WriteTextFile(AppPaths.GetNoteMarkdownPath(note.Id), note.Content ?? string.Empty);
-                }
+                WriteIndexFile();
+                WriteMarkdownFiles();
 
                 // AppLogger.Debug($"Saved {Notes.Count} notes to {IndexFilePath} (schema v{CurrentSchemaVersion})");
             }
@@ -268,6 +235,54 @@ namespace YASN
             RestoreOpenNotes();
         }
 
+        /// <summary>
+        /// Rebuilds the note index so every local markdown file has a corresponding index entry.
+        /// </summary>
+        /// <returns>The repair result describing whether the index changed.</returns>
+        public NoteIndexRepairResult RepairIndexFromLocalMarkdownFiles()
+        {
+            Dictionary<int, NoteData> existingNotes = Notes.ToDictionary(note => note.Id);
+            List<NoteData> recoveredNotes = new List<NoteData>();
+
+            foreach (int noteId in EnumerateLocalMarkdownNoteIds())
+            {
+                if (existingNotes.ContainsKey(noteId))
+                {
+                    continue;
+                }
+
+                recoveredNotes.Add(CreateRecoveredNote(noteId));
+            }
+
+            if (recoveredNotes.Count == 0)
+            {
+                return new NoteIndexRepairResult
+                {
+                    WasChanged = false,
+                    AddedNoteCount = 0,
+                    Message = "note.index.json is already aligned with local markdown files."
+                };
+            }
+
+            foreach (NoteData note in recoveredNotes.OrderBy(note => note.Id))
+            {
+                Notes.Add(note);
+                if (note.Id >= _nextId)
+                {
+                    _nextId = note.Id + 1;
+                }
+            }
+
+            WriteIndexFile();
+
+            return new NoteIndexRepairResult
+            {
+                WasChanged = true,
+                AddedNoteCount = recoveredNotes.Count,
+                Message = $"Rebuilt note index by restoring {recoveredNotes.Count} local markdown file(s)."
+            };
+        }
+
         private void TryMigrateLegacyStorage()
         {
             string[] legacyCandidates = new[]
@@ -406,6 +421,103 @@ namespace YASN
             return content.TrimStart().StartsWith(@"{\rtf", StringComparison.OrdinalIgnoreCase)
                 ? ConvertRtfToPlainText(content)
                 : content;
+        }
+
+        /// <summary>
+        /// Creates JSON serializer settings used by the note index file.
+        /// </summary>
+        /// <returns>The serializer options for writing the note index.</returns>
+        private static JsonSerializerOptions CreateIndexJsonOptions()
+        {
+            return new JsonSerializerOptions
+            {
+                WriteIndented = true
+            };
+        }
+
+        /// <summary>
+        /// Writes the current in-memory note metadata to the index file only.
+        /// </summary>
+        private void WriteIndexFile()
+        {
+            NoteIndexDto index = new NoteIndexDto
+            {
+                SchemaVersion = CurrentSchemaVersion,
+                UpdatedAtUtc = DateTime.UtcNow,
+                Notes = Notes.Select(n => new NoteMetadataDto
+                {
+                    Id = n.Id,
+                    Title = n.Title,
+                    Level = n.Level,
+                    Left = n.Left,
+                    Top = n.Top,
+                    Width = n.Width,
+                    Height = n.Height,
+                    IsDarkMode = n.IsDarkMode,
+                    LastEditorDisplayMode = n.LastEditorDisplayMode.HasValue
+                        ? EditorDisplayModeSettings.ToValue(n.LastEditorDisplayMode.Value)
+                        : null,
+                    TitleBarColor = n.TitleBarColor,
+                    BackgroundImagePath = n.BackgroundImagePath,
+                    BackgroundImageOpacity = n.BackgroundImageOpacity,
+                    IsOpen = n.IsOpen
+                }).ToArray()
+            };
+
+            WriteTextFile(IndexFilePath, JsonSerializer.Serialize(index, CreateIndexJsonOptions()));
+        }
+
+        /// <summary>
+        /// Writes every note's markdown content to local storage.
+        /// </summary>
+        private void WriteMarkdownFiles()
+        {
+            foreach (NoteData note in Notes)
+            {
+                WriteTextFile(AppPaths.GetNoteMarkdownPath(note.Id), note.Content ?? string.Empty);
+            }
+        }
+
+        /// <summary>
+        /// Enumerates valid note ids derived from local markdown file names.
+        /// </summary>
+        /// <returns>The local note ids discovered from disk.</returns>
+        private static IEnumerable<int> EnumerateLocalMarkdownNoteIds()
+        {
+            if (!Directory.Exists(AppPaths.NotesMarkdownRoot))
+            {
+                yield break;
+            }
+
+            foreach (string path in Directory.GetFiles(AppPaths.NotesMarkdownRoot, "*.md", SearchOption.TopDirectoryOnly))
+            {
+                string fileName = Path.GetFileNameWithoutExtension(path);
+                if (int.TryParse(fileName, NumberStyles.Integer, CultureInfo.InvariantCulture, out int noteId) && noteId > 0)
+                {
+                    yield return noteId;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Creates a default note entry for a markdown file that exists locally but is missing from the index.
+        /// </summary>
+        /// <param name="noteId">The note id recovered from the markdown file name.</param>
+        /// <returns>A recovered note entry.</returns>
+        private static NoteData CreateRecoveredNote(int noteId)
+        {
+            return new NoteData
+            {
+                Id = noteId,
+                Title = $"Recovered Note #{noteId}",
+                Content = ReadMarkdownContent(noteId),
+                Level = WindowLevel.Normal,
+                Left = 100,
+                Top = 100,
+                Width = DefaultNoteWidth,
+                Height = DefaultNoteHeight,
+                IsOpen = false
+            };
         }
 
         private static string ConvertRtfToPlainText(string rtf)

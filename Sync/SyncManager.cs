@@ -16,6 +16,7 @@ namespace YASN.Sync
     {
         private readonly System.Timers.Timer _syncTimer;
         private readonly SignatureStore _signatureStore;
+        private readonly SemaphoreSlim _syncGate = new SemaphoreSlim(1, 1);
         private ISyncClient _client;
         private bool _isEnabled;
         private string _remoteDirectory = string.Empty;
@@ -57,7 +58,7 @@ namespace YASN.Sync
             };
             SetIntervalSeconds(_intervalSeconds);
 
-            _syncTimer.Elapsed += async (_, __) => await SyncAsync().ConfigureAwait(false);
+            _syncTimer.Elapsed += async (_, __) => await SyncAsync(requireEnabled: true, progress: null).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -70,15 +71,18 @@ namespace YASN.Sync
         /// <returns><c>true</c> if configuration and remote directory checks succeed.</returns>
         public async Task<bool> ConfigureAsync(ISyncClient client, string remoteDirectory, bool enableAutoSync, int intervalSeconds)
         {
-            _client?.Dispose();
-            _client = client;
-            _remoteDirectory = NormalizeRemoteDirectory(remoteDirectory);
+            string normalizedRemoteDirectory = NormalizeRemoteDirectory(remoteDirectory);
             SetIntervalSeconds(intervalSeconds);
 
-            if (!await _client.EnsureDirectoryAsync(_remoteDirectory).ConfigureAwait(false))
+            if (!await client.EnsureDirectoryAsync(normalizedRemoteDirectory).ConfigureAwait(false))
             {
+                client.Dispose();
                 return false;
             }
+
+            _client?.Dispose();
+            _client = client;
+            _remoteDirectory = normalizedRemoteDirectory;
 
             if (enableAutoSync)
             {
@@ -114,23 +118,46 @@ namespace YASN.Sync
         }
 
         /// <summary>
+        /// Runs one sync pass immediately, even when periodic auto-sync is disabled.
+        /// </summary>
+        /// <returns>The sync result.</returns>
+        public Task<SyncResult> RunSyncNowAsync(IProgress<SyncProgressInfo>? progress = null)
+        {
+            return SyncAsync(requireEnabled: false, progress);
+        }
+
+        /// <summary>
         /// Runs one sync pass and resolves upload/download direction per file.
         /// </summary>
         /// <remarks>
         /// Conflict handling is timestamp-driven: if remote is newer and hashes differ,
         /// user input is required to pick remote download vs local overwrite upload.
         /// </remarks>
-        private async Task<SyncResult> SyncAsync()
+        private async Task<SyncResult> SyncAsync(bool requireEnabled, IProgress<SyncProgressInfo>? progress = null)
         {
-            if (_client == null || !_isEnabled)
+            if (_client == null || requireEnabled && !_isEnabled)
             {
-                return new SyncResult { Success = false, Message = "Sync not enabled" };
+                return new SyncResult
+                {
+                    Success = false,
+                    Message = _client == null ? "Sync backend not configured" : "Sync not enabled"
+                };
             }
 
+            await _syncGate.WaitAsync().ConfigureAwait(false);
             SyncResult result = new SyncResult { Success = true };
 
             try
             {
+                if (_client == null || requireEnabled && !_isEnabled)
+                {
+                    return new SyncResult
+                    {
+                        Success = false,
+                        Message = _client == null ? "Sync backend not configured" : "Sync not enabled"
+                    };
+                }
+
                 _remoteSignatures = await LoadRemoteSignaturesAsync().ConfigureAwait(false);
                 Dictionary<string, string> localEntries = BuildLocalSyncEntries();
                 HashSet<string> allKeys = new HashSet<string>(localEntries.Keys, StringComparer.OrdinalIgnoreCase);
@@ -143,16 +170,23 @@ namespace YASN.Sync
                 {
                     result.Success = false;
                     result.Message = "No syncable files found";
+                    ReportProgress(progress, 1, 1, result.Message);
                     return result;
                 }
 
                 List<string> messages = new List<string>();
                 bool signatureDirty = false;
                 bool shouldReloadNotes = false;
+                bool shouldRepairNoteIndex = false;
                 bool shouldRefreshPreviewStyles = false;
+                int totalSteps = allKeys.Count + 1;
+                int completedSteps = 0;
+
+                ReportProgress(progress, completedSteps, totalSteps, "Preparing sync");
 
                 foreach (string? key in allKeys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
                 {
+                    ReportProgress(progress, completedSteps, totalSteps, $"Syncing {key}");
                     string localPath = localEntries.TryGetValue(key, out string? existingPath)
                         ? existingPath
                         : ToLocalPath(key);
@@ -206,6 +240,7 @@ namespace YASN.Sync
                                             result.FilesDownloaded += 1;
                                             UpdateLocalSignature(localPath, key, ref signatureDirty);
                                             shouldReloadNotes |= ShouldReloadNotes(key);
+                                            shouldRepairNoteIndex |= ShouldRepairNoteIndex(key);
                                             shouldRefreshPreviewStyles |= ShouldRefreshPreviewStyles(key);
                                         }
                                     }
@@ -230,6 +265,7 @@ namespace YASN.Sync
                                         result.FilesDownloaded += 1;
                                         UpdateLocalSignature(localPath, key, ref signatureDirty);
                                         shouldReloadNotes |= ShouldReloadNotes(key);
+                                        shouldRepairNoteIndex |= ShouldRepairNoteIndex(key);
                                         shouldRefreshPreviewStyles |= ShouldRefreshPreviewStyles(key);
                                     }
 
@@ -270,18 +306,49 @@ namespace YASN.Sync
                             result.FilesDownloaded += 1;
                             UpdateLocalSignature(localPath, key, ref signatureDirty);
                             shouldReloadNotes |= ShouldReloadNotes(key);
+                            shouldRepairNoteIndex |= ShouldRepairNoteIndex(key);
                             shouldRefreshPreviewStyles |= ShouldRefreshPreviewStyles(key);
                             break;
                         }
                     }
+
+                    completedSteps += 1;
+                    ReportProgress(progress, completedSteps, totalSteps, $"Synced {key}");
                 }
 
                 if (shouldReloadNotes)
                 {
+                    ReportProgress(progress, completedSteps, totalSteps, "Reloading notes");
                     await Application.Current.Dispatcher.InvokeAsync(() =>
                     {
                         NoteManager.Instance.ReloadNotes();
                     });
+                }
+
+                if (shouldRepairNoteIndex)
+                {
+                    ReportProgress(progress, completedSteps, totalSteps, "Rebuilding notes.index.json");
+                    NoteIndexRepairResult repairResult = await Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        return NoteManager.Instance.RepairIndexFromLocalMarkdownFiles();
+                    });
+
+                    if (repairResult.WasChanged)
+                    {
+                        string indexKey = ToSyncKey(AppPaths.NotesIndexPath);
+                        if (await UploadFileAsync(AppPaths.NotesIndexPath, indexKey).ConfigureAwait(false))
+                        {
+                            UpdateLocalSignature(AppPaths.NotesIndexPath, indexKey, ref signatureDirty);
+                            result.FilesUploaded += 1;
+                            messages.Add("notes.index.json repaired and uploaded");
+                            AppLogger.Warn($"{repairResult.Message} Uploaded repaired notes.index.json to keep remote data aligned.");
+                        }
+                        else
+                        {
+                            messages.Add("notes.index.json repaired locally but upload failed");
+                            AppLogger.Warn($"{repairResult.Message} Failed to upload repaired notes.index.json.");
+                        }
+                    }
                 }
 
                 if (shouldRefreshPreviewStyles)
@@ -303,6 +370,8 @@ namespace YASN.Sync
 
                 LastSyncTime = DateTime.Now;
                 result.Message = messages.Count > 0 ? string.Join("; ", messages) : "No changes";
+                completedSteps = totalSteps;
+                ReportProgress(progress, completedSteps, totalSteps, result.Success ? result.Message : "Sync failed");
                 AppLogger.Debug($"Sync completed: {result.Message} (Uploaded: {result.FilesUploaded}, Downloaded: {result.FilesDownloaded})");
             }
             catch (HttpRequestException ex)
@@ -340,6 +409,15 @@ namespace YASN.Sync
                 result.Success = false;
                 result.Message = $"Sync failed: {ex.Message}";
                 AppLogger.Warn($"Sync error: {ex.Message}");
+            }
+            finally
+            {
+                _syncGate.Release();
+            }
+
+            if (!result.Success)
+            {
+                ReportProgress(progress, 1, 1, result.Message);
             }
 
             return result;
@@ -708,6 +786,15 @@ namespace YASN.Sync
                    || key.StartsWith("note-assets/", StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// Determines whether a changed file should trigger note-index repair after reload.
+        /// </summary>
+        private static bool ShouldRepairNoteIndex(string key)
+        {
+            return key.Equals("notes.index.json", StringComparison.OrdinalIgnoreCase)
+                   || key.StartsWith("notes/", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static bool ShouldRefreshPreviewStyles(string key)
         {
             return key.StartsWith("style/", StringComparison.OrdinalIgnoreCase);
@@ -722,6 +809,19 @@ namespace YASN.Sync
                    || key.StartsWith("notes/", StringComparison.OrdinalIgnoreCase)
                    || key.StartsWith("note-assets/", StringComparison.OrdinalIgnoreCase)
                    || key.StartsWith("style/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Reports a sync progress snapshot to any registered observer.
+        /// </summary>
+        private static void ReportProgress(IProgress<SyncProgressInfo>? progress, int completedSteps, int totalSteps, string statusText)
+        {
+            progress?.Report(new SyncProgressInfo
+            {
+                CompletedSteps = completedSteps,
+                TotalSteps = totalSteps,
+                StatusText = statusText
+            });
         }
     }
 }

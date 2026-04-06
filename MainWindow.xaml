@@ -175,91 +175,82 @@
                     CornerRadius="0 0 5 0"
                     Padding="15">
                 <StackPanel>
+                    <StackPanel.Resources>
+                        <Style TargetType="Button">
+                            <Setter Property="Width" Value="150"/>
+                            <Setter Property="Padding" Value="12,8"/> 
+                            <Setter Property="Margin"  Value="0,0,0,10"/>
+                            <Setter Property="FontSize" Value="13" />
+                        </Style>
+                    </StackPanel.Resources>
                     <TextBlock Text="Create Note" 
                                FontSize="14" 
                                FontWeight="Bold"
                                Margin="0,0,0,15"/>
                     
                     <Button Content="Top Window" 
-                            Padding="12,8" 
-                            Margin="0,0,0,10"
                             Click="CreateTopWindow_Click"
                             Background="#3498DB"
                             Foreground="White"
                             BorderThickness="0"
-                            FontSize="13"
                             Cursor="Hand"/>
                     
                     <Button Content="Normal Window" 
-                            Padding="12,8" 
-                            Margin="0,0,0,10"
                             Click="CreateNormalWindow_Click"
                             Background="#95A5A6"
                             Foreground="White"
                             BorderThickness="0"
-                            FontSize="13"
                             Cursor="Hand"/>
                     
                     <Button Content="Bottom Window" 
-                            Padding="12,8" 
-                            Margin="0,0,0,10"
                             Click="CreateBottomWindow_Click"
                             Background="#E74C3C"
                             Foreground="White"
                             BorderThickness="0"
-                            FontSize="13"
                             Cursor="Hand"/>
                     
                     <Separator Margin="0,10"/>
                     
                     <Button Content="Refresh List" 
-                            Padding="12,8" 
-                            Margin="0,10,0,10"
                             Click="RefreshList_Click"
                             Background="#34495E"
                             Foreground="White"
                             BorderThickness="0"
-                            FontSize="13"
+                            Cursor="Hand"/>
+
+                    <Button Content="Trigger Sync"
+                            Click="SyncNow_Click"
+                            Background="#1F7A8C"
+                            Foreground="White"
+                            BorderThickness="0"
                             Cursor="Hand"/>
                     
                     <Button Content="Settings" 
-                            Padding="12,8" 
-                            Margin="0,0,0,10"
                             Click="Settings_Click"
                             Background="#9B59B6"
                             Foreground="White"
                             BorderThickness="0"
-                            FontSize="13"
                             Cursor="Hand"/>
 
-                    <Button Content="Restore Selected Default Size"
-                            Padding="12,8"
-                            Margin="0,0,0,10"
+                    <Button Content="Restore Default Size"
                             Click="RestoreSelectedDefaultSize_Click"
                             Background="#E67E22"
                             Foreground="White"
                             BorderThickness="0"
-                            FontSize="13"
                             Cursor="Hand"/>
 
                     <Button Content="Open Data Folder"
-                            Padding="12,8"
-                            Margin="0,0,0,10"
                             Click="OpenDataFolder_Click"
                             Background="#16A085"
                             Foreground="White"
                             BorderThickness="0"
-                            FontSize="13"
                             Cursor="Hand"/>
                     
                     <Button Content="Hide to Tray" 
-                            Padding="12,8" 
-                            Margin="0,0,0,0"
                             Click="HideToTray_Click"
                             Background="#7F8C8D"
                             Foreground="White"
                             BorderThickness="0"
-                            FontSize="13"
                             Cursor="Hand"/>
                 </StackPanel>
             </Border>

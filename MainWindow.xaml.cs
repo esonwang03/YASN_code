@@ -1,9 +1,11 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using YASN.Logging;
+using YASN.Sync;
 using YASN.WindowLayout;
 using MessageBox = ModernWpf.MessageBox;
 
@@ -241,6 +243,49 @@ namespace YASN
                 Owner = this
             };
             settingsWindow.ShowDialog();
+        }
+
+        /// <summary>
+        /// Runs one sync pass immediately and reports the result to the user.
+        /// </summary>
+        private async void SyncNow_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.Button button)
+            {
+                return;
+            }
+
+            if (App.SyncManager == null)
+            {
+                AppLogger.Warn("同步管理器未初始化。");
+                return;
+            }
+
+            if (!App.SyncManager.IsConfigured)
+            {
+                AppLogger.Warn("请先在 Settings 中配置并应用 WebDAV。");
+                return;
+            }
+
+            button.IsEnabled = false;
+            SyncProgressToast progressToast = new SyncProgressToast();
+            progressToast.Show();
+            Progress<SyncProgressInfo> progress = new Progress<SyncProgressInfo>(progressToast.Report);
+
+            try
+            {
+                SyncResult result = await App.SyncManager.RunSyncNowAsync(progress).ConfigureAwait(true);
+                progressToast.Complete(result);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or IOException)
+            {
+                progressToast.Fail(ex.Message);
+                AppLogger.Warn($"立即同步失败: {ex.Message}");
+            }
+            finally
+            {
+                button.IsEnabled = true;
+            }
         }
 
         private void OpenDataFolder_Click(object sender, RoutedEventArgs e)
