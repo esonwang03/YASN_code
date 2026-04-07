@@ -1,4 +1,16 @@
 # YASN - Yet Another Sticky Notes
-这是一个好用的便签工具，支持插入图像和附件，基于markdown语法。
 
-具体使用方法还没写好,后续再更新！
+YASN is a Windows sticky-notes app with Markdown preview, attachments, and WebDAV sync support.
+
+## Repository Layout
+
+- `src/YASN.App`: the single WPF executable project, windows, application shell, packaged resources, and static style assets.
+- `src/YASN.Core`: stable shared domain types kept as source-only directories for now.
+- `src/YASN.Infrastructure`: persistence, logging, markdown, and sync implementation code.
+
+## Build
+
+- `dotnet restore YASN.sln`
+- `dotnet build YASN.sln -c Release --no-restore`
+- `dotnet run --project src/YASN.App/YASN.App.csproj`
+- `dotnet publish src/YASN.App/YASN.App.csproj -c Release -r win-x64 --self-contained false -o publish`

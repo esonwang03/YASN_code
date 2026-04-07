@@ -1,0 +1,13 @@
+global using YASN;
+global using YASN.App.Desktop;
+global using YASN.App.Notes;
+global using YASN.App.Settings;
+global using YASN.App.WindowLayout;
+global using YASN.Core;
+global using YASN.Infrastructure;
+global using YASN.Infrastructure.Logging;
+global using YASN.Infrastructure.Markdown;
+global using YASN.Infrastructure.Settings;
+global using YASN.Infrastructure.Sync;
+global using YASN.Infrastructure.Sync.WebDav;
+global using YASN.App;
