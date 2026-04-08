@@ -1,6 +1,6 @@
 # YASN - Yet Another Sticky Notes
 
-[[YASN_intro.png]]
+![YASN_intro.png](YASN_intro.png)
 YASN is a Windows sticky-notes app with Markdown preview, attachments, and WebDAV sync support.
 
 ## Repository Layout
