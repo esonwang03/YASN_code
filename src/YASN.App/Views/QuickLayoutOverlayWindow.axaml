@@ -1,0 +1,33 @@
+<Window
+    x:Class="YASN.Views.QuickLayoutOverlayWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l="clr-namespace:YASN.Localization"
+    WindowDecorations="None"
+    TransparencyLevelHint="Transparent"
+    Background="#66000000"
+    Topmost="True"
+    ShowInTaskbar="False"
+    CanResize="False"
+    Cursor="Cross">
+  <Canvas x:Name="OverlayCanvas" Background="Transparent">
+    <Border
+        x:Name="HintBox"
+        Canvas.Left="40"
+        Canvas.Top="40"
+        Background="#CC202020"
+        CornerRadius="6"
+        Padding="16,10">
+      <TextBlock
+          Text="{l:Tr Window.QuickLayout.Hint}"
+          Foreground="White"
+          FontSize="14" />
+    </Border>
+    <Rectangle
+        x:Name="SelectionRectangle"
+        IsVisible="False"
+        Stroke="#FF3D7EFF"
+        StrokeThickness="2"
+        Fill="#333D7EFF" />
+  </Canvas>
+</Window>

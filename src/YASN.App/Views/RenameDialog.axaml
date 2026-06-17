@@ -1,0 +1,20 @@
+<Window
+    x:Class="YASN.Views.RenameDialog"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l="clr-namespace:YASN.Localization"
+    Title="{l:Tr Rename.Title}"
+    Width="340"
+    Height="180"
+    WindowStartupLocation="CenterOwner"
+    CanResize="False">
+  <StackPanel Margin="16" Spacing="12">
+    <TextBlock Text="{l:Tr Rename.Title}" FontWeight="SemiBold" />
+    <TextBox x:Name="TitleBox" />
+    <TextBlock x:Name="ErrorText" Foreground="#CC3333" FontSize="12" IsVisible="False" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{l:Tr Rename.Cancel}" Click="HandleCancelClick" />
+      <Button Content="{l:Tr Rename.Save}" Click="HandleSaveClick" />
+    </StackPanel>
+  </StackPanel>
+</Window>

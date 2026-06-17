@@ -1,0 +1,109 @@
+<Window
+    x:Class="YASN.Views.FloatingNoteWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="clr-namespace:YASN.ViewModels"
+    xmlns:l="clr-namespace:YASN.Localization"
+    xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+    xmlns:webview="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.WebView"
+    x:DataType="vm:NoteWindowViewModel"
+    WindowDecorations="None"
+    Icon="avares://YASN/Resources/YASN.ico"
+    Title="{Binding Title}"
+    Width="900"
+    Height="560"
+    MinWidth="620"
+    MinHeight="380">
+  <Grid RowDefinitions="Auto,*">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+    <Border
+        x:Name="TitleBar"
+        Grid.ColumnSpan="2"
+        Padding="12,8"
+        Background="#F7F7F8"
+        BorderBrush="#D0D0D0"
+        BorderThickness="0,0,0,1">
+      <Border.ContextFlyout>
+        <MenuFlyout>
+          <MenuItem Header="{l:Tr Rename.MenuItem}" Click="HandleRenameClick" />
+          <MenuItem Header="{l:Tr Window.Menu.Manage}" Click="MenuItem_OnClick"></MenuItem>
+        </MenuFlyout>
+      </Border.ContextFlyout>
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+        <StackPanel>
+          <TextBlock Text="{l:Tr App.Title}" FontSize="13" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding Title}" FontSize="12" Foreground="#666666" />
+        </StackPanel>
+        <ComboBox x:Name="LevelSelector" Grid.Column="1" Width="120" Margin="0,0,8,0" />
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
+          <Button x:Name="EditorModeButton" ToolTip.Tip="{l:Tr Window.EditorMode.Hint}" Click="HandleEditorModeClick">
+            <mi:MaterialIcon x:Name="EditorModeIcon" Width="18" Height="18" />
+          </Button>
+          <Button ToolTip.Tip="{l:Tr Window.QuickLayout.Hint}" Click="HandleQuickLayoutClick">
+            <mi:MaterialIcon Kind="ViewDashboardOutline" Width="18" Height="18" />
+          </Button>
+          <Button ToolTip.Tip="{l:Tr Window.SetReminder}" Click="HandleSetReminderClick">
+            <mi:MaterialIcon Kind="BellOutline" Width="18" Height="18" />
+          </Button>
+          <Button ToolTip.Tip="{l:Tr Window.Close}" Click="HandleCloseClick">
+            <mi:MaterialIcon Kind="Close" Width="18" Height="18" />
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+    <DockPanel x:Name="EditorPanel" Grid.Row="1" Grid.Column="0">
+      <StackPanel
+          x:Name="EditorToolbar"
+          DockPanel.Dock="Top"
+          Orientation="Horizontal"
+          Spacing="6"
+          Margin="8,6"
+          >
+        <Button x:Name="InsertImageButton" ToolTip.Tip="{l:Tr Editor.InsertImage}" Click="HandleInsertImageClick">
+          <mi:MaterialIcon Kind="Image" Width="18" Height="18" />
+        </Button>
+        <Button x:Name="InsertAttachmentButton" ToolTip.Tip="{l:Tr Editor.InsertAttachment}" Click="HandleInsertAttachmentClick">
+          <mi:MaterialIcon Kind="Paperclip" Width="18" Height="18" />
+        </Button>
+      </StackPanel>
+      <TextBox
+          x:Name="EditorTextBox"
+          AcceptsReturn="True"
+          TextWrapping="Wrap"
+          FontFamily="Consolas"
+          FontSize="14"
+          Padding="14"
+          Text="{Binding Content, Mode=TwoWay}" />
+    </DockPanel>
+    <Border x:Name="PreviewPanel" Grid.Row="1" Grid.Column="1" BorderBrush="#D0D0D0" BorderThickness="1,0,0,0">
+      <webview:NativeWebView x:Name="PreviewWebView" />
+    </Border>
+    <!-- Bottom-right resize grip, mirroring the WPF ResizeThumb. Drives the window's native
+         resize loop so the editor and preview reflow live during the drag. -->
+    <Thumb
+        x:Name="ResizeGrip"
+        Grid.Row="1"
+        Grid.Column="0"
+        Grid.ColumnSpan="2"
+        Width="16"
+        Height="16"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Bottom"
+        Background="Transparent"
+        Cursor="BottomRightCorner"
+        ToolTip.Tip="{l:Tr Window.Resize.Grip}">
+      <Thumb.Template>
+        <ControlTemplate>
+          <Path
+              Data="M 11,0 L 16,5 16,16 5,16 Z"
+              Fill="#9A9A9A"
+              Stretch="Fill"
+              Margin="3" />
+        </ControlTemplate>
+      </Thumb.Template>
+    </Thumb>
+  </Grid>
+</Window>

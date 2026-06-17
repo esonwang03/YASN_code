@@ -1,0 +1,20 @@
+<Window
+    x:Class="YASN.Views.ReminderDialog"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l="clr-namespace:YASN.Localization"
+    Title="{l:Tr Window.SetReminder}"
+    Width="320"
+    Height="220"
+    WindowStartupLocation="CenterOwner"
+    CanResize="False">
+  <StackPanel Margin="16" Spacing="12">
+    <TextBlock Text="{l:Tr Window.SetReminder}" FontWeight="SemiBold" />
+    <DatePicker x:Name="ReminderDate" />
+    <TimePicker x:Name="ReminderTime" ClockIdentifier="24HourClock" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{l:Tr Reminder.Clear}" Click="HandleClearClick" />
+      <Button Content="{l:Tr Reminder.Save}" Click="HandleSaveClick" />
+    </StackPanel>
+  </StackPanel>
+</Window>

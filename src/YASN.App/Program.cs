@@ -1,0 +1,58 @@
+using Avalonia;
+using Avalonia.Controls;
+using YASN.Application;
+
+namespace YASN
+{
+    /// <summary>
+    /// Starts the Avalonia desktop application.
+    /// </summary>
+    public static class Program
+    {
+        /// <summary>
+        /// Builds and starts the desktop lifetime for the YASN application.
+        /// </summary>
+        /// <remarks>
+        /// Marked <see cref="STAThreadAttribute"/> because the WebView2 preview control hosts COM
+        /// objects that require a single-threaded apartment; without it WebView2 initialization
+        /// fails with <c>RPC_E_CHANGED_MODE</c> (0x80010106).
+        /// </remarks>
+        [STAThread]
+        public static int Main(string[] args)
+        {
+            // Give the process an explicit AppUserModelID so Windows treats this build as its own
+            // taskbar identity. Without it, the shell falls back to a path/heuristic identity that a
+            // prior YASN install can collide with, causing the old app's cached icon to appear on our
+            // windows. A stable, app-specific ID also keeps taskbar grouping correct.
+            SetWindowsAppUserModelId("YASN.StickyNotes");
+
+            return AppBuilderFactory.Create()
+                .StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown);
+        }
+
+        private static void SetWindowsAppUserModelId(string appId)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            try
+            {
+                _ = SetCurrentProcessExplicitAppUserModelID(appId);
+            }
+            catch (System.Runtime.InteropServices.COMException)
+            {
+                // Non-fatal: the ID is a shell hint, not required for the app to run.
+            }
+            catch (DllNotFoundException)
+            {
+            }
+        }
+
+        [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+        [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, PreserveSig = false)]
+        private static extern int SetCurrentProcessExplicitAppUserModelID(
+            [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string appId);
+    }
+}

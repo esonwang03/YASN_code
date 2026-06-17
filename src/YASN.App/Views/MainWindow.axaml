@@ -1,0 +1,69 @@
+<Window
+    x:Class="YASN.Views.MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="clr-namespace:YASN.ViewModels"
+    xmlns:l="clr-namespace:YASN.Localization"
+    x:DataType="vm:MainWindowViewModel"
+    Title="{l:Tr Main.Title}"
+    Width="720"
+    Height="480"
+    MinWidth="560"
+    MinHeight="320"
+    WindowStartupLocation="CenterScreen"
+    Icon="avares://YASN/Resources/YASN.ico">
+  <Grid ColumnDefinitions="*,Auto" Margin="12">
+    <Grid Grid.Column="0" RowDefinitions="*">
+      <TextBlock
+          Text="{l:Tr Main.Empty}"
+          Foreground="#888888"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+          IsVisible="{Binding IsEmpty}" />
+      <ListBox
+          x:Name="NoteList"
+          ItemsSource="{Binding Notes}"
+          IsVisible="{Binding !IsEmpty}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:NoteListItemViewModel">
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+              <Grid.ContextFlyout>
+                <MenuFlyout>
+                  <MenuItem Header="{l:Tr Rename.MenuItem}" Click="HandleRenameClick" />
+                  <MenuItem Header="{l:Tr Sync.Resolve.MenuItem}" Click="HandleResolveConflictClick" IsEnabled="{Binding IsConflicted}" />
+                </MenuFlyout>
+              </Grid.ContextFlyout>
+              <Border Grid.Column="0" Width="4" Margin="0,0,8,0" CornerRadius="2"
+                      Background="#E53935" IsVisible="{Binding IsConflicted}" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="{Binding LevelText}" FontSize="12" Foreground="#777777" />
+                  <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="#777777" />
+                </StackPanel>
+                <TextBlock Text="{Binding ConflictStatusText}" FontSize="12" Foreground="#E53935"
+                           IsVisible="{Binding IsConflicted}" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                <Button Content="{Binding ToggleText}" Tag="{Binding}" Click="HandleToggleClick" />
+                <Button Content="{l:Tr Main.QuickLayout}" Tag="{Binding}" Click="HandleQuickLayoutClick" />
+                <Button Content="{l:Tr Main.Delete}" Tag="{Binding}" Click="HandleDeleteClick" />
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Grid>
+    <StackPanel Grid.Column="1" Orientation="Vertical" Spacing="8" Margin="12,0,0,0" Width="160">
+      <Button Content="{l:Tr Main.Create.Normal}" HorizontalAlignment="Stretch" Click="HandleCreateNormalClick" />
+      <Button x:Name="CreateTopMostButton" Content="{l:Tr Main.Create.TopMost}" HorizontalAlignment="Stretch" Click="HandleCreateTopMostClick" />
+      <Button x:Name="CreateBottomMostButton" Content="{l:Tr Main.Create.BottomMost}" HorizontalAlignment="Stretch" Click="HandleCreateBottomMostClick" />
+      <Separator />
+      <Button Content="{l:Tr Main.Refresh}" HorizontalAlignment="Stretch" Click="HandleRefreshClick" />
+      <Button x:Name="SyncNowButton" Content="{l:Tr Sync.Now}" HorizontalAlignment="Stretch" Click="HandleSyncNowClick" />
+      <Button Content="{l:Tr Main.Settings}" HorizontalAlignment="Stretch" Click="HandleSettingsClick" />
+      <Button Content="{l:Tr Main.OpenDataFolder}" HorizontalAlignment="Stretch" Click="HandleOpenDataFolderClick" />
+      <Button Content="{l:Tr Main.HideToTray}" HorizontalAlignment="Stretch" Click="HandleHideToTrayClick" />
+    </StackPanel>
+  </Grid>
+</Window>

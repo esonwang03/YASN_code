@@ -1,131 +1,508 @@
+/*
+ * YASN — default preview stylesheet
+ * Identity: "ink & marker" — an editorial sticky note. Serif Constantia headings
+ * give quick notes a journal voice; a single amber highlighter (==mark==) is the
+ * signature gesture. The preview renders translucently over each note's own colour
+ * and the desktop behind it, so every fill uses alpha rather than a solid panel.
+ * Tokens are driven from :root + prefers-color-scheme so the sheet themes itself
+ * even when the host applies no body class. See style/styling.md for the full map
+ * of Markdown constructs to selectors.
+ */
+
+/* ---- Design tokens (light is the :root default) -------------------------- */
 :root {
   color-scheme: light dark;
+
+  --font-display: "Constantia", "Cambria", "Microsoft YaHei UI", Georgia, serif;
+  --font-body: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
+
+  --fg: #243039;
+  --muted: #61727e;
+  --hair: #d7dde2;
+  --page-bg: rgba(255, 255, 255, 0.55);
+  --panel: rgba(120, 140, 158, 0.12);
+  --code-bg: rgba(120, 140, 158, 0.14);
+  --accent: #1f7a8c;
+  --link: #0f6d80;
+  --marker: rgba(246, 196, 83, 0.55);
+  --marker-edge: rgba(231, 167, 38, 0.85);
+  --danger: #d9534f;
+}
+/* Dark tokens: applied automatically when the OS prefers dark, with no host
+ * cooperation required. The .theme-* classes below remain available as explicit
+ * overrides if the host ever decides to pin a theme. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #e7edf1;
+    --muted: #93a3b1;
+    --hair: #313b44;
+    --page-bg: rgba(18, 22, 26, 0.55);
+    --panel: rgba(150, 170, 190, 0.12);
+    --code-bg: rgba(150, 170, 190, 0.10);
+    --accent: #5bc2d4;
+    --link: #74c7d8;
+    --marker: rgba(214, 158, 46, 0.42);
+    --marker-edge: rgba(240, 188, 76, 0.7);
+    --danger: #ff7b76;
+  }
 }
 
+body.theme-light {
+  --fg: #243039;
+  --muted: #61727e;
+  --hair: #d7dde2;
+  --page-bg: rgba(255, 255, 255, 0.55);
+  --panel: rgba(120, 140, 158, 0.12);
+  --code-bg: rgba(120, 140, 158, 0.14);
+  --accent: #1f7a8c;
+  --link: #0f6d80;
+  --marker: rgba(246, 196, 83, 0.55);
+  --marker-edge: rgba(231, 167, 38, 0.85);
+  --danger: #d9534f;
+}
+
+body.theme-dark {
+  --fg: #e7edf1;
+  --muted: #93a3b1;
+  --hair: #313b44;
+  --page-bg: rgba(18, 22, 26, 0.55);
+  --panel: rgba(150, 170, 190, 0.12);
+  --code-bg: rgba(150, 170, 190, 0.10);
+  --accent: #5bc2d4;
+  --link: #74c7d8;
+  --marker: rgba(214, 158, 46, 0.42);
+  --marker-edge: rgba(240, 188, 76, 0.7);
+  --danger: #ff7b76;
+}
+/* ---- Page shell ---------------------------------------------------------- */
 html,
 body {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
-  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
-  line-height: 1.6;
-}
-
-body.theme-light {
-  --fg: #253341;
-  --muted: #6a7d90;
-  --page-bg: rgba(255, 255, 255, 0.6);
-  --panel: #f4f7fa;
-  --border: #d8dee6;
-  --link: #0067c0;
-}
-
-body.theme-dark {
-  --fg: #e9eef2;
-  --muted: #8fa1b5;
-  --page-bg: rgba(0, 0, 0, 0.6);
-  --panel: #1a2026;
-  --border: #2a343d;
-
-  --link: #7bc6ff;
 }
 
 body {
   overflow: hidden;
   color: var(--fg);
   background: transparent;
+  font-family: var(--font-body);
+  font-size: 15.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 #page {
   height: 100%;
   box-sizing: border-box;
   overflow: auto;
-  padding: 16px 20px;
+  padding: 18px 22px;
   background: var(--page-bg);
 }
 
+#page > :first-child {
+  margin-top: 0;
+}
+
+#page > :last-child {
+  margin-bottom: 0;
+}
+/* ---- Headings (serif voice + hairline section breaks) -------------------- */
 h1,
 h2,
 h3,
 h4,
 h5,
 h6 {
-  margin: 0.8em 0 0.4em;
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 1.1em 0 0.45em;
+  scroll-margin-top: 18px;
 }
 
+h1 {
+  font-size: 1.72em;
+  letter-spacing: -0.01em;
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid var(--hair);
+}
+
+h2 {
+  font-size: 1.4em;
+  padding-bottom: 0.16em;
+  border-bottom: 1px solid var(--hair);
+}
+
+h3 { font-size: 1.2em; }
+h4 { font-size: 1.05em; }
+
+h5,
+h6 {
+  font-size: 0.92em;
+  font-family: var(--font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+/* ---- Text blocks --------------------------------------------------------- */
 p {
-  margin: 0.4em 0 0.8em;
-  font-size: 16px;
+  margin: 0.5em 0 0.85em;
 }
 
 ul,
 ol {
-  margin: 0.4em 0 0.9em 1.4em;
+  margin: 0.5em 0 0.9em;
+  padding-left: 1.5em;
+}
+
+li {
+  margin: 0.2em 0;
+}
+
+li > ul,
+li > ol {
+  margin: 0.2em 0;
+}
+
+/* ListExtras: alpha/roman markers carried via the type attribute. */
+ol[type="a"] { list-style-type: lower-alpha; }
+ol[type="A"] { list-style-type: upper-alpha; }
+ol[type="i"] { list-style-type: lower-roman; }
+ol[type="I"] { list-style-type: upper-roman; }
+
+/* TaskList extension: GitHub-style checkboxes. */
+ul.contains-task-list,
+.contains-task-list ul {
+  list-style: none;
+  padding-left: 1.2em;
+}
+
+li.task-list-item {
+  list-style: none;
+}
+
+li.task-list-item > input[type="checkbox"] {
+  margin: 0 0.5em 0 -1.3em;
+  vertical-align: middle;
+  accent-color: var(--accent);
+}
+
+li.task-list-item > input[type="checkbox"]:checked + * {
+  color: var(--muted);
 }
 
 hr {
   border: none;
-  border-top: 1px solid var(--border);
-  margin: 1em 0;
+  border-top: 1px solid var(--hair);
+  margin: 1.4em 0;
+}
+/* ---- Links & inline semantics -------------------------------------------- */
+a {
+  color: var(--link);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--link) 35%, transparent);
+  transition: border-color 0.12s ease;
 }
 
-blockquote {
-  margin: 0.8em 0;
-  padding: 0.4em 0.8em;
-  border-left: 4px solid var(--border);
+a:hover {
+  border-bottom-color: var(--link);
+}
+
+strong { font-weight: 700; }
+em { font-style: italic; }
+
+/* EmphasisExtras */
+del,
+s {
+  text-decoration: line-through;
+  text-decoration-color: var(--muted);
+}
+
+ins {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+}
+
+sub,
+sup {
+  font-size: 0.74em;
+  line-height: 0;
+}
+
+/* Signature: ==mark== rendered as a marker swipe that bleeds past the text. */
+mark {
+  background: linear-gradient(120deg, transparent 0.2em, var(--marker) 0.2em, var(--marker) calc(100% - 0.2em), transparent calc(100% - 0.2em));
+  color: inherit;
+  padding: 0.05em 0.1em;
+  margin: 0 -0.15em;
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+abbr[title] {
+  text-decoration: underline dotted var(--muted);
+  text-underline-offset: 2px;
+  cursor: help;
+}
+
+cite {
   color: var(--muted);
+  font-style: italic;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  padding: 0.1em 0.4em;
+  border: 1px solid var(--hair);
+  border-bottom-width: 2px;
+  border-radius: 4px;
   background: var(--panel);
 }
+/* ---- Quotes & code ------------------------------------------------------- */
+blockquote {
+  margin: 0.9em 0;
+  padding: 0.3em 1em;
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  background: var(--panel);
+  border-radius: 0 4px 4px 0;
+}
+
+blockquote > :first-child { margin-top: 0; }
+blockquote > :last-child { margin-bottom: 0; }
 
 code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
   background: var(--code-bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--hair);
   border-radius: 4px;
   padding: 0.1em 0.35em;
-  font-family: Consolas, monospace;
 }
 
 pre {
   background: var(--code-bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--hair);
   border-radius: 6px;
-  padding: 10px;
+  padding: 12px 14px;
   overflow: auto;
+  line-height: 1.5;
 }
 
 pre code {
   border: none;
   padding: 0;
   background: transparent;
+  font-size: 0.86em;
 }
-
-a {
-  color: var(--link);
-  text-decoration: none;
-}
-
-a:hover {
-  text-decoration: underline;
-}
-
+/* ---- Tables (pipe + grid) ------------------------------------------------ */
 table {
   border-collapse: collapse;
   width: 100%;
-  margin: 0.8em 0;
+  margin: 0.9em 0;
+  font-size: 0.95em;
 }
 
 th,
 td {
-  border: 1px solid var(--border);
-  padding: 6px 8px;
+  border: 1px solid var(--hair);
+  padding: 6px 10px;
   text-align: left;
 }
 
-img {
-  width: 80%;
-  display: block; 
-  margin: 0.6em auto;
-  height: auto;
-  border-radius: 4px;
+thead th {
+  background: var(--panel);
+  font-family: var(--font-display);
+  font-weight: 600;
 }
+
+tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--panel) 45%, transparent);
+}
+
+/* ---- Figures & media ----------------------------------------------------- */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.7em auto;
+  border-radius: 6px;
+}
+
+figure {
+  margin: 1em 0;
+  text-align: center;
+}
+
+figcaption {
+  margin-top: 0.4em;
+  font-size: 0.88em;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* MediaLinks extension: embedded players resolve to a responsive frame. */
+iframe,
+video,
+audio {
+  max-width: 100%;
+  margin: 0.7em auto;
+  display: block;
+  border: 0;
+  border-radius: 6px;
+}
+/* ---- Definition lists ---------------------------------------------------- */
+dl {
+  margin: 0.6em 0 0.9em;
+}
+
+dt {
+  font-family: var(--font-display);
+  font-weight: 600;
+  margin-top: 0.5em;
+}
+
+dd {
+  margin: 0.1em 0 0.4em 1.4em;
+  color: var(--fg);
+}
+
+/* ---- Footnotes ----------------------------------------------------------- */
+.footnote-ref,
+a.footnote-ref {
+  font-size: 0.78em;
+  vertical-align: super;
+  line-height: 0;
+  border-bottom: none;
+}
+
+.footnotes {
+  margin-top: 1.6em;
+  padding-top: 0.6em;
+  border-top: 1px solid var(--hair);
+  font-size: 0.9em;
+  color: var(--muted);
+}
+
+.footnote-back-ref {
+  border-bottom: none;
+  text-decoration: none;
+}
+
+/* ---- Math (Mathematics extension; renders as text unless KaTeX loads) ---- */
+.math {
+  font-family: "Cambria Math", var(--font-display);
+}
+
+div.math {
+  display: block;
+  overflow-x: auto;
+  margin: 0.8em 0;
+  text-align: center;
+}
+/* ---- Custom containers (:::name) & footers ------------------------------- */
+/* Markdig emits :::name as <div class="name">. These four are the conventional
+ * admonition names YASN documents; unknown names fall back to a neutral panel. */
+div.note,
+div.tip,
+div.warning,
+div.danger {
+  margin: 0.9em 0;
+  padding: 0.6em 0.9em 0.6em 1em;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 4px 4px 0;
+  background: var(--panel);
+}
+
+div.note > :first-child,
+div.tip > :first-child,
+div.warning > :first-child,
+div.danger > :first-child { margin-top: 0; }
+
+div.note > :last-child,
+div.tip > :last-child,
+div.warning > :last-child,
+div.danger > :last-child { margin-bottom: 0; }
+
+div.tip { border-left-color: #2ea36b; }
+div.warning { border-left-color: var(--marker-edge); }
+div.danger { border-left-color: var(--danger); }
+
+footer,
+.footer {
+  margin-top: 1.4em;
+  padding-top: 0.6em;
+  border-top: 1px solid var(--hair);
+  font-size: 0.9em;
+  color: var(--muted);
+}
+
+/* Diagrams extension: mermaid/nomnoml are not executed in the preview, so the
+ * source is shown as a labelled, monospaced block rather than a blank gap. */
+div.mermaid,
+div.nomnoml {
+  white-space: pre;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  padding: 12px 14px;
+  background: var(--code-bg);
+  border: 1px dashed var(--hair);
+  border-radius: 6px;
+  overflow: auto;
+}
+/* ---- YASN reminder badges: [!display][control]{cron}{content} ------------ */
+.yasn-reminder {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.05em 0.55em;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--fg);
+  font-size: 0.9em;
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+
+.yasn-reminder-icon {
+  font-size: 0.95em;
+}
+
+.yasn-reminder-disabled {
+  opacity: 0.55;
+  text-decoration: line-through;
+  text-decoration-color: var(--muted);
+  border-color: var(--hair);
+  background: var(--panel);
+}
+
+.yasn-reminder-invalid {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+/* HexColor extension emits inline <span style="color:#…">; nothing to add. */
+
+/* ---- Accessibility floor ------------------------------------------------- */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+

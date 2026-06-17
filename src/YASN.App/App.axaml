@@ -1,0 +1,10 @@
+<Application
+    x:Class="YASN.YasnApplication"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia">
+  <Application.Styles>
+    <FluentTheme />
+    <mi:MaterialIconStyles />
+  </Application.Styles>
+</Application>

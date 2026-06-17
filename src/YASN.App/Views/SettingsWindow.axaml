@@ -1,0 +1,85 @@
+<Window
+    x:Class="YASN.Views.SettingsWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l="clr-namespace:YASN.Localization"
+    xmlns:s="clr-namespace:YASN.App.Settings"
+    xmlns:conv="clr-namespace:YASN.SettingsUi"
+    xmlns:ui="clr-namespace:YASN.SettingsUi"
+    x:DataType="s:SettingsViewModel"
+    Title="{l:Tr Settings.Title}"
+    Width="520"
+    Height="460"
+    WindowStartupLocation="CenterScreen">
+  <Window.Resources>
+    <conv:FieldTypeVisibilityConverter x:Key="FieldTypeVisibility" />
+  </Window.Resources>
+  <DockPanel Margin="16">
+    <Button DockPanel.Dock="Bottom" HorizontalAlignment="Right" Margin="0,12,0,0"
+            Content="{l:Tr Settings.Save}" Click="HandleSaveClick" />
+    <ScrollViewer>
+      <ItemsControl ItemsSource="{Binding Modules}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="s:SettingModule">
+            <StackPanel Margin="0,0,0,18" Spacing="8">
+              <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
+              <ItemsControl ItemsSource="{Binding Fields}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="s:SettingField">
+                    <StackPanel Margin="0,4" Spacing="2">
+                      <TextBlock Text="{Binding Title}" FontWeight="Medium" />
+                      <CheckBox IsChecked="{Binding BoolValue}"
+                                IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Toggle}" />
+                      <TextBox Text="{Binding Value}"
+                               IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Text}" />
+                      <Button Content="{l:Tr Settings.Browse}"
+                              HorizontalAlignment="Left"
+                              Tag="{Binding}"
+                              Click="HandleBrowseFolderClick"
+                              IsVisible="{Binding EnableFolderBrowse}" />
+                      <NumericUpDown Value="{Binding NumberValue}"
+                                     Minimum="{Binding Minimum}"
+                                     Maximum="{Binding Maximum}"
+                                     Increment="1"
+                                     FormatString="0"
+                                     IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Number}" />
+                      <TextBox Text="{Binding Value}" PasswordChar="•"
+                               IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Password}" />
+                      <ComboBox ItemsSource="{Binding Options}" SelectedValue="{Binding Value}"
+                                SelectedValueBinding="{Binding Value}"
+                                IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Select}">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate x:DataType="s:SettingOption">
+                            <TextBlock Text="{Binding Label}" />
+                          </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                      <StackPanel Orientation="Horizontal" Spacing="6"
+                                  IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Hotkey}">
+                        <ui:HotkeyCaptureBox Text="{Binding Value, Mode=TwoWay}" Width="220" />
+                        <Button Content="{l:Tr Settings.Shortcuts.Reset}"
+                                Click="HandleResetHotkeyClick" />
+                      </StackPanel>
+                      <TextBlock Text="{Binding Description}" FontSize="12" Foreground="#777777"
+                                 IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <ItemsControl ItemsSource="{Binding Actions}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="s:SettingAction">
+                    <Button Content="{Binding Label}" HorizontalAlignment="Left" Margin="0,6,0,0"
+                            Tag="{Binding}" Click="HandleActionClick" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="{Binding Status}" FontSize="12" Foreground="#777777"
+                         IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</Window>
