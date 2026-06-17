@@ -1,4 +1,3 @@
-using System.IO;
 using System.Text.Json;
 
 namespace YASN.Infrastructure
@@ -21,10 +20,41 @@ namespace YASN.Infrastructure
         public static string StyleRoot => Path.Combine(DataDirectory, "style");
         public static string HtmlCacheRoot => Path.Combine(DataDirectory, "html-cache");
 
+        /// <summary>
+        /// Path to the bundled tutorial note Markdown, copied next to the executable at build time.
+        /// Read-only source for the first-run welcome note and the "show tutorial" settings action.
+        /// </summary>
+        public static string BundledTutorialPath => Path.Combine(BaseDirectory, "Resources", "tutorial.md");
+
         public static string SyncSettingsPath => Path.Combine(DataDirectory, "settings.sync.json");
         public static string LocalSettingsPath { get; } = Path.Combine(BaseDirectory, "settings.local.json");
         public static string LogFilePath { get; } = Path.Combine(BaseDirectory, "yasn_log.log");
         public static string SignatureFilePath => Path.Combine(DataDirectory, "sync.manifest.json");
+
+        /// <summary>
+        /// Machine-local SQLite database holding the sync baseline, queue, and conflict state. Lives
+        /// beside the local settings (not in the replicated data directory) so it is never synced.
+        /// </summary>
+        public static string SyncDatabasePath { get; } = Path.Combine(BaseDirectory, "sync.db");
+
+        /// <summary>
+        /// Path to the machine-local reminder fire-state file. Kept beside the local settings (not in
+        /// the replicated data directory) so reminder delivery history is never synced between devices.
+        /// </summary>
+        public static string ReminderStatePath { get; } = Path.Combine(BaseDirectory, "reminder-state.json");
+
+        /// <summary>
+        /// Per-user LaunchAgents directory used for macOS auto-start.
+        /// </summary>
+        public static string MacLaunchAgentsDirectory => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Library",
+            "LaunchAgents");
+
+        /// <summary>
+        /// Lock file backing the single-instance guard.
+        /// </summary>
+        public static string SingleInstanceLockPath => Path.Combine(DataDirectory, "yasn.instance.lock");
 
         static AppPaths()
         {
