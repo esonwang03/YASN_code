@@ -1,0 +1,315 @@
+using YASN.Hotkeys;
+using YASN.Infrastructure;
+using YASN.Infrastructure.Settings;
+using YASN.Infrastructure.Sync;
+using YASN.Infrastructure.Sync.WebDav;
+using YASN.Localization;
+using YASN.PlatformServices;
+
+namespace YASN.SettingsUi
+{
+    /// <summary>
+    /// Builds the schema-driven settings model bound by the settings window.
+    /// </summary>
+    public static class SettingsSchemaBuilder
+    {
+        /// <summary>
+        /// Local-only field key that mirrors the OS auto-start state. The value is not persisted to
+        /// the settings store; it is applied directly through <see cref="IAutoStartService"/>.
+        /// </summary>
+        public const string AutoStartKey = "app.autoStart";
+
+        /// <summary>
+        /// Synced key for the master attachment auto-copy toggle.
+        /// </summary>
+        public const string AttachmentAutoSyncEnabledKey = "attachment.autoSyncEnabled";
+
+        /// <summary>
+        /// Synced key for the attachment copy/link size threshold in megabytes.
+        /// </summary>
+        public const string AttachmentThresholdMbKey = "attachment.autoSyncThresholdMb";
+
+        /// <summary>
+        /// Default attachment copy/link threshold in megabytes.
+        /// </summary>
+        public const int DefaultAttachmentThresholdMb = 5;
+
+        /// <summary>
+        /// Builds the settings view model and applies persisted values.
+        /// </summary>
+        /// <param name="store">The settings store used to load persisted values.</param>
+        /// <param name="autoStart">The auto-start service used to seed the auto-start toggle.</param>
+        /// <param name="keybindings">The keybinding registry used to seed the shortcuts module.</param>
+        /// <param name="showTutorial">Optional handler backing the "show tutorial note" action; omitted when null.</param>
+        /// <returns>A populated settings view model.</returns>
+        public static SettingsViewModel Build(SettingsStore store, IAutoStartService autoStart, KeybindingRegistry keybindings, Func<Task<string>>? showTutorial = null)
+        {
+            ArgumentNullException.ThrowIfNull(store);
+            ArgumentNullException.ThrowIfNull(autoStart);
+            ArgumentNullException.ThrowIfNull(keybindings);
+
+            SettingsViewModel viewModel = new SettingsViewModel();
+            viewModel.Modules.Add(BuildGeneralModule(autoStart, showTutorial));
+            viewModel.Modules.Add(BuildSyncModule());
+            viewModel.Modules.Add(BuildAttachmentsModule());
+            viewModel.Modules.Add(BuildEditorModule());
+            viewModel.Modules.Add(BuildShortcutsModule(keybindings));
+
+            foreach (SettingModule module in viewModel.Modules)
+            {
+                store.ApplyValues(module.Fields);
+            }
+
+            return viewModel;
+        }
+
+        /// <summary>
+        /// Builds the shortcuts module: one hotkey field per keybinding, seeded from the registry's
+        /// current gestures. These fields persist through the registry rather than the store.
+        /// </summary>
+        /// <param name="keybindings">The keybinding registry.</param>
+        private static SettingModule BuildShortcutsModule(KeybindingRegistry keybindings)
+        {
+            SettingModule module = new SettingModule
+            {
+                Key = "shortcuts",
+                Title = LocalizationService.Current["Settings.Shortcuts.Module"]
+            };
+
+            foreach (KeybindingDefinition definition in keybindings.Definitions)
+            {
+                module.Fields.Add(new SettingField
+                {
+                    Key = definition.SettingKey,
+                    Title = LocalizationService.Current[definition.LabelKey],
+                    FieldType = SettingFieldType.Hotkey,
+                    ShouldSync = false,
+                    Value = definition.Gesture?.ToString() ?? string.Empty,
+                    DefaultValue = definition.DefaultGesture.ToString()
+                });
+            }
+
+            return module;
+        }
+
+        private static SettingModule BuildGeneralModule(IAutoStartService autoStart, Func<Task<string>>? showTutorial)
+        {
+            SettingModule module = new SettingModule
+            {
+                Key = "general",
+                Title = "General"
+            };
+
+            module.Fields.Add(new SettingField
+            {
+                Key = AppPaths.DataDirectorySettingKey,
+                Title = "Data directory",
+                Description = LocalizationService.Current["Settings.DataDir.Description"],
+                FieldType = SettingFieldType.Text,
+                ShouldSync = false,
+                EnableFolderBrowse = true,
+                Value = AppPaths.DataDirectory
+            });
+
+            SettingField taskbar = new SettingField
+            {
+                Key = TaskbarVisibility.SettingKey,
+                Title = LocalizationService.Current["Settings.Taskbar"],
+                FieldType = SettingFieldType.Select,
+                ShouldSync = true,
+                Value = TaskbarVisibility.AlwaysHideValue
+            };
+            taskbar.Options.Add(new SettingOption { Label = LocalizationService.Current["Taskbar.Mode.AlwaysShow"], Value = TaskbarVisibility.AlwaysShowValue });
+            taskbar.Options.Add(new SettingOption { Label = LocalizationService.Current["Taskbar.Mode.AlwaysHide"], Value = TaskbarVisibility.AlwaysHideValue });
+            taskbar.Options.Add(new SettingOption { Label = LocalizationService.Current["Taskbar.Mode.HideTopMost"], Value = TaskbarVisibility.HideTopMostOnlyValue });
+            module.Fields.Add(taskbar);
+
+            if (autoStart.IsSupported)
+            {
+                module.Fields.Add(new SettingField
+                {
+                    Key = AutoStartKey,
+                    Title = "Launch at sign-in",
+                    FieldType = SettingFieldType.Toggle,
+                    ShouldSync = false,
+                    BoolValue = autoStart.IsEnabled
+                });
+            }
+
+            SettingField language = new SettingField
+            {
+                Key = LocalizationSettings.LanguageKey,
+                Title = "Language",
+                FieldType = SettingFieldType.Select,
+                ShouldSync = true
+            };
+            language.Options.Add(new SettingOption { Label = "English", Value = "en" });
+            module.Fields.Add(language);
+
+            if (showTutorial is not null)
+            {
+                module.Actions.Add(new SettingAction
+                {
+                    Key = "tutorial.show",
+                    Label = LocalizationService.Current["Settings.Tutorial.Show"],
+                    ExecuteAsync = showTutorial
+                });
+            }
+
+            return module;
+        }
+
+        private static SettingModule BuildSyncModule()
+        {
+            SettingModule module = new SettingModule
+            {
+                Key = "sync",
+                Title = LocalizationService.Current["Settings.Sync.Module"]
+            };
+
+            module.Fields.Add(new SettingField
+            {
+                Key = SyncSettings.EnabledKey,
+                Title = LocalizationService.Current["Settings.Sync.Enabled"],
+                FieldType = SettingFieldType.Toggle,
+                ShouldSync = false,
+                BoolValue = false
+            });
+
+            module.Fields.Add(new SettingField
+            {
+                Key = SyncSettings.UrlKey,
+                Title = LocalizationService.Current["Settings.Sync.Url"],
+                FieldType = SettingFieldType.Text,
+                ShouldSync = false
+            });
+
+            module.Fields.Add(new SettingField
+            {
+                Key = SyncSettings.UserKey,
+                Title = LocalizationService.Current["Settings.Sync.User"],
+                FieldType = SettingFieldType.Text,
+                ShouldSync = false
+            });
+
+            module.Fields.Add(new SettingField
+            {
+                Key = SyncSettings.PasswordKey,
+                Title = LocalizationService.Current["Settings.Sync.Password"],
+                FieldType = SettingFieldType.Password,
+                ShouldSync = false
+            });
+
+            module.Fields.Add(new SettingField
+            {
+                Key = SyncSettings.RemoteDirKey,
+                Title = LocalizationService.Current["Settings.Sync.RemoteDir"],
+                FieldType = SettingFieldType.Text,
+                ShouldSync = false,
+                Value = SyncSettings.DefaultRemoteDir
+            });
+
+            module.Fields.Add(new SettingField
+            {
+                Key = SyncSettings.IntervalSecondsKey,
+                Title = LocalizationService.Current["Settings.Sync.Interval"],
+                FieldType = SettingFieldType.Number,
+                ShouldSync = false,
+                Minimum = SyncSettings.MinIntervalSeconds,
+                Maximum = 86400,
+                Value = SyncSettings.DefaultIntervalSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            });
+
+            module.Actions.Add(new SettingAction
+            {
+                Key = "sync.test",
+                Label = LocalizationService.Current["Settings.Sync.Test"],
+                ExecuteAsync = () => TestConnectionAsync(module)
+            });
+
+            return module;
+        }
+
+        private static async Task<string> TestConnectionAsync(SettingModule module)
+        {
+            string Url() => module.Fields.First(f => f.Key == SyncSettings.UrlKey).Value;
+            string User() => module.Fields.First(f => f.Key == SyncSettings.UserKey).Value;
+            string Password() => module.Fields.First(f => f.Key == SyncSettings.PasswordKey).Value;
+            string Dir() => module.Fields.First(f => f.Key == SyncSettings.RemoteDirKey).Value.Trim().Trim('/');
+
+            if (string.IsNullOrWhiteSpace(Url()))
+            {
+                return LocalizationService.Current["Settings.Sync.Test.Fail"];
+            }
+
+            try
+            {
+                using WebDavSyncClient client = new WebDavSyncClient(new WebDavOptions
+                {
+                    ServerUrl = Url(),
+                    Username = User(),
+                    Password = Password()
+                });
+
+                string remote = Dir().Length == 0 ? SyncSettings.DefaultRemoteDir : Dir();
+                bool ok = await client.TestConnectionAsync(remote).ConfigureAwait(false);
+                return LocalizationService.Current[ok ? "Settings.Sync.Test.Ok" : "Settings.Sync.Test.Fail"];
+            }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
+            {
+                return LocalizationService.Current["Settings.Sync.Test.Fail"];
+            }
+        }
+
+        private static SettingModule BuildAttachmentsModule()
+        {
+            SettingModule module = new SettingModule
+            {
+                Key = "attachments",
+                Title = "Attachments"
+            };
+
+            module.Fields.Add(new SettingField
+            {
+                Key = AttachmentAutoSyncEnabledKey,
+                Title = "Copy attachments into the note",
+                Description = "When on, files at or under the threshold are copied; larger files are linked in place.",
+                FieldType = SettingFieldType.Toggle,
+                ShouldSync = true,
+                BoolValue = true
+            });
+
+            module.Fields.Add(new SettingField
+            {
+                Key = AttachmentThresholdMbKey,
+                Title = "Copy/link threshold (MB)",
+                FieldType = SettingFieldType.Number,
+                ShouldSync = true,
+                Minimum = 1,
+                Maximum = 1024,
+                Value = DefaultAttachmentThresholdMb.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            });
+
+            return module;
+        }
+
+        private static SettingModule BuildEditorModule()
+        {
+            SettingModule module = new SettingModule
+            {
+                Key = "editor",
+                Title = "Editor"
+            };
+
+            module.Fields.Add(new SettingField
+            {
+                Key = "log.maxSizeKb",
+                Title = "Log size limit (KB)",
+                FieldType = SettingFieldType.Text,
+                ShouldSync = false
+            });
+
+            return module;
+        }
+    }
+}

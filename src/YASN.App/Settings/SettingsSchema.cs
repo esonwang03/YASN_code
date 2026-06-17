@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace YASN.App.Settings
@@ -10,7 +9,9 @@ namespace YASN.App.Settings
         Toggle,
         Text,
         Password,
-        Select
+        Select,
+        Number,
+        Hotkey
     }
 
     public class SettingOption
@@ -21,6 +22,7 @@ namespace YASN.App.Settings
 
     public class SettingField : INotifyPropertyChanged
     {
+        private string _value = string.Empty;
         public string? Key { get; set; }
         public string? Title { get; set; }
         public string? Description { get; set; }
@@ -28,15 +30,31 @@ namespace YASN.App.Settings
         public bool ShouldSync { get; set; }
         public bool EnableFolderBrowse { get; set; }
 
-        [field: AllowNull, MaybeNull]
+        /// <summary>
+        /// Gets or sets the factory-default value, used by the reset button on hotkey fields.
+        /// </summary>
+        public string DefaultValue { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the inclusive minimum for <see cref="SettingFieldType.Number"/> fields.
+        /// </summary>
+        public decimal Minimum { get; set; } = decimal.MinValue;
+
+        /// <summary>
+        /// Gets or sets the inclusive maximum for <see cref="SettingFieldType.Number"/> fields.
+        /// </summary>
+        public decimal Maximum { get; set; } = decimal.MaxValue;
+
         public string Value
         {
-            get;
+            get => _value;
             set
             {
-                if (field != value)
+                string nextValue = value ?? string.Empty;
+
+                if (_value != nextValue)
                 {
-                    field = value;
+                    _value = nextValue;
                     OnPropertyChanged();
                     OnChanged?.Invoke(this);
                 }
@@ -56,11 +74,39 @@ namespace YASN.App.Settings
             }
         }
 
-        public Action<SettingField> OnChanged { get; set; }
+        public Action<SettingField>? OnChanged { get; set; }
         public ObservableCollection<SettingOption> Options { get; } = new();
 
-        public event PropertyChangedEventHandler PropertyChanged;
-        private void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        /// <summary>
+        /// Gets or sets the numeric view of <see cref="Value"/> for <see cref="SettingFieldType.Number"/>
+        /// fields. Setting clamps to <see cref="Minimum"/>/<see cref="Maximum"/> and writes the
+        /// canonical string into <see cref="Value"/>.
+        /// </summary>
+        public decimal NumberValue
+        {
+            get => decimal.TryParse(_value, System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture, out decimal parsed)
+                ? parsed
+                : 0m;
+            set
+            {
+                decimal clamped = value;
+                if (clamped < Minimum)
+                {
+                    clamped = Minimum;
+                }
+
+                if (clamped > Maximum)
+                {
+                    clamped = Maximum;
+                }
+
+                Value = clamped.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
@@ -75,28 +121,30 @@ namespace YASN.App.Settings
 
     public class SettingModule : INotifyPropertyChanged
     {
+        private string _status = string.Empty;
         public string? Key { get; set; }
         public string? Title { get; set; }
         public string? Description { get; set; }
         public ObservableCollection<SettingField> Fields { get; } = new();
         public ObservableCollection<SettingAction> Actions { get; } = new();
 
-        [field: AllowNull, MaybeNull]
         public string Status
         {
-            get;
+            get => _status;
             set
             {
-                if (field != value)
+                string nextStatus = value ?? string.Empty;
+
+                if (_status != nextStatus)
                 {
-                    field = value;
+                    _status = nextStatus;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public event PropertyChangedEventHandler PropertyChanged;
-        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        public event PropertyChangedEventHandler? PropertyChanged;
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }

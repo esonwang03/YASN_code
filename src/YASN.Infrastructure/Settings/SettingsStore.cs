@@ -1,7 +1,5 @@
-using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using YASN.Infrastructure.Logging;
 
 namespace YASN.Infrastructure.Settings
 {
@@ -22,6 +20,20 @@ namespace YASN.Infrastructure.Settings
         {
             foreach (SettingField field in fields)
             {
+                if (string.IsNullOrEmpty(field.Key))
+                {
+                    continue;
+                }
+
+                // Hotkey fields are owned by the KeybindingRegistry, which already overlays persisted
+                // gestures onto factory defaults (keeping the default when a stored value is blank).
+                // Applying the raw store value here would overwrite a registry-seeded default with a
+                // stale empty string, blanking the field — and a save would then persist that unbind.
+                if (field.FieldType == SettingFieldType.Hotkey)
+                {
+                    continue;
+                }
+
                 Dictionary<string, string> map = field.ShouldSync ? _syncSettings : _localSettings;
                 if (!map.TryGetValue(field.Key, out string? value))
                 {
@@ -56,6 +68,11 @@ namespace YASN.Infrastructure.Settings
 
         public void PersistField(SettingField field)
         {
+            if (string.IsNullOrEmpty(field.Key))
+            {
+                return;
+            }
+
             Dictionary<string, string> map = field.ShouldSync ? _syncSettings : _localSettings;
             string path = field.ShouldSync ? _syncPath : _localPath;
             string value = field.FieldType == SettingFieldType.Toggle
@@ -70,6 +87,25 @@ namespace YASN.Infrastructure.Settings
         {
             Dictionary<string, string> map = shouldSync ? _syncSettings : _localSettings;
             return map.GetValueOrDefault(key, defaultValue);
+        }
+
+        /// <summary>
+        /// Persists a raw setting value.
+        /// </summary>
+        /// <param name="key">The setting key.</param>
+        /// <param name="shouldSync">Whether the setting belongs in synced settings.</param>
+        /// <param name="value">The setting value.</param>
+        public void SetValue(string key, bool shouldSync, string value)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+
+            Dictionary<string, string> map = shouldSync ? _syncSettings : _localSettings;
+            string path = shouldSync ? _syncPath : _localPath;
+            map[key] = value ?? string.Empty;
+            SaveDictionary(map, path);
         }
 
         public bool ExportToFile(string path, out string errorMessage)
