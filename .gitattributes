@@ -1,2 +1,12 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# The .editorconfig mandates end_of_line = crlf for C#. Force a CRLF checkout
+# on every platform so `dotnet format --verify-no-changes` (IDE0055) passes in
+# CI on macOS/Linux, not just on Windows where core.autocrlf=true masks it.
+*.cs text eol=crlf
+*.csproj text eol=crlf
+*.sln text eol=crlf
+*.axaml text eol=crlf
+*.xaml text eol=crlf
+*.manifest text eol=crlf
