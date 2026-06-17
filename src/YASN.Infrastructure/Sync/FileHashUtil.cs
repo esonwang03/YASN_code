@@ -1,9 +1,7 @@
 using System.Globalization;
-using System.IO;
 using System.Security;
 using System.Security.Cryptography;
 using System.Text;
-using YASN.Infrastructure.Logging;
 
 namespace YASN.Infrastructure.Sync
 {

@@ -1,8 +1,5 @@
-using System.IO;
 using System.Net;
-using System.Net.Http;
 using WebDav;
-using YASN.Infrastructure.Logging;
 
 namespace YASN.Infrastructure.Sync.WebDav
 {
@@ -339,6 +336,93 @@ namespace YASN.Infrastructure.Sync.WebDav
             _httpClientHandler.Dispose();
         }
 
+        public async Task<string?> GetFileETagAsync(string remoteFilePath)
+        {
+            string path = NormalizeRemotePath(remoteFilePath);
+
+            try
+            {
+                PropfindResponse response = await _client.Propfind(path, new PropfindParameters
+                {
+                    ApplyTo = ApplyTo.Propfind.ResourceOnly
+                }).ConfigureAwait(false);
+
+                if (!response.IsSuccessful)
+                {
+                    return null;
+                }
+
+                return NormalizeETag(response.Resources?.FirstOrDefault()?.ETag);
+            }
+            catch (HttpRequestException ex)
+            {
+                AppLogger.Debug($"WebDAV etag check failed: {ex.Message}");
+                return null;
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Debug($"WebDAV etag check failed: {ex.Message}");
+                return null;
+            }
+            catch (TaskCanceledException ex)
+            {
+                AppLogger.Debug($"WebDAV etag check failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        public async Task<IReadOnlyList<RemoteEntry>> ListDirectoryAsync(string remoteDirectoryPath)
+        {
+            string dir = NormalizeRemotePath(remoteDirectoryPath);
+
+            try
+            {
+                PropfindResponse response = await _client.Propfind(dir, new PropfindParameters
+                {
+                    ApplyTo = ApplyTo.Propfind.ResourceAndChildren
+                }).ConfigureAwait(false);
+
+                if (!response.IsSuccessful || response.Resources is null)
+                {
+                    return Array.Empty<RemoteEntry>();
+                }
+
+                List<RemoteEntry> entries = new List<RemoteEntry>();
+                foreach (WebDavResource resource in response.Resources)
+                {
+                    if (resource.IsCollection)
+                    {
+                        continue;
+                    }
+
+                    string relative = ToRelativeRemotePath(resource.Uri);
+                    if (relative.Length == 0 || string.Equals(relative.TrimEnd('/'), dir, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    entries.Add(new RemoteEntry(relative, NormalizeETag(resource.ETag)));
+                }
+
+                return entries;
+            }
+            catch (HttpRequestException ex)
+            {
+                AppLogger.Debug($"WebDAV list failed: {ex.Message}");
+                return Array.Empty<RemoteEntry>();
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppLogger.Debug($"WebDAV list failed: {ex.Message}");
+                return Array.Empty<RemoteEntry>();
+            }
+            catch (TaskCanceledException ex)
+            {
+                AppLogger.Debug($"WebDAV list failed: {ex.Message}");
+                return Array.Empty<RemoteEntry>();
+            }
+        }
+
         private static HttpClientHandler CreateHttpClientHandler(WebDavOptions options)
         {
             HttpClientHandler handler = new HttpClientHandler
@@ -371,6 +455,48 @@ namespace YASN.Infrastructure.Sync.WebDav
         private static string NormalizeRemotePath(string? remotePath)
         {
             return (remotePath ?? string.Empty).Trim().Trim('/');
+        }
+
+        private static string? NormalizeETag(string? etag)
+        {
+            if (string.IsNullOrWhiteSpace(etag))
+            {
+                return null;
+            }
+
+            // Strip weak-validator prefix and surrounding quotes for stable comparison.
+            string trimmed = etag.Trim();
+            if (trimmed.StartsWith("W/", StringComparison.OrdinalIgnoreCase))
+            {
+                trimmed = trimmed.Substring(2);
+            }
+
+            return trimmed.Trim('"');
+        }
+
+        private string ToRelativeRemotePath(string? resourceUri)
+        {
+            if (string.IsNullOrWhiteSpace(resourceUri))
+            {
+                return string.Empty;
+            }
+
+            string path = resourceUri;
+            if (Uri.TryCreate(resourceUri, UriKind.Absolute, out Uri? absolute))
+            {
+                path = absolute.AbsolutePath;
+            }
+
+            path = Uri.UnescapeDataString(path);
+
+            // Drop the server's base path prefix so the result is relative to the configured root.
+            string basePath = _client is not null ? _httpClient.BaseAddress?.AbsolutePath ?? "/" : "/";
+            if (basePath.Length > 1 && path.StartsWith(basePath, StringComparison.OrdinalIgnoreCase))
+            {
+                path = path.Substring(basePath.Length);
+            }
+
+            return path.Trim('/');
         }
     }
 }
