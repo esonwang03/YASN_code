@@ -1,5 +1,4 @@
 using Markdig;
-using YASN.Infrastructure.Markdown.Extensions;
 
 namespace YASN.Infrastructure.Markdown
 {
@@ -9,7 +8,10 @@ namespace YASN.Infrastructure.Markdown
         {
             return new MarkdownPipelineBuilder()
                 .UseAdvancedExtensions()
+                .UsePreciseSourceLocation()
                 .UseHexColorText()
+                .UseNoteReminders()
+                .UseSourceLines()
                 .Build();
         }
     }
