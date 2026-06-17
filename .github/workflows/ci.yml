@@ -7,7 +7,12 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, macos-14]
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
@@ -17,10 +22,15 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-          include-prerelease: true
 
       - name: Restore
         run: dotnet restore YASN.sln
 
+      - name: Lint (dotnet format)
+        run: dotnet format YASN.sln --verify-no-changes --no-restore
+
       - name: Build
         run: dotnet build YASN.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test YASN.sln -c Release --no-build

@@ -10,7 +10,18 @@ permissions:
 
 jobs:
   publish:
-    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-2022
+          - rid: osx-x64
+            os: macos-14
+          - rid: osx-arm64
+            os: macos-14
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
@@ -20,19 +31,25 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-          include-prerelease: true
 
       - name: Restore
         run: dotnet restore YASN.sln
 
-      - name: Publish win-x64
-        run: dotnet publish src/YASN.App/YASN.App.csproj -c Release -r win-x64 --self-contained false -o publish
+      - name: Publish
+        run: dotnet publish src/YASN.App/YASN.App.csproj -c Release -r ${{ matrix.rid }} --self-contained false --no-restore -o publish/${{ matrix.rid }}
 
-      - name: Zip artifact
+      - name: Zip artifact (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path publish\* -DestinationPath YASN-win-x64.zip
+        run: Compress-Archive -Path "publish/${{ matrix.rid }}/*" -DestinationPath "YASN-${{ matrix.rid }}.zip"
+
+      - name: Zip artifact (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          chmod +x "publish/${{ matrix.rid }}/YASN"
+          (cd "publish/${{ matrix.rid }}" && zip -r -y "$GITHUB_WORKSPACE/YASN-${{ matrix.rid }}.zip" .)
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: YASN-win-x64.zip
+          files: YASN-${{ matrix.rid }}.zip
