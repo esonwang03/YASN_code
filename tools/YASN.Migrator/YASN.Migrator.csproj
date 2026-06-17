@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>YASN.Migrator</RootNamespace>
+    <AssemblyName>yasn-migrate</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!-- Link the shared, dependency-free migration core so the CLI and the app run identical logic. -->
+  <ItemGroup>
+    <Compile Include="..\..\src\YASN.App\Migration\WpfNoteStorageMigrator.cs" Link="Core\WpfNoteStorageMigrator.cs" />
+    <Compile Include="..\..\src\YASN.App\Migration\WpfNoteStorageMigrator.Convert.cs" Link="Core\WpfNoteStorageMigrator.Convert.cs" />
+    <Compile Include="..\..\src\YASN.App\Migration\MigrationDtos.cs" Link="Core\MigrationDtos.cs" />
+    <Compile Include="..\..\src\YASN.App\Migration\MigrationReport.cs" Link="Core\MigrationReport.cs" />
+  </ItemGroup>
+
+</Project>

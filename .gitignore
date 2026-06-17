@@ -123,3 +123,6 @@ $tf/
 
 .dotnet_cli/
 .dotnet/
+
+docs/superpowers/
+.claude
