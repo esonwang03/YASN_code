@@ -89,5 +89,44 @@ namespace YASN.Migration.Tests
             Assert.Equal(320, result.LeftPhysical, 3);
             Assert.Equal(450, result.WidthDip, 3);
         }
+
+        /// <summary>
+        /// Leaving split mode must still shrink the frame when no pre-split width was recorded (the
+        /// note opened directly in split mode). Collapse halves the width and holds the right edge
+        /// fixed — the inverse of <see cref="EditorModeLayout.ExpandLeft"/> — so the window does not
+        /// keep its wide split bounds.
+        /// </summary>
+        [Fact]
+        public void CollapseHalvesWidthKeepingRightEdge()
+        {
+            EditorModeLayout.ModeBounds result = EditorModeLayout.Collapse(
+                leftPhysical: -250,
+                widthDip: 900,
+                scaling: 1.0,
+                minWidthDip: 620);
+
+            Assert.Equal(620, result.WidthDip, 3);
+            // Right edge fixed: left + width*scaling unchanged before/after the collapse.
+            Assert.Equal(-250 + 900 * 1.0, result.LeftPhysical + result.WidthDip * 1.0, 3);
+        }
+
+        /// <summary>
+        /// Collapsing keeps the right edge fixed in physical pixels under fractional scaling.
+        /// </summary>
+        [Fact]
+        public void CollapseKeepsRightEdgeUnderScaling()
+        {
+            const double scaling = 1.5;
+            EditorModeLayout.ModeBounds result = EditorModeLayout.Collapse(
+                leftPhysical: 200,
+                widthDip: 800,
+                scaling: scaling,
+                minWidthDip: 300);
+
+            double rightBefore = 200 + 800 * scaling;
+            double rightAfter = result.LeftPhysical + result.WidthDip * scaling;
+            Assert.Equal(400, result.WidthDip, 3);
+            Assert.Equal(rightBefore, rightAfter, 3);
+        }
     }
 }

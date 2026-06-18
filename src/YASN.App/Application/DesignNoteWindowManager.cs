@@ -17,7 +17,7 @@ namespace YASN.Application
         }
 
         /// <inheritdoc />
-        public bool IsOpen(int noteId) => false;
+        public bool IsOpen(string noteId) => false;
 
         /// <inheritdoc />
         public void Open(AvaloniaNoteDocument note)
@@ -25,17 +25,22 @@ namespace YASN.Application
         }
 
         /// <inheritdoc />
-        public void Close(int noteId)
+        public void Close(string noteId)
         {
         }
 
         /// <inheritdoc />
-        public void ApplyLevel(int noteId, WindowLevel level)
+        public void ApplyLevel(string noteId, WindowLevel level)
         {
         }
 
         /// <inheritdoc />
         public void ShowQuickLayout(AvaloniaNoteDocument note)
+        {
+        }
+
+        /// <inheritdoc />
+        public void ActivateForReminder(AvaloniaNoteDocument note, int? sourceOffset)
         {
         }
 
@@ -50,6 +55,6 @@ namespace YASN.Application
         }
 
         /// <inheritdoc />
-        public bool TryApplyExternalContent(int noteId, string content) => false;
+        public bool TryApplyExternalContent(string noteId, string content) => false;
     }
 }

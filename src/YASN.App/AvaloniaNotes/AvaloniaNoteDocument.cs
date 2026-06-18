@@ -8,14 +8,16 @@ namespace YASN.AvaloniaNotes
     public sealed class AvaloniaNoteDocument
     {
         /// <summary>
-        /// Gets or sets the stable note identifier.
+        /// Gets or sets the stable note identifier (GUID "N" form). Normally equal to
+        /// <see cref="SyncKey"/>; the two differ only for a conflict copy, which keeps the remote
+        /// note's <see cref="SyncKey"/> but gets a fresh local id.
         /// </summary>
-        public int Id { get; set; }
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
         /// <summary>
-        /// Gets or sets the cross-machine-stable sync key (GUID "N" form). Unlike <see cref="Id"/>,
-        /// which is a local handle assigned per machine, this identifies the same logical note across
-        /// devices and survives sync. Two rows sharing one key represent an unresolved conflict.
+        /// Gets or sets the cross-machine-stable sync key (GUID "N" form). Identifies the same logical
+        /// note across devices and survives sync. Two rows sharing one key represent an unresolved
+        /// conflict.
         /// </summary>
         public string SyncKey { get; set; } = Guid.NewGuid().ToString("N");
 

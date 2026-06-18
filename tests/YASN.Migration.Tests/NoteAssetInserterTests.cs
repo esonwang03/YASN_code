@@ -1,4 +1,3 @@
-using System.Globalization;
 using YASN.Infrastructure;
 using YASN.SingleNote;
 
@@ -11,7 +10,7 @@ namespace YASN.Migration.Tests
     public sealed class NoteAssetInserterTests : IDisposable
     {
         // A high, unique identifier keeps the test's note directories clear of any real note data.
-        private readonly int noteId = 900_000 + Math.Abs(Guid.NewGuid().GetHashCode() % 90_000);
+        private readonly string noteId = "test-" + Guid.NewGuid().ToString("N");
         private readonly string sourceDir = Path.Combine(Path.GetTempPath(), "yasn-inserter-tests", Guid.NewGuid().ToString("N"));
 
         /// <summary>
@@ -61,7 +60,7 @@ namespace YASN.Migration.Tests
 
             string snippet = NoteAssetInserter.InsertImage(noteId, source);
 
-            string idText = noteId.ToString(CultureInfo.InvariantCulture);
+            string idText = noteId;
             Assert.StartsWith($"![diagram](note-assets/{idText}/", snippet, StringComparison.Ordinal);
             Assert.EndsWith($".png){Environment.NewLine}", snippet, StringComparison.Ordinal);
             Assert.Single(Directory.GetFiles(AppPaths.GetNoteAssetsDirectory(noteId), "*.png"));
@@ -77,7 +76,7 @@ namespace YASN.Migration.Tests
 
             string snippet = NoteAssetInserter.InsertAttachment(noteId, source);
 
-            string idText = noteId.ToString(CultureInfo.InvariantCulture);
+            string idText = noteId;
             Assert.StartsWith($"[report.pdf](note-assets/attachments/{idText}/", snippet, StringComparison.Ordinal);
             Assert.EndsWith($".pdf){Environment.NewLine}", snippet, StringComparison.Ordinal);
             Assert.Single(Directory.GetFiles(AppPaths.GetNoteAttachmentsDirectory(noteId), "*.pdf"));
@@ -106,7 +105,7 @@ namespace YASN.Migration.Tests
 
             string snippet = NoteAssetInserter.BuildSnippet(noteId, document, autoSyncEnabled: true, thresholdBytes: 1024);
 
-            string idText = noteId.ToString(CultureInfo.InvariantCulture);
+            string idText = noteId;
             Assert.StartsWith($"[small.txt](note-assets/attachments/{idText}/", snippet, StringComparison.Ordinal);
             Assert.Single(Directory.GetFiles(AppPaths.GetNoteAttachmentsDirectory(noteId), "*.txt"));
         }
@@ -173,7 +172,7 @@ namespace YASN.Migration.Tests
 
         private string[] AttachmentFiles()
         {
-            string dir = Path.Combine(AppPaths.NoteAttachmentsRoot, noteId.ToString(CultureInfo.InvariantCulture));
+            string dir = Path.Combine(AppPaths.NoteAttachmentsRoot, noteId);
             return Directory.Exists(dir) ? Directory.GetFiles(dir) : Array.Empty<string>();
         }
     }

@@ -30,7 +30,7 @@ namespace YASN.Migration.Tests
             // Every-second cron fires within ~1s through the live timer path.
             AvaloniaNoteDocument note = new AvaloniaNoteDocument
             {
-                Id = 1,
+                Id = "1",
                 Content = "[!tick][]{* * * * * *}{ping}"
             };
 
@@ -51,7 +51,7 @@ namespace YASN.Migration.Tests
 
             AvaloniaNoteDocument note = new AvaloniaNoteDocument
             {
-                Id = 2,
+                Id = "2",
                 Content = "[!off][X]{* * * * * *}{nope}"
             };
 
@@ -70,11 +70,11 @@ namespace YASN.Migration.Tests
             // Rule fired "yesterday"; a daily 09:00 occurrence has since been missed.
             AvaloniaNoteDocument note = new AvaloniaNoteDocument
             {
-                Id = 5,
+                Id = "5",
                 Content = "[!daily][]{0 9 * * *}{standup}"
             };
             string ruleId = NoteReminderParser.Parse(note.Content)[0].RuleId;
-            state.SetLastFired(5, ruleId, new DateTimeOffset(2026, 1, 1, 9, 0, 0, TimeSpan.Zero));
+            state.SetLastFired("5", ruleId, new DateTimeOffset(2026, 1, 1, 9, 0, 0, TimeSpan.Zero));
 
             // "Now" is two days later at noon, so 2026-01-02 09:00 was missed.
             DateTimeOffset now = new DateTimeOffset(2026, 1, 3, 12, 0, 0, TimeSpan.Zero);
@@ -96,7 +96,7 @@ namespace YASN.Migration.Tests
 
             AvaloniaNoteDocument note = new AvaloniaNoteDocument
             {
-                Id = 6,
+                Id = "6",
                 Content = "[!daily][]{0 9 * * *}{standup}"
             };
 
@@ -115,7 +115,7 @@ namespace YASN.Migration.Tests
 
             AvaloniaNoteDocument note = new AvaloniaNoteDocument
             {
-                Id = 8,
+                Id = "8",
                 Content = "[!tick][]{* * * * * *}{ping}"
             };
 
@@ -131,17 +131,17 @@ namespace YASN.Migration.Tests
         {
             RecordingNotificationService notifications = new RecordingNotificationService();
             RecordingContentWriter writer = new RecordingContentWriter();
-            RecordingPresenter presenter = new RecordingPresenter();
+            RecordingActivator activator = new RecordingActivator();
             ReminderStateStore state = new ReminderStateStore(statePath);
             using ReminderScheduler scheduler = new ReminderScheduler(notifications, state)
             {
                 ContentWriter = writer,
-                Presenter = presenter
+                Activator = activator
             };
 
             AvaloniaNoteDocument note = new AvaloniaNoteDocument
             {
-                Id = 10,
+                Id = "10",
                 Content = "[!tick][1]{* * * * * *}{once ping}"
             };
             string ruleId = NoteReminderParser.Parse(note.Content)[0].RuleId;
@@ -154,8 +154,8 @@ namespace YASN.Migration.Tests
 
             Assert.Single(notifications.Requests);
             Assert.Equal("once ping", notifications.Requests[0].Body);
-            Assert.Equal((10, ruleId), Assert.Single(writer.Disabled));
-            Assert.Single(presenter.Presented);
+            Assert.Equal(("10", ruleId), Assert.Single(writer.Disabled));
+            Assert.Single(activator.Activated);
         }
 
         [Fact]
@@ -167,11 +167,11 @@ namespace YASN.Migration.Tests
 
             AvaloniaNoteDocument note = new AvaloniaNoteDocument
             {
-                Id = 11,
+                Id = "11",
                 Content = "[!daily once][1]{0 9 * * *}{meds}"
             };
             string ruleId = NoteReminderParser.Parse(note.Content)[0].RuleId;
-            state.SetLastFired(11, ruleId, new DateTimeOffset(2026, 1, 1, 9, 0, 0, TimeSpan.Zero));
+            state.SetLastFired("11", ruleId, new DateTimeOffset(2026, 1, 1, 9, 0, 0, TimeSpan.Zero));
 
             DateTimeOffset now = new DateTimeOffset(2026, 1, 3, 12, 0, 0, TimeSpan.Zero);
             using ReminderScheduler scheduler = new ReminderScheduler(notifications, state, () => now)
@@ -182,7 +182,7 @@ namespace YASN.Migration.Tests
             scheduler.RescheduleCron(note);
 
             Assert.Single(notifications.Requests);
-            Assert.Equal((11, ruleId), Assert.Single(writer.Disabled));
+            Assert.Equal(("11", ruleId), Assert.Single(writer.Disabled));
         }
 
         private static async Task WaitForAsync(Func<bool> condition)
@@ -212,9 +212,9 @@ namespace YASN.Migration.Tests
 
         private sealed class RecordingContentWriter : IReminderContentWriter
         {
-            internal List<(int NoteId, string RuleId)> Disabled { get; } = new();
+            internal List<(string NoteId, string RuleId)> Disabled { get; } = new();
 
-            public void DisableOnceRule(int noteId, string ruleId)
+            public void DisableOnceRule(string noteId, string ruleId)
             {
                 lock (Disabled)
                 {
@@ -223,15 +223,15 @@ namespace YASN.Migration.Tests
             }
         }
 
-        private sealed class RecordingPresenter : IReminderPresenter
+        private sealed class RecordingActivator : IReminderActivator
         {
-            internal List<int> Presented { get; } = new();
+            internal List<string> Activated { get; } = new();
 
-            public void Present(AvaloniaNoteDocument note, NoteReminderRule rule)
+            public void Activate(AvaloniaNoteDocument note, NoteReminderRule? rule)
             {
-                lock (Presented)
+                lock (Activated)
                 {
-                    Presented.Add(note.Id);
+                    Activated.Add(note.Id);
                 }
             }
         }

@@ -53,9 +53,9 @@ namespace YASN.Migration.Tests
             Assert.Equal(MigrationStatus.Migrated, report.Status);
             IReadOnlyList<AvaloniaNoteDocument> notes = new NoteRepository(root).LoadAll();
             Assert.Equal(2, notes.Count);
-            Assert.Equal("Groceries", notes[0].Title);
-            Assert.Equal(WindowLevel.TopMost, notes[0].Level);
-            Assert.Equal("# groceries", notes[0].Content);
+            AvaloniaNoteDocument groceries = notes.Single(n => n.Title == "Groceries");
+            Assert.Equal(WindowLevel.TopMost, groceries.Level);
+            Assert.Equal("# groceries", groceries.Content);
         }
 
         /// <summary>Titles are preserved as the explicit stored title.</summary>
@@ -65,7 +65,7 @@ namespace YASN.Migration.Tests
             WriteIndex(V2PascalIndex);
             WpfNoteStorageMigrator.Migrate(root);
 
-            AvaloniaNoteDocument note = new NoteRepository(root).LoadAll().Single(n => n.Id == 1);
+            AvaloniaNoteDocument note = new NoteRepository(root).LoadAll().Single(n => n.Title == "Groceries");
             Assert.Equal("Groceries", note.StoredTitle);
         }
 
@@ -77,8 +77,8 @@ namespace YASN.Migration.Tests
             WpfNoteStorageMigrator.Migrate(root);
 
             IReadOnlyList<AvaloniaNoteDocument> notes = new NoteRepository(root).LoadAll();
-            Assert.Equal(EditorDisplayMode.TextOnly, notes.Single(n => n.Id == 1).DisplayMode);
-            Assert.Equal(EditorDisplayMode.PreviewOnly, notes.Single(n => n.Id == 2).DisplayMode);
+            Assert.Equal(EditorDisplayMode.TextOnly, notes.Single(n => n.Title == "Groceries").DisplayMode);
+            Assert.Equal(EditorDisplayMode.PreviewOnly, notes.Single(n => n.Title == "Plans").DisplayMode);
         }
 
         /// <summary>Every migrated note gets a non-empty sync key.</summary>
@@ -91,6 +91,41 @@ namespace YASN.Migration.Tests
             IReadOnlyList<AvaloniaNoteDocument> notes = new NoteRepository(root).LoadAll();
             Assert.All(notes, n => Assert.False(string.IsNullOrWhiteSpace(n.SyncKey)));
             Assert.NotEqual(notes[0].SyncKey, notes[1].SyncKey);
+        }
+
+        /// <summary>
+        /// A v5 index with integer ids is upgraded to GUID ids and its markdown files are renamed to
+        /// match, so the note content still loads under the new id. This is the int→GUID collapse: the
+        /// per-note sync key becomes the canonical id.
+        /// </summary>
+        [Fact]
+        public void MigratesIntegerIdsToGuidAndRenamesMarkdown()
+        {
+            WriteIndex("""
+                {
+                  "schemaVersion": 5,
+                  "notes": [
+                    { "id": 1, "syncKey": "key-one", "title": "First", "isOpen": true },
+                    { "id": 2, "syncKey": "key-two", "title": "Second", "isOpen": true }
+                  ]
+                }
+                """);
+            Directory.CreateDirectory(Path.Combine(root, "notes"));
+            File.WriteAllText(Path.Combine(root, "notes", "1.md"), "# first body");
+            File.WriteAllText(Path.Combine(root, "notes", "2.md"), "# second body");
+
+            MigrationReport report = WpfNoteStorageMigrator.Migrate(root);
+
+            Assert.Equal(MigrationStatus.Migrated, report.Status);
+            // The numeric markdown files are renamed to the GUID (here, the sync key) ids.
+            Assert.False(File.Exists(Path.Combine(root, "notes", "1.md")));
+            Assert.True(File.Exists(Path.Combine(root, "notes", "key-one.md")));
+
+            IReadOnlyList<AvaloniaNoteDocument> notes = new NoteRepository(root).LoadAll();
+            AvaloniaNoteDocument first = notes.Single(n => n.Title == "First");
+            Assert.Equal("key-one", first.Id);
+            Assert.Equal("key-one", first.SyncKey);
+            Assert.Equal("# first body", first.Content);
         }
 
         /// <summary>The original index is backed up verbatim before conversion.</summary>
@@ -117,8 +152,9 @@ namespace YASN.Migration.Tests
             MigrationReport report = WpfNoteStorageMigrator.Migrate(root);
 
             Assert.Equal(1, report.MarkdownFilesWritten);
-            Assert.Equal("inline body text", File.ReadAllText(Path.Combine(root, "notes", "7.md")));
-            Assert.Equal("inline body text", new NoteRepository(root).LoadAll().Single().Content);
+            AvaloniaNoteDocument note = new NoteRepository(root).LoadAll().Single();
+            Assert.Equal("inline body text", note.Content);
+            Assert.Equal("inline body text", File.ReadAllText(Path.Combine(root, "notes", $"{note.Id}.md")));
         }
 
         /// <summary>Running twice converts once; the second run is a no-op and keeps the first backup.</summary>

@@ -1,5 +1,6 @@
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using YASN.App.Settings;
 using YASN.Application;
 using YASN.AvaloniaNotes;
 using YASN.Hotkeys;
@@ -8,8 +9,10 @@ using YASN.Infrastructure.Reminders;
 using YASN.Infrastructure.Settings;
 using YASN.Localization;
 using YASN.Migration;
+using YASN.Notifications;
 using YASN.PlatformServices;
 using YASN.Reminders;
+using YASN.SettingsUi;
 
 namespace YASN
 {
@@ -44,24 +47,26 @@ namespace YASN
                     return;
                 }
 
-                LocalizationService localization = new LocalizationService(new SettingsStore());
+                SettingsStore settings = new ();
+                LocalizationService localization = new (settings);
                 LocalizationService.Current = localization;
                 MigrateLegacyStorage();
-                NoteRepository repository = new NoteRepository();
-                ReminderStateStore reminderState = new ReminderStateStore(AppPaths.ReminderStatePath);
-                ReminderScheduler reminders = new ReminderScheduler(platformServices.Notifications, reminderState);
-                KeybindingRegistry keybindings = new KeybindingRegistry(new SettingsStore());
-                NoteWindowManager noteWindows = new NoteWindowManager(repository, platformServices, reminders, keybindings);
+                NoteRepository repository = new ();
+                ReminderStateStore reminderState = new (AppPaths.ReminderStatePath);
+                ReminderScheduler reminders = new (platformServices.Notifications, reminderState);
+                KeybindingRegistry keybindings = new (settings);
+                NoteWindowManager noteWindows = new (repository, platformServices, reminders, keybindings, settings);
 
                 // Resolve the scheduler ↔ window-manager cycle: the writer needs the manager, the
-                // manager needs the scheduler. Wire the in-app presenter and the once-rule writer now.
-                reminders.Presenter = new AvaloniaReminderPresenter();
+                // manager needs the scheduler. Wire the in-app activator and the once-rule writer now.
+                reminders.Activator = new NoteWindowReminderActivator(noteWindows, settings);
                 reminders.ContentWriter = new ReminderContentWriter(repository, noteWindows);
-                TutorialNoteSeeder tutorial = new TutorialNoteSeeder(repository, noteWindows, new SettingsStore());
+                TutorialNoteSeeder tutorial = new (repository, noteWindows, settings);
                 sync = new SyncComposition(repository);
-                trayShell = new TrayShell(desktopLifetime, repository, platformServices, localization, noteWindows, keybindings, tutorial, sync);
+                trayShell = new TrayShell(desktopLifetime, repository, platformServices, localization, noteWindows, keybindings, tutorial, settings, sync);
                 trayShell.Initialize();
-                sync.ApplyConfiguration();
+                sync.ApplyConfiguration(settings);
+                WarnAboutUnrecognizedSettings(settings, platformServices, keybindings);
             }
 
             base.OnFrameworkInitializationCompleted();
@@ -82,6 +87,33 @@ namespace YASN
             else if (report.Status == MigrationStatus.Failed)
             {
                 AppLogger.Warn($"Legacy note storage migration failed: {string.Join("; ", report.Messages)}");
+            }
+        }
+
+        /// <summary>
+        /// Logs and notifies the user when the settings store holds keys the current schema no longer
+        /// recognizes (typically old configuration from a previous version). The keys are ignored
+        /// either way; this only surfaces that old config is not being applied. Failure-tolerant.
+        /// </summary>
+        private void WarnAboutUnrecognizedSettings(SettingsStore store, PlatformServiceBundle services, KeybindingRegistry keybindings)
+        {
+            try
+            {
+                SettingsViewModel schema = SettingsSchemaBuilder.Build(store, services.AutoStart, keybindings);
+                IReadOnlyList<string> unrecognized = SettingsCompatibilityChecker.LogUnrecognizedKeys(store, schema, keybindings);
+                if (unrecognized.Count == 0)
+                {
+                    return;
+                }
+
+                string body = LocalizationService.Current["Settings.Unrecognized.Body"];
+                NotificationRequest request = new NotificationRequest(
+                    LocalizationService.Current["Settings.Unrecognized.Title"], body, "settings:unrecognized");
+                _ = services.Notifications.SendAsync(request);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException)
+            {
+                AppLogger.Warn($"Could not check settings for unrecognized keys: {ex.Message}");
             }
         }
 

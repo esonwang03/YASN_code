@@ -151,9 +151,9 @@ namespace YASN.Infrastructure
             return Path.Combine(NotesMarkdownRoot, $"{noteId}.md");
         }
 
-        public static string GetNoteAssetsDirectory(int noteId)
+        public static string GetNoteAssetsDirectory(string noteId)
         {
-            string path = Path.Combine(NoteAssetsRoot, noteId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            string path = Path.Combine(NoteAssetsRoot, noteId);
             Directory.CreateDirectory(path);
             return path;
         }
@@ -165,14 +165,14 @@ namespace YASN.Infrastructure
             return path;
         }
 
-        public static string GetNoteAttachmentsDirectory(int noteId)
+        public static string GetNoteAttachmentsDirectory(string noteId)
         {
-            string path = Path.Combine(NoteAttachmentsRoot, noteId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            string path = Path.Combine(NoteAttachmentsRoot, noteId);
             Directory.CreateDirectory(path);
             return path;
         }
 
-        public static string GetNoteHtmlCachePath(int noteId)
+        public static string GetNoteHtmlCachePath(string noteId)
         {
             return Path.Combine(HtmlCacheRoot, $"{noteId}.html");
         }

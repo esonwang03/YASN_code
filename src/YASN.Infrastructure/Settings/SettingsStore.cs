@@ -90,6 +90,19 @@ namespace YASN.Infrastructure.Settings
         }
 
         /// <summary>
+        /// Gets every persisted setting key across both the synced and local stores. Used to detect
+        /// stored keys the current schema no longer recognizes (e.g. carried over from an older build).
+        /// </summary>
+        /// <returns>The distinct set of stored keys.</returns>
+        public IReadOnlyCollection<string> GetAllStoredKeys()
+        {
+            HashSet<string> keys = new(StringComparer.Ordinal);
+            keys.UnionWith(_syncSettings.Keys);
+            keys.UnionWith(_localSettings.Keys);
+            return keys;
+        }
+
+        /// <summary>
         /// Persists a raw setting value.
         /// </summary>
         /// <param name="key">The setting key.</param>

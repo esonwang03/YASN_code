@@ -15,8 +15,8 @@ namespace YASN.Reminders
         private readonly INotificationService notifications;
         private readonly ReminderStateStore? stateStore;
         private readonly Func<DateTimeOffset> clock;
-        private readonly HashSet<int> firedNoteIds = new();
-        private readonly Dictionary<int, Timer> timers = new();
+        private readonly HashSet<string> firedNoteIds = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Timer> timers = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Timer> cronTimers = new(StringComparer.Ordinal);
         private readonly Lock gate = new();
 
@@ -26,27 +26,27 @@ namespace YASN.Reminders
         /// <param name="notifications">The notification service used for reminder delivery.</param>
         /// <param name="stateStore">Optional store tracking when each cron rule last fired, for catch-up.</param>
         /// <param name="clock">Optional clock override (UTC); defaults to <see cref="DateTimeOffset.UtcNow"/>.</param>
-        /// <param name="presenter">Optional in-app presenter that shows a Markdown reminder window when a rule fires.</param>
+        /// <param name="activator">Optional in-app activator that focuses a note and scrolls to the reminder when a rule fires.</param>
         /// <param name="contentWriter">Optional writer that auto-disables a fire-once rule after it fires.</param>
         public ReminderScheduler(
             INotificationService notifications,
             ReminderStateStore? stateStore = null,
             Func<DateTimeOffset>? clock = null,
-            IReminderPresenter? presenter = null,
+            IReminderActivator? activator = null,
             IReminderContentWriter? contentWriter = null)
         {
             this.notifications = notifications;
             this.stateStore = stateStore;
             this.clock = clock ?? (() => DateTimeOffset.UtcNow);
-            Presenter = presenter;
+            Activator = activator;
             ContentWriter = contentWriter;
         }
 
         /// <summary>
-        /// Gets or sets the in-app presenter shown when a reminder fires. Settable post-construction to
+        /// Gets or sets the in-app activator invoked when a reminder fires. Settable post-construction to
         /// break the scheduler ↔ window-manager dependency cycle during startup wiring.
         /// </summary>
-        public IReminderPresenter? Presenter { get; set; }
+        public IReminderActivator? Activator { get; set; }
 
         /// <summary>
         /// Gets or sets the writer that auto-disables a fire-once rule after it fires. Settable
@@ -101,7 +101,7 @@ namespace YASN.Reminders
         /// Cancels and disposes the live timer for a note when present.
         /// </summary>
         /// <param name="noteId">The note identifier.</param>
-        public void Cancel(int noteId)
+        public void Cancel(string noteId)
         {
             lock (gate)
             {
@@ -144,9 +144,9 @@ namespace YASN.Reminders
         /// Cancels and disposes all live crontab timers for a note.
         /// </summary>
         /// <param name="noteId">The note identifier.</param>
-        public void CancelCron(int noteId)
+        public void CancelCron(string noteId)
         {
-            string prefix = noteId.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":";
+            string prefix = noteId + ":";
             lock (gate)
             {
                 foreach (string key in cronTimers.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
@@ -203,7 +203,7 @@ namespace YASN.Reminders
                 delay = TimeSpan.Zero;
             }
 
-            string key = note.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + rule.RuleId;
+            string key = note.Id + ":" + rule.RuleId;
             Timer timer = new Timer(_ => OnCronTimerFired(note, rule), state: null, delay, Timeout.InfiniteTimeSpan);
             lock (gate)
             {
@@ -234,12 +234,12 @@ namespace YASN.Reminders
         }
 
         /// <summary>
-        /// Sends the OS toast and shows the in-app Markdown reminder window (when a presenter is set).
+        /// Sends the OS toast and, when enabled, activates the note window and scrolls to the rule.
         /// </summary>
         private void Deliver(AvaloniaNoteDocument note, NoteReminderRule rule)
         {
             _ = FireCronAsync(note, rule);
-            Presenter?.Present(note, rule);
+            Activator?.Activate(note, rule);
         }
 
         private Task<NotificationSendResult> FireCronAsync(AvaloniaNoteDocument note, NoteReminderRule rule)
@@ -280,7 +280,7 @@ namespace YASN.Reminders
             }
         }
 
-        private bool MarkFired(int noteId)
+        private bool MarkFired(string noteId)
         {
             lock (gate)
             {
@@ -290,6 +290,9 @@ namespace YASN.Reminders
 
         private Task<NotificationSendResult> FireAsync(AvaloniaNoteDocument note)
         {
+            // A one-shot ReminderAt has no in-note anchor, so the activator focuses the note without
+            // scrolling (rule: null).
+            Activator?.Activate(note, null);
             NotificationRequest request = new NotificationRequest(note.Title, "Reminder", $"note:{note.Id}");
             return notifications.SendAsync(request);
         }

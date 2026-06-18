@@ -33,7 +33,7 @@ namespace YASN.Migration.Tests
             }
         }
 
-        private AvaloniaNoteDocument Save(string key, string content, int id)
+        private AvaloniaNoteDocument Save(string key, string content, string id)
         {
             AvaloniaNoteDocument note = new AvaloniaNoteDocument { Id = id, SyncKey = key, Content = content };
             repository.Save(note);
@@ -50,7 +50,7 @@ namespace YASN.Migration.Tests
         [Fact]
         public async Task LocalOnlyUploads()
         {
-            Save("k1", "local body", 1);
+            Save("k1", "local body", "1");
             await engine.SyncNowAsync();
 
             Assert.Equal("local body", await ReadRemote("k1"));
@@ -84,7 +84,7 @@ namespace YASN.Migration.Tests
         [Fact]
         public async Task UnchangedSecondPassIsNoOp()
         {
-            Save("k1", "body", 1);
+            Save("k1", "body", "1");
             SyncResult first = await engine.SyncNowAsync();
             SyncResult second = await engine.SyncNowAsync();
 
@@ -96,7 +96,7 @@ namespace YASN.Migration.Tests
         [Fact]
         public async Task LocalEditUploads()
         {
-            AvaloniaNoteDocument note = Save("k1", "v1", 1);
+            AvaloniaNoteDocument note = Save("k1", "v1", "1");
             await engine.SyncNowAsync();
 
             note.Content = "v2";
@@ -110,7 +110,7 @@ namespace YASN.Migration.Tests
         [Fact]
         public async Task RemoteEditDownloadsIntoSameNote()
         {
-            Save("k1", "v1", 1);
+            Save("k1", "v1", "1");
             await engine.SyncNowAsync();
 
             SyncNoteDocument edited = new SyncNoteDocument { SyncKey = "k1", Content = "remote v2" };
@@ -125,7 +125,7 @@ namespace YASN.Migration.Tests
         [Fact]
         public async Task ConvergentEditsDoNotConflict()
         {
-            AvaloniaNoteDocument note = Save("k1", "v1", 1);
+            AvaloniaNoteDocument note = Save("k1", "v1", "1");
             await engine.SyncNowAsync();
 
             note.Content = "same";
@@ -143,7 +143,7 @@ namespace YASN.Migration.Tests
         [Fact]
         public async Task DivergentEditsCreateConflict()
         {
-            AvaloniaNoteDocument note = Save("k1", "v1", 1);
+            AvaloniaNoteDocument note = Save("k1", "v1", "1");
             await engine.SyncNowAsync();
 
             note.Content = "local v2";
@@ -161,7 +161,7 @@ namespace YASN.Migration.Tests
         [Fact]
         public async Task ConflictResolvesAfterDeletingDuplicate()
         {
-            AvaloniaNoteDocument note = Save("k1", "v1", 1);
+            AvaloniaNoteDocument note = Save("k1", "v1", "1");
             await engine.SyncNowAsync();
             note.Content = "local v2";
             repository.Save(note);
@@ -171,8 +171,8 @@ namespace YASN.Migration.Tests
             Assert.False(engine.TryResolveConflict("k1", out string? error));
             Assert.Equal("Sync.Resolve.Duplicates", error);
 
-            // Delete the conflict copy (the higher id), leaving one note for the key.
-            int copyId = repository.LoadAll().Where(n => n.SyncKey == "k1").Max(n => n.Id);
+            // Delete one of the two copies for the key, leaving a single note so the conflict resolves.
+            string copyId = repository.LoadAll().Where(n => n.SyncKey == "k1").Max(n => n.Id)!;
             repository.Delete(copyId);
 
             Assert.True(engine.TryResolveConflict("k1", out _));
@@ -183,7 +183,7 @@ namespace YASN.Migration.Tests
         [Fact]
         public async Task OverlappingPassesSerialize()
         {
-            Save("k1", "body", 1);
+            Save("k1", "body", "1");
             Task<SyncResult> a = engine.SyncNowAsync();
             Task<SyncResult> b = engine.SyncNowAsync();
             SyncResult[] results = await Task.WhenAll(a, b);

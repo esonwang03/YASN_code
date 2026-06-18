@@ -4,7 +4,7 @@ namespace YASN.Migration
 {
     /// <summary>
     /// Converts the legacy WPF note store (PascalCase index, schema v1/v2) into the schema the
-    /// Avalonia build reads (camelCase, schema 5, with per-note sync keys).
+    /// Avalonia build reads (camelCase, schema 6, with GUID ids and per-note sync keys).
     /// </summary>
     /// <remarks>
     /// Both builds share the same files — <c>notes.index.json</c> and <c>notes/{id}.md</c> under the
@@ -16,7 +16,7 @@ namespace YASN.Migration
     public static partial class WpfNoteStorageMigrator
     {
         /// <summary>The schema version written by the current Avalonia build.</summary>
-        public const int CurrentSchemaVersion = 5;
+        public const int CurrentSchemaVersion = 6;
 
         private const string IndexFileName = "notes.index.json";
         private const string LegacyFileName = "notes.json";

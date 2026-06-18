@@ -57,5 +57,31 @@ namespace YASN.WindowLayout
         {
             return new ModeBounds(savedLeftPhysical, savedWidthDip);
         }
+
+        /// <summary>
+        /// Halves the window width, holding the right edge fixed, clamped to the minimum width. This is
+        /// the inverse of <see cref="ExpandLeft"/> and is used when leaving split mode for a window that
+        /// never recorded a pre-split width (e.g. a note that opened directly in split mode), so the
+        /// frame still collapses instead of keeping its wide split bounds.
+        /// </summary>
+        /// <param name="leftPhysical">The current left, in physical pixels.</param>
+        /// <param name="widthDip">The current width, in DIP.</param>
+        /// <param name="scaling">The window scale factor (physical pixels per DIP).</param>
+        /// <param name="minWidthDip">The minimum allowed width, in DIP.</param>
+        /// <returns>The collapsed bounds.</returns>
+        public static ModeBounds Collapse(
+            double leftPhysical,
+            double widthDip,
+            double scaling,
+            double minWidthDip)
+        {
+            double safeScaling = scaling <= 0 ? 1.0 : scaling;
+            double targetWidth = Math.Max(widthDip / 2, minWidthDip);
+
+            // Hold the right edge fixed: shift right by the physical-pixel width that was removed.
+            double removedWidthPhysical = (widthDip - targetWidth) * safeScaling;
+            double newLeft = leftPhysical + removedWidthPhysical;
+            return new ModeBounds(newLeft, targetWidth);
+        }
     }
 }

@@ -21,17 +21,17 @@ namespace YASN.Migration.Tests
         public void UnsetRuleReturnsNull()
         {
             ReminderStateStore store = new ReminderStateStore(path);
-            Assert.Null(store.GetLastFired(1, "abc"));
+            Assert.Null(store.GetLastFired("1", "abc"));
         }
 
         [Fact]
         public void RoundTripsAcrossInstances()
         {
             DateTimeOffset fired = new DateTimeOffset(2026, 1, 2, 9, 0, 0, TimeSpan.Zero);
-            new ReminderStateStore(path).SetLastFired(3, "rule1", fired);
+            new ReminderStateStore(path).SetLastFired("3", "rule1", fired);
 
             ReminderStateStore reopened = new ReminderStateStore(path);
-            Assert.Equal(fired, reopened.GetLastFired(3, "rule1"));
+            Assert.Equal(fired, reopened.GetLastFired("3", "rule1"));
         }
 
         [Fact]
@@ -41,7 +41,7 @@ namespace YASN.Migration.Tests
             File.WriteAllText(path, "{ this is not valid json");
 
             ReminderStateStore store = new ReminderStateStore(path);
-            Assert.Null(store.GetLastFired(1, "x"));
+            Assert.Null(store.GetLastFired("1", "x"));
         }
 
         [Fact]
@@ -49,11 +49,11 @@ namespace YASN.Migration.Tests
         {
             DateTimeOffset t = DateTimeOffset.UtcNow;
             ReminderStateStore store = new ReminderStateStore(path);
-            store.SetLastFired(1, "a", t);
+            store.SetLastFired("1", "a", t);
 
-            Assert.NotNull(store.GetLastFired(1, "a"));
-            Assert.Null(store.GetLastFired(1, "b"));
-            Assert.Null(store.GetLastFired(2, "a"));
+            Assert.NotNull(store.GetLastFired("1", "a"));
+            Assert.Null(store.GetLastFired("1", "b"));
+            Assert.Null(store.GetLastFired("2", "a"));
         }
     }
 }

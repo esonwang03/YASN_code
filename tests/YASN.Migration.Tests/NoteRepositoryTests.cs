@@ -22,18 +22,21 @@ namespace YASN.Migration.Tests
         }
 
         /// <summary>
-        /// Creates notes with stable incrementing identifiers.
+        /// New notes get distinct GUID identifiers, and the id doubles as the cross-device sync key
+        /// (the two collapsed into one identifier).
         /// </summary>
         [Fact]
-        public void CreateNoteAssignsNextIdentifier()
+        public void CreateNoteAssignsDistinctGuidIdentifier()
         {
             NoteRepository repository = new NoteRepository(root);
 
             AvaloniaNoteDocument first = repository.CreateNote();
             AvaloniaNoteDocument second = repository.CreateNote();
 
-            Assert.Equal(1, first.Id);
-            Assert.Equal(2, second.Id);
+            Assert.NotEqual(first.Id, second.Id);
+            Assert.False(string.IsNullOrWhiteSpace(first.Id));
+            Assert.Equal(first.Id, first.SyncKey);
+            Assert.Equal(second.Id, second.SyncKey);
         }
 
         /// <summary>
@@ -46,7 +49,7 @@ namespace YASN.Migration.Tests
             DateTimeOffset reminder = DateTimeOffset.Parse("2026-06-16T10:30:00+00:00", System.Globalization.CultureInfo.InvariantCulture);
             AvaloniaNoteDocument note = new AvaloniaNoteDocument
             {
-                Id = 7,
+                Id = "7",
                 Content = "# Title",
                 Left = 10,
                 Top = 20,
@@ -82,7 +85,7 @@ namespace YASN.Migration.Tests
             NoteRepository repository = new NoteRepository(root);
             AvaloniaNoteDocument note = new AvaloniaNoteDocument
             {
-                Id = 3,
+                Id = "3",
                 Content = "# Mode",
                 DisplayMode = EditorDisplayMode.TextOnly
             };
@@ -102,7 +105,7 @@ namespace YASN.Migration.Tests
             NoteRepository repository = new NoteRepository(root);
             AvaloniaNoteDocument note = new AvaloniaNoteDocument
             {
-                Id = 4,
+                Id = "4",
                 Content = "# Heading from content",
                 StoredTitle = "My custom title"
             };
@@ -123,7 +126,7 @@ namespace YASN.Migration.Tests
             NoteRepository repository = new NoteRepository(root);
             AvaloniaNoteDocument note = new AvaloniaNoteDocument
             {
-                Id = 5,
+                Id = "5",
                 Content = "# Derived heading"
             };
 
@@ -162,7 +165,7 @@ namespace YASN.Migration.Tests
             NoteRepository repository = new NoteRepository(root);
             repository.CreateNote();
 
-            repository.Delete(999);
+            repository.Delete("999");
 
             Assert.Single(repository.LoadAll());
         }

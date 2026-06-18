@@ -17,8 +17,8 @@ namespace YASN.Migration.Tests
         {
             RecordingNotificationService notifications = new RecordingNotificationService();
             using ReminderScheduler scheduler = new ReminderScheduler(notifications);
-            AvaloniaNoteDocument due = new AvaloniaNoteDocument { Id = 1, Content = "# Due", ReminderAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
-            AvaloniaNoteDocument future = new AvaloniaNoteDocument { Id = 2, Content = "# Future", ReminderAt = DateTimeOffset.UtcNow.AddMinutes(5) };
+            AvaloniaNoteDocument due = new AvaloniaNoteDocument { Id = "1", Content = "# Due", ReminderAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
+            AvaloniaNoteDocument future = new AvaloniaNoteDocument { Id = "2", Content = "# Future", ReminderAt = DateTimeOffset.UtcNow.AddMinutes(5) };
 
             await scheduler.NotifyDueRemindersAsync([due, future], DateTimeOffset.UtcNow);
 
@@ -35,7 +35,7 @@ namespace YASN.Migration.Tests
         {
             RecordingNotificationService notifications = new RecordingNotificationService();
             using ReminderScheduler scheduler = new ReminderScheduler(notifications);
-            AvaloniaNoteDocument note = new AvaloniaNoteDocument { Id = 7, Content = "# Soon", ReminderAt = DateTimeOffset.UtcNow.AddMilliseconds(50) };
+            AvaloniaNoteDocument note = new AvaloniaNoteDocument { Id = "7", Content = "# Soon", ReminderAt = DateTimeOffset.UtcNow.AddMilliseconds(50) };
 
             scheduler.Reschedule(note);
             await WaitForAsync(() => notifications.Requests.Count > 0);
@@ -52,7 +52,7 @@ namespace YASN.Migration.Tests
         {
             RecordingNotificationService notifications = new RecordingNotificationService();
             using ReminderScheduler scheduler = new ReminderScheduler(notifications);
-            AvaloniaNoteDocument note = new AvaloniaNoteDocument { Id = 9, Content = "# Later", ReminderAt = DateTimeOffset.UtcNow.AddMilliseconds(200) };
+            AvaloniaNoteDocument note = new AvaloniaNoteDocument { Id = "9", Content = "# Later", ReminderAt = DateTimeOffset.UtcNow.AddMilliseconds(200) };
 
             scheduler.Reschedule(note);
             scheduler.Cancel(note.Id);

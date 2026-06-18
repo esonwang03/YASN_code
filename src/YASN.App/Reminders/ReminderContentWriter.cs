@@ -28,12 +28,12 @@ namespace YASN.Reminders
         }
 
         /// <inheritdoc/>
-        public void DisableOnceRule(int noteId, string ruleId)
+        public void DisableOnceRule(string noteId, string ruleId)
         {
             Dispatcher.UIThread.Post(() => Apply(noteId, ruleId));
         }
 
-        private void Apply(int noteId, string ruleId)
+        private void Apply(string noteId, string ruleId)
         {
             AvaloniaNoteDocument? note = repository.LoadAll().FirstOrDefault(n => n.Id == noteId);
             if (note is null)

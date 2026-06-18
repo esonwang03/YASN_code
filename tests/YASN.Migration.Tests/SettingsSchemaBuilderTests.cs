@@ -83,6 +83,53 @@ namespace YASN.Migration.Tests
     }
 
     /// <summary>
+    /// Verifies detection of persisted keys the current schema no longer recognizes (old config).
+    /// </summary>
+    public sealed class SettingsCompatibilityCheckerTests
+    {
+        /// <summary>
+        /// A stored key that is neither a schema field, a hotkey, nor a known internal key is flagged
+        /// as unrecognized, while a current schema key (the data directory) is not.
+        /// </summary>
+        [Fact]
+        public void FlagsUnknownKeyButNotSchemaKey()
+        {
+            SettingsStore store = new SettingsStore();
+            string staleKey = "webdav.__legacy_" + Guid.NewGuid().ToString("N");
+            store.SetValue(staleKey, shouldSync: false, "old value");
+
+            KeybindingRegistry keybindings = new KeybindingRegistry(new SettingsStore());
+            SettingsViewModel schema = SettingsSchemaBuilder.Build(store, new UnsupportedAutoStartService(), keybindings);
+
+            IReadOnlyList<string> unrecognized = SettingsCompatibilityChecker.FindUnrecognizedKeys(store, schema, keybindings);
+
+            Assert.Contains(staleKey, unrecognized);
+            Assert.DoesNotContain(AppPaths.DataDirectorySettingKey, unrecognized);
+        }
+
+        /// <summary>
+        /// A real keybinding key and a known internal key are recognized and never reported.
+        /// </summary>
+        [Fact]
+        public void DoesNotFlagHotkeyOrInternalKeys()
+        {
+            SettingsStore store = new SettingsStore();
+            store.SetValue("tutorial.seeded", shouldSync: false, "true");
+
+            KeybindingRegistry keybindings = new KeybindingRegistry(new SettingsStore());
+            string realHotkeyKey = keybindings.Definitions.First().SettingKey;
+            store.SetValue(realHotkeyKey, shouldSync: false, "Ctrl+Alt+M");
+
+            SettingsViewModel schema = SettingsSchemaBuilder.Build(store, new UnsupportedAutoStartService(), keybindings);
+
+            IReadOnlyList<string> unrecognized = SettingsCompatibilityChecker.FindUnrecognizedKeys(store, schema, keybindings);
+
+            Assert.DoesNotContain("tutorial.seeded", unrecognized);
+            Assert.DoesNotContain(realHotkeyKey, unrecognized);
+        }
+    }
+
+    /// <summary>
     /// Guards the store's handling of registry-owned hotkey fields.
     /// </summary>
     public sealed class SettingsStoreHotkeyTests

@@ -1,4 +1,3 @@
-using System.Globalization;
 using YASN.Infrastructure;
 
 namespace YASN.SingleNote
@@ -33,7 +32,7 @@ namespace YASN.SingleNote
         /// <param name="noteId">The owning note identifier.</param>
         /// <param name="sourceFilePath">The absolute path of the source file.</param>
         /// <returns>A Markdown snippet ending with a trailing newline.</returns>
-        public static string BuildSnippet(int noteId, string sourceFilePath)
+        public static string BuildSnippet(string noteId, string sourceFilePath)
         {
             return BuildSnippet(noteId, sourceFilePath, autoSyncEnabled: true, thresholdBytes: long.MaxValue);
         }
@@ -48,7 +47,7 @@ namespace YASN.SingleNote
         /// <param name="autoSyncEnabled">Whether attachments are copied into the note.</param>
         /// <param name="thresholdBytes">The maximum size in bytes for copying an attachment.</param>
         /// <returns>A Markdown snippet ending with a trailing newline.</returns>
-        public static string BuildSnippet(int noteId, string sourceFilePath, bool autoSyncEnabled, long thresholdBytes)
+        public static string BuildSnippet(string noteId, string sourceFilePath, bool autoSyncEnabled, long thresholdBytes)
         {
             if (IsImageFile(sourceFilePath))
             {
@@ -81,7 +80,7 @@ namespace YASN.SingleNote
         /// <param name="noteId">The owning note identifier.</param>
         /// <param name="sourceFilePath">The absolute path of the source image.</param>
         /// <returns>An image Markdown snippet using a relative note-assets path.</returns>
-        public static string InsertImage(int noteId, string sourceFilePath)
+        public static string InsertImage(string noteId, string sourceFilePath)
         {
             EnsureSourceExists(sourceFilePath);
 
@@ -90,7 +89,7 @@ namespace YASN.SingleNote
             File.Copy(sourceFilePath, destinationPath, overwrite: true);
 
             string altText = Path.GetFileNameWithoutExtension(sourceFilePath);
-            string relativePath = $"note-assets/{noteId.ToString(CultureInfo.InvariantCulture)}/{fileName}";
+            string relativePath = $"note-assets/{noteId}/{fileName}";
             return $"![{altText}]({relativePath}){Environment.NewLine}";
         }
 
@@ -100,7 +99,7 @@ namespace YASN.SingleNote
         /// <param name="noteId">The owning note identifier.</param>
         /// <param name="sourceFilePath">The absolute path of the source file.</param>
         /// <returns>An attachment link Markdown snippet using a relative note-assets path.</returns>
-        public static string InsertAttachment(int noteId, string sourceFilePath)
+        public static string InsertAttachment(string noteId, string sourceFilePath)
         {
             EnsureSourceExists(sourceFilePath);
 
@@ -109,7 +108,7 @@ namespace YASN.SingleNote
             string destinationPath = Path.Combine(AppPaths.GetNoteAttachmentsDirectory(noteId), fileName);
             File.Copy(sourceFilePath, destinationPath, overwrite: true);
 
-            string relativePath = $"note-assets/attachments/{noteId.ToString(CultureInfo.InvariantCulture)}/{fileName}";
+            string relativePath = $"note-assets/attachments/{noteId}/{fileName}";
             return $"[{displayName}]({relativePath}){Environment.NewLine}";
         }
 

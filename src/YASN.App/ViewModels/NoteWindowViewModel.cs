@@ -41,7 +41,7 @@ namespace YASN.ViewModels
         /// <summary>
         /// Gets the note identifier.
         /// </summary>
-        public int NoteId => note.Id;
+        public string NoteId => note.Id;
 
         /// <summary>
         /// Gets the note display title.

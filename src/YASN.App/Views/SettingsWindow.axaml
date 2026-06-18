@@ -13,6 +13,7 @@
     WindowStartupLocation="CenterScreen">
   <Window.Resources>
     <conv:FieldTypeVisibilityConverter x:Key="FieldTypeVisibility" />
+    <conv:InverseBoolConverter x:Key="InverseBool" />
   </Window.Resources>
   <DockPanel Margin="16">
     <Button DockPanel.Dock="Bottom" HorizontalAlignment="Right" Margin="0,12,0,0"
@@ -22,14 +23,19 @@
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="s:SettingModule">
             <StackPanel Margin="0,0,0,18" Spacing="8">
-              <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
               <ItemsControl ItemsSource="{Binding Fields}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="s:SettingField">
                     <StackPanel Margin="0,4" Spacing="2">
-                      <TextBlock Text="{Binding Title}" FontWeight="Medium" />
-                      <CheckBox IsChecked="{Binding BoolValue}"
-                                IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Toggle}" />
+                      <TextBlock Text="{Binding Title}" FontWeight="Medium" TextWrapping="Wrap" />
+                      <StackPanel Orientation="Horizontal" Spacing="16"
+                                  IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Toggle}">
+                        <RadioButton GroupName="{Binding Key}" Content="{l:Tr Settings.Toggle.On}"
+                                     IsChecked="{Binding BoolValue}" />
+                        <RadioButton GroupName="{Binding Key}" Content="{l:Tr Settings.Toggle.Off}"
+                                     IsChecked="{Binding BoolValue, Converter={StaticResource InverseBool}}" />
+                      </StackPanel>
                       <TextBox Text="{Binding Value}"
                                IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Text}" />
                       <Button Content="{l:Tr Settings.Browse}"
@@ -61,6 +67,7 @@
                                 Click="HandleResetHotkeyClick" />
                       </StackPanel>
                       <TextBlock Text="{Binding Description}" FontSize="12" Foreground="#777777"
+                                 TextWrapping="Wrap"
                                  IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>
                   </DataTemplate>
@@ -75,6 +82,7 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
               <TextBlock Text="{Binding Status}" FontSize="12" Foreground="#777777"
+                         TextWrapping="Wrap"
                          IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>
           </DataTemplate>

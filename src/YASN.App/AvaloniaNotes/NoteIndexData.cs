@@ -12,7 +12,7 @@ namespace YASN.AvaloniaNotes
         /// Gets or sets the current index schema version.
         /// </summary>
         [JsonPropertyName("schemaVersion")]
-        public int SchemaVersion { get; set; } = 5;
+        public int SchemaVersion { get; set; } = 6;
 
         /// <summary>
         /// Gets or sets serialized note metadata records.
@@ -27,10 +27,12 @@ namespace YASN.AvaloniaNotes
     internal sealed class NoteIndexEntry
     {
         /// <summary>
-        /// Gets or sets the note identifier.
+        /// Gets or sets the note identifier (GUID "N" form). Equal to <see cref="SyncKey"/> except on
+        /// a conflict copy. Reads legacy numeric ids too, so a pre-v6 index still loads.
         /// </summary>
         [JsonPropertyName("id")]
-        public int Id { get; set; }
+        [JsonConverter(typeof(FlexibleStringIdConverter))]
+        public string Id { get; set; } = string.Empty;
 
         /// <summary>
         /// Gets or sets the cross-machine-stable sync key (GUID "N" form). Null on pre-schema-5

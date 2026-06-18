@@ -29,7 +29,7 @@ namespace YASN.Infrastructure.Reminders
         /// </summary>
         /// <param name="noteId">The note identifier.</param>
         /// <param name="ruleId">The stable rule identifier.</param>
-        public DateTimeOffset? GetLastFired(int noteId, string ruleId)
+        public DateTimeOffset? GetLastFired(string noteId, string ruleId)
         {
             lock (gate)
             {
@@ -43,7 +43,7 @@ namespace YASN.Infrastructure.Reminders
         /// <param name="noteId">The note identifier.</param>
         /// <param name="ruleId">The stable rule identifier.</param>
         /// <param name="firedAt">The fire timestamp.</param>
-        public void SetLastFired(int noteId, string ruleId, DateTimeOffset firedAt)
+        public void SetLastFired(string noteId, string ruleId, DateTimeOffset firedAt)
         {
             lock (gate)
             {
@@ -52,7 +52,7 @@ namespace YASN.Infrastructure.Reminders
             }
         }
 
-        private static string Key(int noteId, string ruleId) => $"{noteId}:{ruleId}";
+        private static string Key(string noteId, string ruleId) => $"{noteId}:{ruleId}";
 
         private static Dictionary<string, DateTimeOffset> Load(string path)
         {

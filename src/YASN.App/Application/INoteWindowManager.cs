@@ -19,7 +19,7 @@ namespace YASN.Application
         /// </summary>
         /// <param name="noteId">The note identifier.</param>
         /// <returns><see langword="true"/> when the note window is open.</returns>
-        bool IsOpen(int noteId);
+        bool IsOpen(string noteId);
 
         /// <summary>
         /// Opens or activates the window for a note.
@@ -31,20 +31,28 @@ namespace YASN.Application
         /// Closes the window for a note when it is open.
         /// </summary>
         /// <param name="noteId">The note identifier.</param>
-        void Close(int noteId);
+        void Close(string noteId);
 
         /// <summary>
         /// Applies a stacking level to a note's open window, if any.
         /// </summary>
         /// <param name="noteId">The note identifier.</param>
         /// <param name="level">The level to apply.</param>
-        void ApplyLevel(int noteId, WindowLevel level);
+        void ApplyLevel(string noteId, WindowLevel level);
 
         /// <summary>
         /// Opens the quick-layout overlay for a note's window, opening the window first if needed.
         /// </summary>
         /// <param name="note">The note whose window to lay out.</param>
         void ShowQuickLayout(AvaloniaNoteDocument note);
+
+        /// <summary>
+        /// Opens or activates a note's window for a fired reminder and, when a source offset is given,
+        /// scrolls the preview to that location in the note.
+        /// </summary>
+        /// <param name="note">The note that owns the reminder.</param>
+        /// <param name="sourceOffset">The reminder's content offset to scroll to, or <see langword="null"/> for none.</param>
+        void ActivateForReminder(AvaloniaNoteDocument note, int? sourceOffset);
 
         /// <summary>
         /// Re-applies the global taskbar-visibility setting to every open note window.
@@ -68,6 +76,6 @@ namespace YASN.Application
         /// <param name="noteId">The note identifier.</param>
         /// <param name="content">The new note content.</param>
         /// <returns><see langword="true"/> when an open window handled the update.</returns>
-        bool TryApplyExternalContent(int noteId, string content);
+        bool TryApplyExternalContent(string noteId, string content);
     }
 }

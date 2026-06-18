@@ -1,7 +1,34 @@
+using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace YASN.Migration
 {
+    /// <summary>
+    /// Reads a note id that may be stored either as a JSON number (legacy schemas, where the id was a
+    /// per-machine integer handle) or as a JSON string (schema v6+, where the id is a GUID). Always
+    /// surfaces the value as a string so a single read path covers both.
+    /// </summary>
+    internal sealed class FlexibleIdConverter : JsonConverter<string?>
+    {
+        public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return reader.TokenType switch
+            {
+                JsonTokenType.String => reader.GetString(),
+                JsonTokenType.Number => reader.TryGetInt64(out long value)
+                    ? value.ToString(CultureInfo.InvariantCulture)
+                    : reader.GetDouble().ToString(CultureInfo.InvariantCulture),
+                _ => null
+            };
+        }
+
+        public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(value);
+        }
+    }
+
     /// <summary>
     /// Read-side index wrapper. Property names are matched case-insensitively, so this binds both the
     /// old WPF PascalCase index and the new Avalonia camelCase index.
@@ -19,7 +46,8 @@ namespace YASN.Migration
     /// </summary>
     internal sealed class LegacyNote
     {
-        public int Id { get; set; }
+        [JsonConverter(typeof(FlexibleIdConverter))]
+        public string? Id { get; set; }
 
         public string? SyncKey { get; set; }
 
@@ -64,7 +92,7 @@ namespace YASN.Migration
     internal sealed class NewNote
     {
         [JsonPropertyName("id")]
-        public int Id { get; set; }
+        public string Id { get; set; } = string.Empty;
 
         [JsonPropertyName("syncKey")]
         public string SyncKey { get; set; } = string.Empty;

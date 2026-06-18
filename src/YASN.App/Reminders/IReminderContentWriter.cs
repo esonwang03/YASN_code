@@ -11,6 +11,6 @@ namespace YASN.Reminders
         /// </summary>
         /// <param name="noteId">The note identifier.</param>
         /// <param name="ruleId">The stable rule identifier of the once-rule that fired.</param>
-        void DisableOnceRule(int noteId, string ruleId);
+        void DisableOnceRule(string noteId, string ruleId);
     }
 }

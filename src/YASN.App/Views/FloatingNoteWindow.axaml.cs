@@ -27,6 +27,7 @@ namespace YASN.Views
         private readonly NoteWindowViewModel viewModel;
         private readonly IWindowLevelController windowLevels;
         private readonly IQuickWindowLayoutController quickLayout;
+        private readonly Infrastructure.Settings.SettingsStore settings;
         private readonly NativeWebView previewWebView;
         private readonly ComboBox levelSelector;
         private readonly TextBox editorTextBox;
@@ -48,7 +49,7 @@ namespace YASN.Views
         /// </summary>
         public FloatingNoteWindow()
             : this(CreateDefaultViewModel(), new AvaloniaWindowLevelController(), new AvaloniaQuickWindowLayoutController(),
-                new KeybindingRegistry(new Infrastructure.Settings.SettingsStore()))
+                new KeybindingRegistry(new Infrastructure.Settings.SettingsStore()), new Infrastructure.Settings.SettingsStore())
         {
         }
 
@@ -59,15 +60,18 @@ namespace YASN.Views
         /// <param name="windowLevels">The service used to apply window levels.</param>
         /// <param name="quickLayout">The service used to apply overlay-selected bounds.</param>
         /// <param name="keybindings">The shared keybinding registry for editor hotkeys.</param>
+        /// <param name="settings">The shared settings store read for attachment and taskbar policy.</param>
         public FloatingNoteWindow(
             NoteWindowViewModel viewModel,
             IWindowLevelController windowLevels,
             IQuickWindowLayoutController quickLayout,
-            KeybindingRegistry keybindings)
+            KeybindingRegistry keybindings,
+            Infrastructure.Settings.SettingsStore settings)
         {
             this.viewModel = viewModel;
             this.windowLevels = windowLevels;
             this.quickLayout = quickLayout;
+            this.settings = settings;
             InitializeComponent();
 
             previewWebView = this.FindControl<NativeWebView>("PreviewWebView")
@@ -270,8 +274,24 @@ namespace YASN.Views
             string text = editorTextBox.Text ?? string.Empty;
             int caret = Math.Clamp(editorTextBox.CaretIndex, 0, text.Length);
 
+            caretLine = LineForOffset(text, caret);
+            caretSyncTimer.Stop();
+            caretSyncTimer.Start();
+        }
+
+        /// <summary>
+        /// Counts the 0-based source line containing the character at <paramref name="offset"/> by
+        /// counting newlines before it. Shared by caret-sync and reminder scroll-to so both map a
+        /// character offset to the same line the preview annotates with <c>data-source-line</c>.
+        /// </summary>
+        /// <param name="text">The note content.</param>
+        /// <param name="offset">A character offset into <paramref name="text"/>.</param>
+        /// <returns>The 0-based line number.</returns>
+        private static int LineForOffset(string text, int offset)
+        {
+            int clamped = Math.Clamp(offset, 0, text.Length);
             int line = 0;
-            for (int i = 0; i < caret; i++)
+            for (int i = 0; i < clamped; i++)
             {
                 if (text[i] == '\n')
                 {
@@ -279,9 +299,29 @@ namespace YASN.Views
                 }
             }
 
-            caretLine = line;
-            caretSyncTimer.Stop();
-            caretSyncTimer.Start();
+            return line;
+        }
+
+        /// <summary>
+        /// Brings the window to the foreground and scrolls the preview to the block at the given
+        /// 0-based source line. Used when a reminder fires to reveal its location in the note.
+        /// </summary>
+        /// <param name="line">The 0-based source line to scroll into view.</param>
+        public void ScrollToSourceLine(int line)
+        {
+            caretLine = Math.Max(0, line);
+            ScrollPreviewToCaretLine();
+        }
+
+        /// <summary>
+        /// Brings the window to the foreground and scrolls the preview to the block containing the
+        /// character at <paramref name="sourceOffset"/>. Convenience over <see cref="ScrollToSourceLine"/>
+        /// for callers that hold a content offset (e.g. an inline reminder rule's source start).
+        /// </summary>
+        /// <param name="sourceOffset">A character offset into the note content.</param>
+        public void ScrollToSourceOffset(int sourceOffset)
+        {
+            ScrollToSourceLine(LineForOffset(viewModel.Content, sourceOffset));
         }
 
         private void HandleCaretSyncTick(object? sender, EventArgs e)
@@ -416,9 +456,11 @@ namespace YASN.Views
                 return;
             }
 
-            if (leaving && !double.IsNaN(savedWidthDip))
+            if (leaving)
             {
-                EditorModeLayout.ModeBounds bounds = EditorModeLayout.Restore(savedLeftPhysical, savedWidthDip);
+                EditorModeLayout.ModeBounds bounds = double.IsNaN(savedWidthDip)
+                    ? EditorModeLayout.Collapse(Position.X, Width, scaling, MinWidth)
+                    : EditorModeLayout.Restore(savedLeftPhysical, savedWidthDip);
                 ApplyModeBounds(bounds);
                 savedLeftPhysical = double.NaN;
                 savedWidthDip = double.NaN;
@@ -630,14 +672,12 @@ namespace YASN.Views
             }
         }
 
-        private static (bool autoSyncEnabled, long thresholdBytes) ReadAttachmentPolicy()
+        private (bool autoSyncEnabled, long thresholdBytes) ReadAttachmentPolicy()
         {
-            Infrastructure.Settings.SettingsStore store = new Infrastructure.Settings.SettingsStore();
-
-            string enabledRaw = store.GetValue(SettingsUi.SettingsSchemaBuilder.AttachmentAutoSyncEnabledKey, shouldSync: true, "true");
+            string enabledRaw = settings.GetValue(SettingsUi.SettingsSchemaBuilder.AttachmentAutoSyncEnabledKey, shouldSync: true, "true");
             bool autoSyncEnabled = !bool.TryParse(enabledRaw, out bool parsedEnabled) || parsedEnabled;
 
-            string thresholdRaw = store.GetValue(
+            string thresholdRaw = settings.GetValue(
                 SettingsUi.SettingsSchemaBuilder.AttachmentThresholdMbKey,
                 shouldSync: true,
                 SettingsUi.SettingsSchemaBuilder.DefaultAttachmentThresholdMb.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -690,8 +730,7 @@ namespace YASN.Views
         /// </summary>
         public void RefreshTaskbarVisibility()
         {
-            Infrastructure.Settings.SettingsStore store = new Infrastructure.Settings.SettingsStore();
-            string raw = store.GetValue(TaskbarVisibility.SettingKey, shouldSync: true, TaskbarVisibility.AlwaysHideValue);
+            string raw = settings.GetValue(TaskbarVisibility.SettingKey, shouldSync: true, TaskbarVisibility.AlwaysHideValue);
             TaskbarVisibilityMode mode = TaskbarVisibility.ParseMode(raw);
             ShowInTaskbar = TaskbarVisibility.ShouldShowInTaskbar(viewModel.Level, mode);
         }

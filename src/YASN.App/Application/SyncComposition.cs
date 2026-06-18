@@ -35,9 +35,8 @@ namespace YASN.Application
         /// sync is on and a server is set, otherwise disables sync. A fresh store is read each call so
         /// changes saved in the settings window take effect immediately.
         /// </summary>
-        public void ApplyConfiguration()
+        public void ApplyConfiguration(SettingsStore settingsStore)
         {
-            SettingsStore settingsStore = new SettingsStore();
             if (!SyncSettings.IsEnabled(settingsStore) || !SyncSettings.HasServer(settingsStore))
             {
                 Engine.Reconfigure(clientFactory: null, remoteRoot: string.Empty, interval: TimeSpan.Zero);

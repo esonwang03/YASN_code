@@ -27,6 +27,7 @@ namespace YASN.Views
         private readonly PlatformServiceBundle platformServices;
         private readonly LocalizationService localization;
         private readonly KeybindingRegistry keybindings;
+        private readonly SettingsStore settings;
         private readonly Action? onSettingsSaved;
         private readonly ThreeWaySyncEngine? sync;
         private readonly Func<Task<string>>? showTutorial;
@@ -41,6 +42,7 @@ namespace YASN.Views
         /// <param name="platformServices">The platform service bundle.</param>
         /// <param name="localization">The localization service.</param>
         /// <param name="keybindings">The keybinding registry backing the settings shortcuts module.</param>
+        /// <param name="settings">The shared settings store passed to the settings window.</param>
         /// <param name="onSettingsSaved">Callback invoked after settings persist (re-applies hotkeys and visibility).</param>
         /// <param name="sync">The sync engine, or null when sync is unavailable.</param>
         /// <param name="showTutorial">Optional handler backing the settings "show tutorial note" action.</param>
@@ -50,6 +52,7 @@ namespace YASN.Views
             PlatformServiceBundle platformServices,
             LocalizationService localization,
             KeybindingRegistry keybindings,
+            SettingsStore settings,
             Action? onSettingsSaved = null,
             ThreeWaySyncEngine? sync = null,
             Func<Task<string>>? showTutorial = null)
@@ -59,6 +62,7 @@ namespace YASN.Views
             this.platformServices = platformServices;
             this.localization = localization;
             this.keybindings = keybindings;
+            this.settings = settings;
             this.onSettingsSaved = onSettingsSaved;
             this.sync = sync;
             this.showTutorial = showTutorial;
@@ -84,7 +88,7 @@ namespace YASN.Views
         /// </summary>
         public MainWindow()
             : this(new NoteRepository(), new DesignNoteWindowManager(), PlatformServiceFactory.Create(), LocalizationService.Current,
-                new KeybindingRegistry(new SettingsStore()))
+                new KeybindingRegistry(new SettingsStore()), new SettingsStore())
         {
         }
 
@@ -221,7 +225,7 @@ namespace YASN.Views
                 return;
             }
 
-            settingsWindow = new SettingsWindow(new SettingsStore(), localization, platformServices.AutoStart, keybindings, OnSettingsSaved, showTutorial);
+            settingsWindow = new SettingsWindow(settings, localization, platformServices.AutoStart, keybindings, OnSettingsSaved, showTutorial);
             settingsWindow.Closed += (_, _) => settingsWindow = null;
             settingsWindow.Show();
         }

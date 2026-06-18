@@ -24,6 +24,7 @@ namespace YASN.Application
         private readonly NoteWindowManager noteWindows;
         private readonly KeybindingRegistry keybindings;
         private readonly TutorialNoteSeeder tutorial;
+        private readonly SettingsStore settings;
         private readonly SyncComposition? sync;
         private TrayIcon? trayIcon;
         private SettingsWindow? settingsWindow;
@@ -39,6 +40,7 @@ namespace YASN.Application
         /// <param name="noteWindows">The shared note window manager.</param>
         /// <param name="keybindings">The shared keybinding registry for global hotkeys.</param>
         /// <param name="tutorial">The tutorial note seeder used on first run and from settings.</param>
+        /// <param name="settings">The shared settings store passed to the settings and manager windows.</param>
         /// <param name="sync">The sync composition, or null when sync is unavailable.</param>
         public TrayShell(
             IClassicDesktopStyleApplicationLifetime desktopLifetime,
@@ -48,6 +50,7 @@ namespace YASN.Application
             NoteWindowManager noteWindows,
             KeybindingRegistry keybindings,
             TutorialNoteSeeder tutorial,
+            SettingsStore settings,
             SyncComposition? sync = null)
         {
             this.desktopLifetime = desktopLifetime;
@@ -57,6 +60,7 @@ namespace YASN.Application
             this.noteWindows = noteWindows;
             this.keybindings = keybindings;
             this.tutorial = tutorial;
+            this.settings = settings;
             this.sync = sync;
         }
 
@@ -151,7 +155,7 @@ namespace YASN.Application
                 return;
             }
 
-            mainWindow = new MainWindow(repository, noteWindows, platformServices, localization, keybindings, OnSettingsSaved, sync?.Engine, ShowTutorialNote);
+            mainWindow = new MainWindow(repository, noteWindows, platformServices, localization, keybindings, settings, OnSettingsSaved, sync?.Engine, ShowTutorialNote);
             mainWindow.Closed += (_, _) => mainWindow = null;
             mainWindow.Show();
         }
@@ -164,7 +168,7 @@ namespace YASN.Application
                 return;
             }
 
-            settingsWindow = new SettingsWindow(new SettingsStore(), localization, platformServices.AutoStart, keybindings, OnSettingsSaved, ShowTutorialNote);
+            settingsWindow = new SettingsWindow(settings, localization, platformServices.AutoStart, keybindings, OnSettingsSaved, ShowTutorialNote);
             settingsWindow.Closed += (_, _) => settingsWindow = null;
             settingsWindow.Show();
         }
@@ -182,7 +186,7 @@ namespace YASN.Application
         {
             noteWindows.RefreshTaskbarVisibilityForAll();
             RegisterGlobalHotkeys();
-            sync?.ApplyConfiguration();
+            sync?.ApplyConfiguration(settings);
         }
 
         private static WindowIcon LoadIcon()

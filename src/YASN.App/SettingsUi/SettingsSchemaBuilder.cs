@@ -4,6 +4,7 @@ using YASN.Infrastructure.Settings;
 using YASN.Infrastructure.Sync;
 using YASN.Infrastructure.Sync.WebDav;
 using YASN.Localization;
+using YASN.Migration;
 using YASN.PlatformServices;
 
 namespace YASN.SettingsUi
@@ -28,6 +29,12 @@ namespace YASN.SettingsUi
         /// Synced key for the attachment copy/link size threshold in megabytes.
         /// </summary>
         public const string AttachmentThresholdMbKey = "attachment.autoSyncThresholdMb";
+
+        /// <summary>
+        /// Synced key controlling whether a firing reminder activates its note window and scrolls to
+        /// the reminder location. The OS toast fires regardless of this setting.
+        /// </summary>
+        public const string ReminderActivateOnFireKey = "reminder.activateOnFire";
 
         /// <summary>
         /// Default attachment copy/link threshold in megabytes.
@@ -146,6 +153,15 @@ namespace YASN.SettingsUi
             language.Options.Add(new SettingOption { Label = "English", Value = "en" });
             module.Fields.Add(language);
 
+            module.Fields.Add(new SettingField
+            {
+                Key = ReminderActivateOnFireKey,
+                Title = LocalizationService.Current["Settings.Reminder.ActivateOnFire"],
+                FieldType = SettingFieldType.Toggle,
+                ShouldSync = true,
+                BoolValue = true
+            });
+
             if (showTutorial is not null)
             {
                 module.Actions.Add(new SettingAction
@@ -156,7 +172,31 @@ namespace YASN.SettingsUi
                 });
             }
 
+            module.Actions.Add(new SettingAction
+            {
+                Key = "migration.ids",
+                Label = LocalizationService.Current["Settings.Migration.RunIds"],
+                ExecuteAsync = MigrateNoteIdsAsync
+            });
+
             return module;
+        }
+
+        /// <summary>
+        /// Runs the note-store schema migration (which collapses legacy integer ids into GUIDs) over
+        /// the current data directory and reports the outcome. Idempotent: re-running on an
+        /// already-migrated store is a no-op.
+        /// </summary>
+        private static Task<string> MigrateNoteIdsAsync()
+        {
+            MigrationReport report = WpfNoteStorageMigrator.Migrate(AppPaths.DataDirectory);
+            string key = report.Status switch
+            {
+                MigrationStatus.Migrated => "Settings.Migration.Ok",
+                MigrationStatus.Failed => "Settings.Migration.Failed",
+                _ => "Settings.Migration.NothingToDo"
+            };
+            return Task.FromResult(LocalizationService.Current[key]);
         }
 
         private static SettingModule BuildSyncModule()

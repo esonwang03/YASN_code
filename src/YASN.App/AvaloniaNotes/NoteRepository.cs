@@ -22,7 +22,7 @@ namespace YASN.AvaloniaNotes
         /// Raised after a note is deleted, carrying its id and sync key. Used by the sync engine to
         /// enqueue a tombstone.
         /// </summary>
-        public event Action<int, string>? NoteDeleted;
+        public event Action<string, string>? NoteDeleted;
 
         /// <summary>
         /// Initializes a repository rooted at the production app data directory.
@@ -51,7 +51,7 @@ namespace YASN.AvaloniaNotes
         {
             NoteIndexData index = LoadIndex();
             return index.Notes
-                .OrderBy(note => note.Id)
+                .OrderBy(note => note.Id, StringComparer.Ordinal)
                 .Select(ToDocument)
                 .ToList();
         }
@@ -71,9 +71,8 @@ namespace YASN.AvaloniaNotes
         /// <returns>The newly created note.</returns>
         public AvaloniaNoteDocument CreateNote()
         {
-            IReadOnlyList<AvaloniaNoteDocument> notes = LoadAll();
-            int nextId = notes.Count == 0 ? 1 : notes.Max(note => note.Id) + 1;
-            AvaloniaNoteDocument note = new AvaloniaNoteDocument { Id = nextId };
+            string id = Guid.NewGuid().ToString("N");
+            AvaloniaNoteDocument note = new AvaloniaNoteDocument { Id = id, SyncKey = id };
             Save(note);
             return note;
         }
@@ -89,9 +88,7 @@ namespace YASN.AvaloniaNotes
         {
             ArgumentNullException.ThrowIfNull(remote);
 
-            IReadOnlyList<AvaloniaNoteDocument> notes = LoadAll();
-            int nextId = notes.Count == 0 ? 1 : notes.Max(note => note.Id) + 1;
-            remote.Id = nextId;
+            remote.Id = Guid.NewGuid().ToString("N");
             Save(remote);
             return remote;
         }
@@ -108,10 +105,10 @@ namespace YASN.AvaloniaNotes
             File.WriteAllText(GetMarkdownPath(note.Id), note.Content);
 
             NoteIndexData index = LoadIndex();
-            index.SchemaVersion = 5;
+            index.SchemaVersion = 6;
             index.Notes.RemoveAll(entry => entry.Id == note.Id);
             index.Notes.Add(ToEntry(note));
-            index.Notes = index.Notes.OrderBy(entry => entry.Id).ToList();
+            index.Notes = index.Notes.OrderBy(entry => entry.Id, StringComparer.Ordinal).ToList();
 
             string json = JsonSerializer.Serialize(index, JsonOptions);
             File.WriteAllText(indexPath, json);
@@ -123,7 +120,7 @@ namespace YASN.AvaloniaNotes
         /// Deletes one note's content file and removes its metadata index entry.
         /// </summary>
         /// <param name="noteId">The identifier of the note to delete.</param>
-        public void Delete(int noteId)
+        public void Delete(string noteId)
         {
             string markdownPath = GetMarkdownPath(noteId);
             if (File.Exists(markdownPath))
@@ -140,7 +137,7 @@ namespace YASN.AvaloniaNotes
 
             string syncKey = entry.SyncKey ?? string.Empty;
             index.Notes.RemoveAll(e => e.Id == noteId);
-            index.SchemaVersion = 5;
+            index.SchemaVersion = 6;
             string json = JsonSerializer.Serialize(index, JsonOptions);
             File.WriteAllText(indexPath, json);
 
@@ -162,8 +159,10 @@ namespace YASN.AvaloniaNotes
         }
 
         /// <summary>
-        /// Assigns sync keys to any pre-schema-5 entries that lack one and rewrites the index once.
-        /// Idempotent: a fully-keyed index is left untouched.
+        /// Assigns identifiers to any entries that lack one and rewrites the index once. Each note's
+        /// id and sync key are both GUIDs and normally equal; a missing one is backfilled from the
+        /// other (or a fresh GUID when both are absent). Idempotent: a fully-identified index is left
+        /// untouched. The schema migrator normally does this first; this is the load-time safety net.
         /// </summary>
         private void BackfillSyncKeys(NoteIndexData index)
         {
@@ -172,7 +171,13 @@ namespace YASN.AvaloniaNotes
             {
                 if (string.IsNullOrWhiteSpace(entry.SyncKey))
                 {
-                    entry.SyncKey = Guid.NewGuid().ToString("N");
+                    entry.SyncKey = string.IsNullOrWhiteSpace(entry.Id) ? Guid.NewGuid().ToString("N") : entry.Id;
+                    changed = true;
+                }
+
+                if (string.IsNullOrWhiteSpace(entry.Id))
+                {
+                    entry.Id = entry.SyncKey;
                     changed = true;
                 }
             }
@@ -182,17 +187,18 @@ namespace YASN.AvaloniaNotes
                 return;
             }
 
-            index.SchemaVersion = 5;
+            index.SchemaVersion = 6;
             File.WriteAllText(indexPath, JsonSerializer.Serialize(index, JsonOptions));
         }
 
         private AvaloniaNoteDocument ToDocument(NoteIndexEntry entry)
         {
+            string id = string.IsNullOrWhiteSpace(entry.Id) ? entry.SyncKey ?? Guid.NewGuid().ToString("N") : entry.Id;
             return new AvaloniaNoteDocument
             {
-                Id = entry.Id,
-                SyncKey = string.IsNullOrWhiteSpace(entry.SyncKey) ? Guid.NewGuid().ToString("N") : entry.SyncKey,
-                Content = LoadContent(entry.Id),
+                Id = id,
+                SyncKey = string.IsNullOrWhiteSpace(entry.SyncKey) ? id : entry.SyncKey,
+                Content = LoadContent(id),
                 StoredTitle = entry.Title,
                 Left = entry.Left,
                 Top = entry.Top,
@@ -206,7 +212,7 @@ namespace YASN.AvaloniaNotes
             };
         }
 
-        private string LoadContent(int noteId)
+        private string LoadContent(string noteId)
         {
             string path = GetMarkdownPath(noteId);
             return File.Exists(path) ? File.ReadAllText(path) : "# Untitled note";
@@ -217,7 +223,7 @@ namespace YASN.AvaloniaNotes
             return new NoteIndexEntry
             {
                 Id = note.Id,
-                SyncKey = string.IsNullOrWhiteSpace(note.SyncKey) ? Guid.NewGuid().ToString("N") : note.SyncKey,
+                SyncKey = string.IsNullOrWhiteSpace(note.SyncKey) ? note.Id : note.SyncKey,
                 Title = string.IsNullOrWhiteSpace(note.StoredTitle) ? null : note.StoredTitle,
                 Left = note.Left,
                 Top = note.Top,
@@ -231,7 +237,7 @@ namespace YASN.AvaloniaNotes
             };
         }
 
-        private string GetMarkdownPath(int noteId)
+        private string GetMarkdownPath(string noteId)
         {
             return Path.Combine(notesRoot, $"{noteId}.md");
         }

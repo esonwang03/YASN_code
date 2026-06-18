@@ -17,7 +17,8 @@ namespace YASN.Application
         private readonly PlatformServiceBundle platformServices;
         private readonly ReminderScheduler reminders;
         private readonly KeybindingRegistry keybindings;
-        private readonly Dictionary<int, FloatingNoteWindow> noteWindows = new();
+        private readonly Infrastructure.Settings.SettingsStore settings;
+        private readonly Dictionary<string, FloatingNoteWindow> noteWindows = new(StringComparer.Ordinal);
         private Action? openMainWindowAction;
 
         /// <summary>
@@ -27,16 +28,19 @@ namespace YASN.Application
         /// <param name="platformServices">The platform service bundle.</param>
         /// <param name="reminders">The reminder scheduler.</param>
         /// <param name="keybindings">The shared keybinding registry for editor hotkeys.</param>
+        /// <param name="settings">The shared settings store read by note windows.</param>
         public NoteWindowManager(
             NoteRepository repository,
             PlatformServiceBundle platformServices,
             ReminderScheduler reminders,
-            KeybindingRegistry keybindings)
+            KeybindingRegistry keybindings,
+            Infrastructure.Settings.SettingsStore settings)
         {
             this.repository = repository;
             this.platformServices = platformServices;
             this.reminders = reminders;
             this.keybindings = keybindings;
+            this.settings = settings;
         }
 
         /// <summary>
@@ -49,7 +53,7 @@ namespace YASN.Application
         /// </summary>
         /// <param name="noteId">The note identifier.</param>
         /// <returns><see langword="true"/> when the note window is open.</returns>
-        public bool IsOpen(int noteId)
+        public bool IsOpen(string noteId)
         {
             return noteWindows.ContainsKey(noteId);
         }
@@ -93,7 +97,7 @@ namespace YASN.Application
             repository.Save(note);
 
             NoteWindowViewModel viewModel = new NoteWindowViewModel(note, repository, reminders);
-            FloatingNoteWindow window = new FloatingNoteWindow(viewModel, platformServices.WindowLevels, platformServices.QuickLayout, keybindings);
+            FloatingNoteWindow window = new FloatingNoteWindow(viewModel, platformServices.WindowLevels, platformServices.QuickLayout, keybindings, settings);
             window.SetOpenMainWindowAction(openMainWindowAction);
             noteWindows[note.Id] = window;
             window.Closed += (_, _) =>
@@ -111,7 +115,7 @@ namespace YASN.Application
         /// Closes the window for a note when it is open.
         /// </summary>
         /// <param name="noteId">The note identifier.</param>
-        public void Close(int noteId)
+        public void Close(string noteId)
         {
             if (noteWindows.TryGetValue(noteId, out FloatingNoteWindow? window))
             {
@@ -124,7 +128,7 @@ namespace YASN.Application
         /// </summary>
         /// <param name="noteId">The note identifier.</param>
         /// <param name="level">The level to apply.</param>
-        public void ApplyLevel(int noteId, Core.WindowLevel level)
+        public void ApplyLevel(string noteId, Core.WindowLevel level)
         {
             if (noteWindows.TryGetValue(noteId, out FloatingNoteWindow? window))
             {
@@ -142,6 +146,24 @@ namespace YASN.Application
             if (noteWindows.TryGetValue(note.Id, out FloatingNoteWindow? window))
             {
                 _ = window.ShowQuickLayoutOverlay();
+            }
+        }
+
+        /// <summary>
+        /// Opens or activates a note's window for a fired reminder and, when a source offset is given,
+        /// scrolls the preview to that location in the note.
+        /// </summary>
+        /// <param name="note">The note that owns the reminder.</param>
+        /// <param name="sourceOffset">
+        /// The reminder rule's character offset into the note content to scroll to, or
+        /// <see langword="null"/> for a note-level reminder with no in-note anchor.
+        /// </param>
+        public void ActivateForReminder(AvaloniaNoteDocument note, int? sourceOffset)
+        {
+            Open(note);
+            if (sourceOffset is { } offset && noteWindows.TryGetValue(note.Id, out FloatingNoteWindow? window))
+            {
+                window.ScrollToSourceOffset(offset);
             }
         }
 
@@ -164,7 +186,7 @@ namespace YASN.Application
         /// <param name="noteId">The note identifier.</param>
         /// <param name="content">The new note content.</param>
         /// <returns><see langword="true"/> when an open window handled the update.</returns>
-        public bool TryApplyExternalContent(int noteId, string content)
+        public bool TryApplyExternalContent(string noteId, string content)
         {
             if (noteWindows.TryGetValue(noteId, out FloatingNoteWindow? window))
             {

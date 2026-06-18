@@ -28,7 +28,7 @@ namespace YASN.Migration.Tests
         public void SyncKeyRoundTrips()
         {
             NoteRepository repository = new NoteRepository(root);
-            AvaloniaNoteDocument note = new AvaloniaNoteDocument { Id = 1, SyncKey = "abc123", Content = "x" };
+            AvaloniaNoteDocument note = new AvaloniaNoteDocument { Id = "1", SyncKey = "abc123", Content = "x" };
             repository.Save(note);
 
             AvaloniaNoteDocument loaded = repository.LoadAll().Single();
@@ -64,14 +64,14 @@ namespace YASN.Migration.Tests
         public void CreateConflictCopySharesKeyWithNewId()
         {
             NoteRepository repository = new NoteRepository(root);
-            AvaloniaNoteDocument local = new AvaloniaNoteDocument { Id = 1, SyncKey = "shared", Content = "local" };
+            AvaloniaNoteDocument local = new AvaloniaNoteDocument { Id = "1", SyncKey = "shared", Content = "local" };
             repository.Save(local);
 
-            AvaloniaNoteDocument remote = new AvaloniaNoteDocument { Id = -1, SyncKey = "shared", Content = "remote" };
+            AvaloniaNoteDocument remote = new AvaloniaNoteDocument { Id = "remote-id", SyncKey = "shared", Content = "remote" };
             AvaloniaNoteDocument copy = repository.CreateConflictCopy(remote);
 
             Assert.Equal("shared", copy.SyncKey);
-            Assert.NotEqual(1, copy.Id);
+            Assert.NotEqual("1", copy.Id);
             Assert.Equal(2, repository.LoadAll().Count(n => n.SyncKey == "shared"));
         }
     }

@@ -27,7 +27,8 @@ namespace YASN.Migration
 
         /// <summary>
         /// Decides whether the index is already in the current shape: schema is current, the keys are
-        /// camelCase (so the running app can read it), and every note already carries a sync key.
+        /// camelCase (so the running app can read it), every note already carries a sync key, and the
+        /// ids are GUID strings rather than legacy numeric handles.
         /// </summary>
         private static bool IsAlreadyCurrent(string json, LegacyIndex parsed)
         {
@@ -36,13 +37,13 @@ namespace YASN.Migration
                 return false;
             }
 
-            if (parsed.Notes.Any(note => string.IsNullOrWhiteSpace(note.SyncKey)))
+            if (parsed.Notes.Any(note => string.IsNullOrWhiteSpace(note.SyncKey) || IsNumericId(note.Id)))
             {
                 return false;
             }
 
             // The case-insensitive parse succeeds even on PascalCase; require true camelCase keys so a
-            // v5 file still written in the old casing is re-emitted in a form the app can actually read.
+            // v6 file still written in the old casing is re-emitted in a form the app can actually read.
             try
             {
                 JsonNode? root = JsonNode.Parse(json);
@@ -76,16 +77,30 @@ namespace YASN.Migration
 
             foreach (LegacyNote legacy in parsed.Notes)
             {
+                string oldId = legacy.Id ?? string.Empty;
                 NewNote converted = ConvertNote(legacy);
                 output.Notes.Add(converted);
 
-                string markdownPath = Path.Combine(notesRoot, $"{converted.Id}.md");
-                if (!File.Exists(markdownPath) && !string.IsNullOrEmpty(legacy.Content))
+                // The on-disk markdown file is named by id. When the id changed (int handle -> GUID),
+                // rename the existing file so the app still finds the content under the new name.
+                string oldMarkdownPath = Path.Combine(notesRoot, $"{oldId}.md");
+                string newMarkdownPath = Path.Combine(notesRoot, $"{converted.Id}.md");
+                if (oldId.Length != 0 && oldId != converted.Id && File.Exists(oldMarkdownPath) && !File.Exists(newMarkdownPath))
+                {
+                    if (!dryRun)
+                    {
+                        File.Move(oldMarkdownPath, newMarkdownPath);
+                    }
+
+                    note($"Renamed markdown for note {oldId} to {converted.Id}.md.");
+                }
+
+                if (!File.Exists(newMarkdownPath) && !string.IsNullOrEmpty(legacy.Content))
                 {
                     if (!dryRun)
                     {
                         Directory.CreateDirectory(notesRoot);
-                        File.WriteAllText(markdownPath, legacy.Content);
+                        File.WriteAllText(newMarkdownPath, legacy.Content);
                     }
 
                     report.MarkdownFilesWritten++;
@@ -93,7 +108,7 @@ namespace YASN.Migration
                 }
             }
 
-            output.Notes = output.Notes.OrderBy(n => n.Id).ToList();
+            output.Notes = output.Notes.OrderBy(n => n.Id, StringComparer.Ordinal).ToList();
             report.NotesMigrated = output.Notes.Count;
 
             string backupPath = Path.Combine(dataDirectory, BackupFileName);
@@ -123,10 +138,18 @@ namespace YASN.Migration
 
         private static NewNote ConvertNote(LegacyNote legacy)
         {
+            // The sync key is the cross-device identity and becomes the canonical id. A pre-v6 numeric
+            // id is a per-machine handle and is discarded. When the id is already a non-numeric string
+            // (a v6 re-run), it is kept as-is and the sync key falls back to it.
+            string syncKey = string.IsNullOrWhiteSpace(legacy.SyncKey)
+                ? (IsNumericId(legacy.Id) ? Guid.NewGuid().ToString("N") : legacy.Id!)
+                : legacy.SyncKey;
+            string id = (!IsNumericId(legacy.Id) && !string.IsNullOrWhiteSpace(legacy.Id)) ? legacy.Id! : syncKey;
+
             return new NewNote
             {
-                Id = legacy.Id,
-                SyncKey = string.IsNullOrWhiteSpace(legacy.SyncKey) ? Guid.NewGuid().ToString("N") : legacy.SyncKey,
+                Id = id,
+                SyncKey = syncKey,
                 Title = string.IsNullOrWhiteSpace(legacy.Title) ? null : legacy.Title,
                 Left = legacy.Left,
                 Top = legacy.Top,
@@ -138,6 +161,15 @@ namespace YASN.Migration
                 ReminderAt = null,
                 DisplayMode = MapDisplayMode(legacy.LastEditorDisplayMode)
             };
+        }
+
+        /// <summary>
+        /// Reports whether a raw id value is a legacy integer handle (e.g. "1", "42") rather than a
+        /// GUID. Empty/null is treated as non-numeric so a fresh GUID is generated for it.
+        /// </summary>
+        private static bool IsNumericId(string? id)
+        {
+            return !string.IsNullOrWhiteSpace(id) && long.TryParse(id, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out _);
         }
 
         /// <summary>

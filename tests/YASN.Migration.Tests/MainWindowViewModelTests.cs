@@ -149,8 +149,8 @@ namespace YASN.Migration.Tests
         public async Task ConflictedNoteIsPinnedAndFlagged()
         {
             using SyncFixture fixture = new SyncFixture(root);
-            fixture.SaveNote("k1", "a", 1);
-            AvaloniaNoteDocument conflicted = fixture.SaveNote("k2", "b", 2);
+            fixture.SaveNote("k1", "a", "1");
+            AvaloniaNoteDocument conflicted = fixture.SaveNote("k2", "b", "2");
             await fixture.Engine.SyncNowAsync();
 
             conflicted.Content = "local change";
@@ -171,7 +171,7 @@ namespace YASN.Migration.Tests
         public async Task ResolveConflictRequiresSingleCopy()
         {
             using SyncFixture fixture = new SyncFixture(root);
-            AvaloniaNoteDocument note = fixture.SaveNote("k1", "v1", 1);
+            AvaloniaNoteDocument note = fixture.SaveNote("k1", "v1", "1");
             await fixture.Engine.SyncNowAsync();
             note.Content = "local v2";
             fixture.Repository.Save(note);
@@ -184,7 +184,7 @@ namespace YASN.Migration.Tests
             Assert.False(viewModel.ResolveConflict(conflicted, out string? errorKey));
             Assert.Equal("Sync.Resolve.Duplicates", errorKey);
 
-            int copyId = fixture.Repository.LoadAll().Where(n => n.SyncKey == "k1").Max(n => n.Id);
+            string copyId = fixture.Repository.LoadAll().Where(n => n.SyncKey == "k1").Max(n => n.Id)!;
             fixture.Repository.Delete(copyId);
 
             Assert.True(viewModel.ResolveConflict(conflicted, out _));
@@ -209,7 +209,7 @@ namespace YASN.Migration.Tests
 
             public ThreeWaySyncEngine Engine { get; }
 
-            public AvaloniaNoteDocument SaveNote(string key, string content, int id)
+            public AvaloniaNoteDocument SaveNote(string key, string content, string id)
             {
                 AvaloniaNoteDocument note = new AvaloniaNoteDocument { Id = id, SyncKey = key, Content = content };
                 Repository.Save(note);
@@ -231,17 +231,17 @@ namespace YASN.Migration.Tests
 
         private sealed class FakeNoteWindowManager : INoteWindowManager
         {
-            public List<int> Opened { get; } = new();
+            public List<string> Opened { get; } = new();
 
-            public List<int> Closed { get; } = new();
+            public List<string> Closed { get; } = new();
 
             public WindowLevel? LastAppliedLevel { get; private set; }
 
-            private readonly HashSet<int> open = new();
+            private readonly HashSet<string> open = new(StringComparer.Ordinal);
 
             public event EventHandler? NotesChanged;
 
-            public bool IsOpen(int noteId) => open.Contains(noteId);
+            public bool IsOpen(string noteId) => open.Contains(noteId);
 
             public void Open(AvaloniaNoteDocument note)
             {
@@ -250,19 +250,24 @@ namespace YASN.Migration.Tests
                 NotesChanged?.Invoke(this, EventArgs.Empty);
             }
 
-            public void Close(int noteId)
+            public void Close(string noteId)
             {
                 Closed.Add(noteId);
                 open.Remove(noteId);
                 NotesChanged?.Invoke(this, EventArgs.Empty);
             }
 
-            public void ApplyLevel(int noteId, WindowLevel level)
+            public void ApplyLevel(string noteId, WindowLevel level)
             {
                 LastAppliedLevel = level;
             }
 
             public void ShowQuickLayout(AvaloniaNoteDocument note)
+            {
+                Open(note);
+            }
+
+            public void ActivateForReminder(AvaloniaNoteDocument note, int? sourceOffset)
             {
                 Open(note);
             }
@@ -275,7 +280,7 @@ namespace YASN.Migration.Tests
             {
             }
 
-            public bool TryApplyExternalContent(int noteId, string content) => false;
+            public bool TryApplyExternalContent(string noteId, string content) => false;
         }
     }
 }
