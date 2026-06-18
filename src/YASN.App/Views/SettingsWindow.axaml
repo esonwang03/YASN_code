@@ -51,7 +51,7 @@
                                      IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Number}" />
                       <TextBox Text="{Binding Value}" PasswordChar="•"
                                IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Password}" />
-                      <ComboBox ItemsSource="{Binding Options}" SelectedValue="{Binding Value}"
+                      <ComboBox ItemsSource="{Binding Options}" SelectedValue="{Binding SelectValue}"
                                 SelectedValueBinding="{Binding Value}"
                                 IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Select}">
                         <ComboBox.ItemTemplate>

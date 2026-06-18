@@ -56,8 +56,30 @@ namespace YASN.App.Settings
                 {
                     _value = nextValue;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(SelectValue));
                     OnChanged?.Invoke(this);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the selection for <see cref="SettingFieldType.Select"/> fields. This is a
+        /// typed projection over <see cref="Value"/>, mirroring how <see cref="NumberValue"/> and
+        /// <see cref="BoolValue"/> project for their field types. The setter only writes back when
+        /// this is a Select field, so a hidden <c>ComboBox</c> with an empty option list cannot
+        /// coerce its selection to null and clobber a Text/Password field's <see cref="Value"/>.
+        /// </summary>
+        public string? SelectValue
+        {
+            get => _value;
+            set
+            {
+                if (FieldType != SettingFieldType.Select)
+                {
+                    return;
+                }
+
+                Value = value ?? string.Empty;
             }
         }
 
