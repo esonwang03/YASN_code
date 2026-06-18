@@ -229,6 +229,32 @@ namespace YASN.Infrastructure.Sync.WebDav
             }
         }
 
+        public async Task<bool> DeleteFileAsync(string remoteFilePath)
+        {
+            string path = NormalizeRemotePath(remoteFilePath);
+
+            try
+            {
+                WebDavResponse response = await _client.Delete(path).ConfigureAwait(false);
+
+                // Treat an already-absent file as success: the post-condition (file gone) holds.
+                if (response.IsSuccessful || response.StatusCode == (int)HttpStatusCode.NotFound)
+                {
+                    LastError = null;
+                    return true;
+                }
+
+                LastError = response.Description ?? $"Delete failed with status {response.StatusCode}";
+                return false;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
+            {
+                LastError = ex.Message;
+                AppLogger.Debug($"WebDAV delete failed: {ex.Message}");
+                return false;
+            }
+        }
+
         public async Task<bool> FileExistsAsync(string remoteFilePath)
         {
             string path = NormalizeRemotePath(remoteFilePath);
@@ -329,6 +355,61 @@ namespace YASN.Infrastructure.Sync.WebDav
             }
         }
 
+        public async Task<bool?> SupportsETagsAsync(string remoteDirectoryPath)
+        {
+            string dir = NormalizeRemotePath(remoteDirectoryPath);
+            if (!await EnsureDirectoryAsync(dir).ConfigureAwait(false))
+            {
+                return null;
+            }
+
+            string probePath = dir.Length == 0 ? ".yasn-etag-probe" : $"{dir}/.yasn-etag-probe";
+            string tempPath = Path.Combine(Path.GetTempPath(), $"yasn-probe-{Guid.NewGuid():N}.tmp");
+
+            try
+            {
+                await File.WriteAllBytesAsync(tempPath, new byte[] { 0x59 }).ConfigureAwait(false);
+                if (!await UploadFileAsync(tempPath, probePath).ConfigureAwait(false))
+                {
+                    return null;
+                }
+
+                // Read the raw ETag (not the normalized "present" sentinel) so absence is detectable.
+                PropfindResponse response = await _client.Propfind(NormalizeRemotePath(probePath), new PropfindParameters
+                {
+                    ApplyTo = ApplyTo.Propfind.ResourceOnly
+                }).ConfigureAwait(false);
+
+                string? rawETag = response.IsSuccessful ? response.Resources?.FirstOrDefault()?.ETag : null;
+                return !string.IsNullOrWhiteSpace(rawETag);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException or IOException)
+            {
+                AppLogger.Debug($"WebDAV ETag probe failed: {ex.Message}");
+                return null;
+            }
+            finally
+            {
+                TryDeleteTemp(tempPath);
+                await DeleteFileAsync(probePath).ConfigureAwait(false);
+            }
+        }
+
+        private static void TryDeleteTemp(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                AppLogger.Debug($"WebDAV probe temp cleanup failed: {ex.Message}");
+            }
+        }
+
         public void Dispose()
         {
             _client.Dispose();
@@ -371,7 +452,7 @@ namespace YASN.Infrastructure.Sync.WebDav
             }
         }
 
-        public async Task<IReadOnlyList<RemoteEntry>> ListDirectoryAsync(string remoteDirectoryPath)
+        public async Task<RemoteListing> ListDirectoryAsync(string remoteDirectoryPath)
         {
             string dir = NormalizeRemotePath(remoteDirectoryPath);
 
@@ -384,7 +465,9 @@ namespace YASN.Infrastructure.Sync.WebDav
 
                 if (!response.IsSuccessful || response.Resources is null)
                 {
-                    return Array.Empty<RemoteEntry>();
+                    LastError = response.Description ?? $"List failed with status {response.StatusCode}";
+                    AppLogger.Warn($"WebDAV list of '{dir}' failed: {LastError}");
+                    return RemoteListing.Failure();
                 }
 
                 List<RemoteEntry> entries = new List<RemoteEntry>();
@@ -401,25 +484,29 @@ namespace YASN.Infrastructure.Sync.WebDav
                         continue;
                     }
 
-                    entries.Add(new RemoteEntry(relative, NormalizeETag(resource.ETag)));
+                    entries.Add(new RemoteEntry(relative, NormalizeETag(resource.ETag), resource.LastModifiedDate));
                 }
 
-                return entries;
+                LastError = null;
+                return RemoteListing.Success(entries);
             }
             catch (HttpRequestException ex)
             {
-                AppLogger.Debug($"WebDAV list failed: {ex.Message}");
-                return Array.Empty<RemoteEntry>();
+                LastError = ex.Message;
+                AppLogger.Warn($"WebDAV list failed: {ex.Message}");
+                return RemoteListing.Failure();
             }
             catch (InvalidOperationException ex)
             {
-                AppLogger.Debug($"WebDAV list failed: {ex.Message}");
-                return Array.Empty<RemoteEntry>();
+                LastError = ex.Message;
+                AppLogger.Warn($"WebDAV list failed: {ex.Message}");
+                return RemoteListing.Failure();
             }
             catch (TaskCanceledException ex)
             {
-                AppLogger.Debug($"WebDAV list failed: {ex.Message}");
-                return Array.Empty<RemoteEntry>();
+                LastError = ex.Message;
+                AppLogger.Warn($"WebDAV list failed: {ex.Message}");
+                return RemoteListing.Failure();
             }
         }
 

@@ -260,6 +260,31 @@ namespace YASN.SettingsUi
                 Value = SyncSettings.DefaultIntervalSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)
             });
 
+            module.Fields.Add(new SettingField
+            {
+                Key = SyncSettings.DeleteGateThresholdKey,
+                Title = LocalizationService.Current["Settings.Sync.DeleteGate"],
+                Description = LocalizationService.Current["Settings.Sync.DeleteGate.Description"],
+                FieldType = SettingFieldType.Number,
+                ShouldSync = false,
+                Minimum = SyncSettings.MinDeleteGateThreshold,
+                Maximum = 1000,
+                Value = SyncSettings.DefaultDeleteGateThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            });
+
+            SettingField changeDetection = new SettingField
+            {
+                Key = SyncSettings.ChangeDetectionKey,
+                Title = LocalizationService.Current["Settings.Sync.ChangeDetection"],
+                Description = LocalizationService.Current["Settings.Sync.ChangeDetection.Description"],
+                FieldType = SettingFieldType.Select,
+                ShouldSync = false,
+                Value = ChangeDetection.ETagValue
+            };
+            changeDetection.Options.Add(new SettingOption { Label = LocalizationService.Current["Settings.Sync.ChangeDetection.ETag"], Value = ChangeDetection.ETagValue });
+            changeDetection.Options.Add(new SettingOption { Label = LocalizationService.Current["Settings.Sync.ChangeDetection.LastModified"], Value = ChangeDetection.LastModifiedValue });
+            module.Fields.Add(changeDetection);
+
             module.Actions.Add(new SettingAction
             {
                 Key = "sync.test",
@@ -276,6 +301,7 @@ namespace YASN.SettingsUi
             string User() => module.Fields.First(f => f.Key == SyncSettings.UserKey).Value;
             string Password() => module.Fields.First(f => f.Key == SyncSettings.PasswordKey).Value;
             string Dir() => module.Fields.First(f => f.Key == SyncSettings.RemoteDirKey).Value.Trim().Trim('/');
+            string Mode() => module.Fields.FirstOrDefault(f => f.Key == SyncSettings.ChangeDetectionKey)?.Value ?? ChangeDetection.ETagValue;
 
             if (string.IsNullOrWhiteSpace(Url()))
             {
@@ -293,7 +319,23 @@ namespace YASN.SettingsUi
 
                 string remote = Dir().Length == 0 ? SyncSettings.DefaultRemoteDir : Dir();
                 bool ok = await client.TestConnectionAsync(remote).ConfigureAwait(false);
-                return LocalizationService.Current[ok ? "Settings.Sync.Test.Ok" : "Settings.Sync.Test.Fail"];
+                if (!ok)
+                {
+                    return LocalizationService.Current["Settings.Sync.Test.Fail"];
+                }
+
+                // When ETag detection is selected, verify the server actually returns ETags; otherwise
+                // tell the user to switch to Last-Modified, since ETag mode would mask remote edits.
+                if (ChangeDetection.Parse(Mode()) == ChangeDetectionMode.ETag)
+                {
+                    bool? etags = await client.SupportsETagsAsync(remote).ConfigureAwait(false);
+                    if (etags == false)
+                    {
+                        return LocalizationService.Current["Settings.Sync.Test.NoETag"];
+                    }
+                }
+
+                return LocalizationService.Current["Settings.Sync.Test.Ok"];
             }
             catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
             {

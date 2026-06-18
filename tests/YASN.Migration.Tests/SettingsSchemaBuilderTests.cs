@@ -80,6 +80,23 @@ namespace YASN.Migration.Tests
             {
             }
         }
+
+        /// <summary>
+        /// Exposes the delete-gate threshold as a machine-local number field clamped at the minimum.
+        /// </summary>
+        [Fact]
+        public void BuildIncludesDeleteGateThresholdField()
+        {
+            SettingsViewModel viewModel = SettingsSchemaBuilder.Build(new SettingsStore(), new UnsupportedAutoStartService(), new KeybindingRegistry(new SettingsStore()));
+
+            SettingField gate = viewModel.Modules
+                .SelectMany(module => module.Fields)
+                .Single(field => field.Key == Infrastructure.Sync.SyncSettings.DeleteGateThresholdKey);
+
+            Assert.Equal(SettingFieldType.Number, gate.FieldType);
+            Assert.False(gate.ShouldSync);
+            Assert.Equal(Infrastructure.Sync.SyncSettings.MinDeleteGateThreshold, gate.Minimum);
+        }
     }
 
     /// <summary>
@@ -126,6 +143,53 @@ namespace YASN.Migration.Tests
 
             Assert.DoesNotContain("tutorial.seeded", unrecognized);
             Assert.DoesNotContain(realHotkeyKey, unrecognized);
+        }
+    }
+
+    /// <summary>
+    /// Verifies the typed reader for the delete-gate threshold setting. Each test restores the key's
+    /// prior value, since the store persists to a shared on-disk settings file.
+    /// </summary>
+    [Collection("SharedSettingsFile")]
+    public sealed class SyncSettingsDeleteGateTests
+    {
+        private const string Key = Infrastructure.Sync.SyncSettings.DeleteGateThresholdKey;
+
+        private static void WithStoredValue(string value, Action body)
+        {
+            SettingsStore store = new SettingsStore();
+            string original = store.GetValue(Key, shouldSync: false, string.Empty);
+            try
+            {
+                store.SetValue(Key, shouldSync: false, value);
+                body();
+            }
+            finally
+            {
+                new SettingsStore().SetValue(Key, shouldSync: false, original);
+            }
+        }
+
+        /// <summary>A configured threshold is read back.</summary>
+        [Fact]
+        public void ReadsConfiguredValue()
+        {
+            WithStoredValue("5", () =>
+                Assert.Equal(5, Infrastructure.Sync.SyncSettings.DeleteGateThreshold(new SettingsStore())));
+        }
+
+        /// <summary>Values below the minimum (or non-numeric) clamp up to the minimum.</summary>
+        [Theory]
+        [InlineData("0")]
+        [InlineData("-3")]
+        [InlineData("not-a-number")]
+        public void ClampsToMinimum(string stored)
+        {
+            WithStoredValue(stored, () =>
+            {
+                int value = Infrastructure.Sync.SyncSettings.DeleteGateThreshold(new SettingsStore());
+                Assert.True(value >= Infrastructure.Sync.SyncSettings.MinDeleteGateThreshold);
+            });
         }
     }
 

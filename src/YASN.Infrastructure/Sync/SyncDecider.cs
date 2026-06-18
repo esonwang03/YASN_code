@@ -71,7 +71,15 @@ namespace YASN.Infrastructure.Sync
                 }
 
                 bool remoteUnchanged = baseline.RemoteETag == remoteETag;
-                return remoteUnchanged ? SyncAction.DeleteRemote : SyncAction.CompareForConflict;
+                if (remoteUnchanged)
+                {
+                    // Already tombstoned: the remote still holds the tombstone we wrote, so there is
+                    // nothing left to do. Without this guard the engine would re-PUT the tombstone every
+                    // pass (each PUT restamps the timestamp → new ETag → looks unchanged again forever).
+                    return baseline.Deleted ? SyncAction.None : SyncAction.DeleteRemote;
+                }
+
+                return SyncAction.CompareForConflict;
             }
 
             // Both exist.

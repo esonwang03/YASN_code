@@ -38,7 +38,7 @@ namespace YASN.SyncNotifications
                 return notifications.SendAsync(new NotificationRequest("Sync failed", result.Message, "sync:failed"));
             }
 
-            string body = $"{result.FilesUploaded} uploaded / {result.FilesDownloaded} downloaded";
+            string body = $"{result.FilesUploaded} uploaded / {result.FilesDownloaded} downloaded / {result.FilesDeleted} deleted";
             return notifications.SendAsync(new NotificationRequest("Sync complete", body, "sync:complete"));
         }
     }

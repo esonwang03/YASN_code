@@ -1,0 +1,40 @@
+<Window
+    x:Class="YASN.Views.BulkChangeDialog"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l="clr-namespace:YASN.Localization"
+    Title="{l:Tr Sync.Confirm.Title}"
+    Width="460"
+    Height="360"
+    WindowStartupLocation="CenterOwner"
+    CanResize="True">
+  <DockPanel Margin="16" LastChildFill="True">
+    <TextBlock DockPanel.Dock="Top"
+               Text="{l:Tr Sync.Confirm.Body}"
+               TextWrapping="Wrap"
+               FontWeight="SemiBold"
+               Margin="0,0,0,12" />
+    <StackPanel DockPanel.Dock="Bottom"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Spacing="8"
+                Margin="0,12,0,0">
+      <Button Content="{l:Tr Sync.Confirm.Cancel}" Click="HandleCancelClick" />
+      <Button Content="{l:Tr Sync.Confirm.Proceed}" Click="HandleProceedClick" />
+    </StackPanel>
+    <Border BorderBrush="#33000000" BorderThickness="1" CornerRadius="4">
+      <ScrollViewer>
+        <ItemsControl x:Name="ItemsList" x:CompileBindings="False">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Grid Margin="10,6" ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1" Text="{Binding SideText}" Foreground="#CC3333" FontSize="12" Margin="12,0,0,0" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+  </DockPanel>
+</Window>

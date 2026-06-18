@@ -27,6 +27,20 @@ namespace YASN.Infrastructure.Sync
         /// <summary>Local key: the periodic sync interval in seconds.</summary>
         public const string IntervalSecondsKey = "sync.intervalSeconds";
 
+        /// <summary>
+        /// Local key: the deletion count at or above which a sync pass asks the user to confirm before
+        /// applying deletions. <c>1</c> confirms every deletion; higher values let routine single-note
+        /// deletions sync silently.
+        /// </summary>
+        public const string DeleteGateThresholdKey = "sync.deleteGateThreshold";
+
+        /// <summary>
+        /// Local key: how the engine detects remote changes (<see cref="ChangeDetection.ETagValue"/> or
+        /// <see cref="ChangeDetection.LastModifiedValue"/>). Defaults to ETag; switch to Last-Modified
+        /// for servers that omit ETags.
+        /// </summary>
+        public const string ChangeDetectionKey = "sync.changeDetection";
+
         /// <summary>The default remote directory when none is configured.</summary>
         public const string DefaultRemoteDir = "yasn";
 
@@ -35,6 +49,12 @@ namespace YASN.Infrastructure.Sync
 
         /// <summary>The minimum allowed sync interval in seconds.</summary>
         public const int MinIntervalSeconds = 15;
+
+        /// <summary>The default delete-gate threshold: confirm when two or more notes would be deleted.</summary>
+        public const int DefaultDeleteGateThreshold = 2;
+
+        /// <summary>The minimum delete-gate threshold: confirm every deletion.</summary>
+        public const int MinDeleteGateThreshold = 1;
 
         /// <summary>Gets whether sync is enabled.</summary>
         public static bool IsEnabled(SettingsStore store) =>
@@ -58,6 +78,22 @@ namespace YASN.Infrastructure.Sync
 
             return TimeSpan.FromSeconds(Math.Max(MinIntervalSeconds, seconds));
         }
+
+        /// <summary>Reads the delete-gate threshold, clamped to the minimum.</summary>
+        public static int DeleteGateThreshold(SettingsStore store)
+        {
+            string raw = store.GetValue(DeleteGateThresholdKey, shouldSync: false, DefaultDeleteGateThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            if (!int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int threshold))
+            {
+                threshold = DefaultDeleteGateThreshold;
+            }
+
+            return Math.Max(MinDeleteGateThreshold, threshold);
+        }
+
+        /// <summary>Reads the configured change-detection mode (default ETag).</summary>
+        public static ChangeDetectionMode ChangeDetection(SettingsStore store) =>
+            Sync.ChangeDetection.Parse(store.GetValue(ChangeDetectionKey, shouldSync: false, Sync.ChangeDetection.ETagValue));
 
         /// <summary>Builds WebDAV options from the stored credentials.</summary>
         public static WebDavOptions BuildOptions(SettingsStore store) => new WebDavOptions

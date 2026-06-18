@@ -17,15 +17,27 @@ namespace YASN.Infrastructure.Sync
             return true;
         }
 
-        private async Task<bool> DownloadAsync(ISyncClient client, string syncKey, AvaloniaNoteDocument? local, CancellationToken cancellationToken)
+        private async Task<bool> DownloadAsync(ISyncClient client, string syncKey, AvaloniaNoteDocument? local, string? plannedHash, ApplyContext context, CancellationToken cancellationToken)
         {
-            (SyncNoteDocument? wire, string? etag) = await GetWireAsync(client, syncKey, cancellationToken).ConfigureAwait(false);
-            if (wire is null)
+            // Reuse the document prefetched for deletion-gating when available, else fetch now.
+            RemoteFetch fetch = context.PrefetchedByKey.TryGetValue(syncKey, out RemoteFetch? prefetched)
+                ? prefetched
+                : await FetchRemoteAsync(client, syncKey, cancellationToken).ConfigureAwait(false);
+
+            if (fetch.Wire is null)
             {
                 return false;
             }
 
-            return ApplyRemote(syncKey, wire, etag, local);
+            // When a local note exists this download either overwrites it (remote edit) or deletes it
+            // (remote tombstone). Both lose a local edit the user may have made while the confirm dialog
+            // was open, so re-validate against the post-dialog snapshot before applying.
+            if (local is not null && !LiveStateMatchesPlan(syncKey, local, plannedHash, context))
+            {
+                return false;
+            }
+
+            return ApplyRemote(syncKey, fetch.Wire, fetch.ETag, local);
         }
 
         private bool ApplyRemote(string syncKey, SyncNoteDocument wire, string? etag, AvaloniaNoteDocument? local)
@@ -59,8 +71,16 @@ namespace YASN.Infrastructure.Sync
             return true;
         }
 
-        private async Task<bool> DeleteRemoteAsync(ISyncClient client, string syncKey, CancellationToken cancellationToken)
+        private async Task<bool> DeleteRemoteAsync(ISyncClient client, string syncKey, AvaloniaNoteDocument? plannedLocal, string? plannedHash, ApplyContext context, CancellationToken cancellationToken)
         {
+            // The plan assumed this note was deleted locally. If the user recreated/edited a note for
+            // this key while the confirm dialog was open, do not propagate the (now stale) deletion —
+            // the next pass re-evaluates and uploads the resurrected note instead.
+            if (!LiveStateMatchesPlan(syncKey, plannedLocal, plannedHash, context))
+            {
+                return false;
+            }
+
             SyncNoteDocument tombstone = NoteSyncMapper.Tombstone(syncKey, clock());
             string? etag = await PutWireAsync(client, syncKey, tombstone, cancellationToken).ConfigureAwait(false);
             state.UpsertBaseline(new SyncBaseline(syncKey, null, etag, RemoteNotePath(syncKey), clock(), true));
@@ -119,7 +139,30 @@ namespace YASN.Infrastructure.Sync
                 TryDeleteTemp(tempPath);
             }
 
-            return await client.GetFileETagAsync(remotePath).ConfigureAwait(false);
+            return await FetchValidatorAsync(client, remotePath).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Reads the change-detection validator for a remote file just transferred, from the source the
+        /// active <see cref="ChangeDetection"/> mode selects (ETag or Last-Modified). Coalesced to the
+        /// "present" sentinel when the server supplies neither, matching the listing path so a baseline
+        /// written here compares equal to the one a later listing produces.
+        /// </summary>
+        private async Task<string?> FetchValidatorAsync(ISyncClient client, string remotePath)
+        {
+            if (ChangeDetection == ChangeDetectionMode.LastModified)
+            {
+                DateTime? modified = await client.GetFileLastModifiedAsync(remotePath).ConfigureAwait(false);
+                return ValidatorFor(null, modified);
+            }
+
+            return ValidatorFor(await client.GetFileETagAsync(remotePath).ConfigureAwait(false), null);
+        }
+
+        private async Task<RemoteFetch> FetchRemoteAsync(ISyncClient client, string syncKey, CancellationToken cancellationToken)
+        {
+            (SyncNoteDocument? wire, string? etag) = await GetWireAsync(client, syncKey, cancellationToken).ConfigureAwait(false);
+            return new RemoteFetch(wire, etag);
         }
 
         private async Task<(SyncNoteDocument? Wire, string? ETag)> GetWireAsync(ISyncClient client, string syncKey, CancellationToken cancellationToken)
@@ -135,7 +178,7 @@ namespace YASN.Infrastructure.Sync
 
                 byte[] bytes = await File.ReadAllBytesAsync(tempPath, cancellationToken).ConfigureAwait(false);
                 SyncNoteDocument? wire = NoteWireSerializer.Deserialize(bytes);
-                string? etag = await client.GetFileETagAsync(remotePath).ConfigureAwait(false);
+                string? etag = await FetchValidatorAsync(client, remotePath).ConfigureAwait(false);
                 return (wire, etag);
             }
             finally

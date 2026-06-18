@@ -40,6 +40,29 @@ namespace YASN.Infrastructure.Sync
         public event EventHandler? SyncCompleted;
 
         /// <summary>
+        /// Gets or sets an optional gate invoked before a pass applies two or more deletions. It
+        /// receives the planned deletions and returns whether to proceed; returning
+        /// <see langword="false"/> aborts the pass without touching any note. When null, passes
+        /// proceed unconditionally (the default for headless/test use). Single deletions are never
+        /// gated, since they are the normal outcome of deleting one note on another device.
+        /// </summary>
+        public Func<SyncChangePlan, Task<bool>>? ConfirmBulkChanges { get; set; }
+
+        /// <summary>
+        /// Gets or sets the deletion count at or above which <see cref="ConfirmBulkChanges"/> is
+        /// invoked. Defaults to 2 so a routine single-note deletion syncs silently.
+        /// </summary>
+        public int BulkDeleteThreshold { get; set; } = 2;
+
+        /// <summary>
+        /// Gets or sets how remote changes are detected. Defaults to <see cref="ChangeDetectionMode.ETag"/>;
+        /// set to <see cref="ChangeDetectionMode.LastModified"/> for servers that omit ETags. The
+        /// validator token stored in the baseline is derived from this source, so changing it makes the
+        /// next pass re-evaluate every note once (a safe re-download, never a delete).
+        /// </summary>
+        public ChangeDetectionMode ChangeDetection { get; set; } = ChangeDetectionMode.ETag;
+
+        /// <summary>
         /// Gets the sync keys currently in conflict (excluded from sync until resolved).
         /// </summary>
         public IReadOnlyCollection<string> ConflictedSyncKeys => state.GetConflictedKeys();
@@ -87,16 +110,9 @@ namespace YASN.Infrastructure.Sync
                 return SyncResult.Skipped("busy");
             }
 
-            ISyncClient? client = null;
             try
             {
-                client = factory();
-                if (client is null)
-                {
-                    return SyncResult.Skipped("no-client");
-                }
-
-                return await RunPassAsync(client, cancellationToken).ConfigureAwait(false);
+                return await RunPassAsync(factory, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
             {
@@ -105,70 +121,265 @@ namespace YASN.Infrastructure.Sync
             }
             finally
             {
-                client?.Dispose();
                 passGate.Release();
             }
         }
 
-        private async Task<SyncResult> RunPassAsync(ISyncClient client, CancellationToken cancellationToken)
+        private async Task<SyncResult> RunPassAsync(Func<ISyncClient?> factory, CancellationToken cancellationToken)
         {
-            await client.EnsureDirectoryAsync(remoteRoot).ConfigureAwait(false);
-            await client.EnsureDirectoryAsync(RemotePath(RemoteNotesDir)).ConfigureAwait(false);
-
-            HashSet<string> conflicted = new HashSet<string>(state.GetConflictedKeys(), StringComparer.Ordinal);
-
-            Dictionary<string, List<AvaloniaNoteDocument>> localByKey = repository.LoadAll()
-                .GroupBy(n => n.SyncKey, StringComparer.Ordinal)
-                .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
-
-            IReadOnlyList<RemoteEntry> remoteEntries = await client.ListDirectoryAsync(RemotePath(RemoteNotesDir)).ConfigureAwait(false);
-            Dictionary<string, RemoteEntry> remoteByKey = new Dictionary<string, RemoteEntry>(StringComparer.Ordinal);
-            foreach (RemoteEntry entry in remoteEntries)
+            ISyncClient? client = factory();
+            if (client is null)
             {
-                string key = KeyFromRemotePath(entry.RelativePath);
-                if (key.Length > 0)
+                return SyncResult.Skipped("no-client");
+            }
+
+            try
+            {
+                string notesDir = RemotePath(RemoteNotesDir);
+
+                // Ensure the remote tree exists. A failure here means we cannot trust a later empty
+                // listing, so abort before any key processing rather than risk inferring deletions.
+                if (!await client.EnsureDirectoryAsync(remoteRoot).ConfigureAwait(false) ||
+                    !await client.EnsureDirectoryAsync(notesDir).ConfigureAwait(false))
                 {
-                    remoteByKey[key] = entry;
+                    Logging.AppLogger.Warn($"Sync aborted: could not ensure remote directory '{notesDir}'.");
+                    return SyncResult.Failed("ensure-directory-failed");
+                }
+
+                Dictionary<string, List<AvaloniaNoteDocument>> localByKey = repository.LoadAll()
+                    .GroupBy(n => n.SyncKey, StringComparer.Ordinal)
+                    .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
+
+                // A failed listing is indistinguishable from "empty" at the entry level, so we check the
+                // explicit Ok flag. Treating a failed listing as empty would delete every synced note.
+                RemoteListing listing = await client.ListDirectoryAsync(notesDir).ConfigureAwait(false);
+                if (!listing.Ok)
+                {
+                    Logging.AppLogger.Warn(
+                        $"Sync aborted: remote listing of '{notesDir}' failed; not inferring deletions for {localByKey.Count} local note(s).");
+                    return SyncResult.Failed("list-failed");
+                }
+
+                Dictionary<string, RemoteEntry> remoteByKey = new Dictionary<string, RemoteEntry>(StringComparer.Ordinal);
+                foreach (RemoteEntry entry in listing.Entries)
+                {
+                    string key = KeyFromRemotePath(entry.RelativePath);
+                    if (key.Length > 0)
+                    {
+                        // Collapse the entry to the validator token for the active mode, stored in the ETag
+                        // slot so the decider compares one opaque string regardless of source.
+                        remoteByKey[key] = entry with { ETag = ValidatorFor(entry.ETag, entry.LastModified) };
+                    }
+                }
+
+                HashSet<string> conflicted = new HashSet<string>(state.GetConflictedKeys(), StringComparer.Ordinal);
+                HashSet<string> keys = new HashSet<string>(StringComparer.Ordinal);
+                keys.UnionWith(localByKey.Keys);
+                keys.UnionWith(remoteByKey.Keys);
+                keys.UnionWith(state.GetAllBaselines().Select(b => b.SyncKey));
+
+                // Decide every eligible key up front (pure, no IO) so a bulk delete can be confirmed
+                // before anything is applied.
+                List<PlannedKey> work = BuildWorkItems(keys, conflicted, localByKey, remoteByKey);
+                Logging.AppLogger.Info(
+                    $"Sync pass: {localByKey.Count} local, {remoteByKey.Count} remote, {work.Count} key(s) to process.");
+
+                // Classify the destructive effects (including deletions that arrive as a tombstone Download)
+                // and gate the pass on them. Any remote document fetched here is cached for reuse at apply.
+                (List<SyncChangeItem> deletions, Dictionary<string, RemoteFetch> prefetched) =
+                    await BuildDeletionPlanAsync(client, work, cancellationToken).ConfigureAwait(false);
+
+                // When a human will be prompted, drop the open WebDAV/HTTP connection first: the dialog can
+                // sit unanswered for minutes, and there is no reason to hold a socket (or the server's
+                // connection slot) the whole time. The plan is already fixed and the prefetched tombstones
+                // are cached, so the wait needs no client. A fresh one is opened for the apply phase.
+                bool willPrompt = WillPromptForDeletions(deletions);
+                if (willPrompt)
+                {
+                    client.Dispose();
+                }
+
+                if (!await ConfirmDeletionsAsync(deletions).ConfigureAwait(false))
+                {
+                    Logging.AppLogger.Warn("Sync aborted: user declined the pending deletions.");
+                    return SyncResult.Skipped("delete-declined");
+                }
+
+                if (willPrompt)
+                {
+                    client = factory();
+                    if (client is null)
+                    {
+                        // Sync was disabled (or the client factory went away) while the dialog was open.
+                        Logging.AppLogger.Warn("Sync aborted after confirmation: client no longer available.");
+                        return SyncResult.Skipped("no-client");
+                    }
+                }
+
+                // Snapshot the live notes once, after the confirm dialog returned, so each destructive action
+                // can be re-validated against edits the user may have made while the dialog was open — without
+                // re-reading the repository per key.
+                ApplyContext context = new ApplyContext(
+                    repository.LoadAll().GroupBy(n => n.Id, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal),
+                    prefetched);
+
+                int uploaded = 0, downloaded = 0, deleted = 0;
+                bool changed = false;
+                foreach (PlannedKey item in work)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    try
+                    {
+                        bool keyChanged = await ProcessKeyAsync(client, item, context, cancellationToken).ConfigureAwait(false);
+                        if (keyChanged)
+                        {
+                            changed = true;
+                            CountAction(item, context, ref uploaded, ref downloaded, ref deleted);
+                        }
+                    }
+                    catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
+                    {
+                        Logging.AppLogger.Warn($"Sync key '{item.SyncKey}' failed: {ex.Message}");
+                    }
+                }
+
+                Logging.AppLogger.Info($"Sync pass complete: {uploaded} uploaded, {downloaded} downloaded, {deleted} deleted.");
+                if (changed)
+                {
+                    SyncCompleted?.Invoke(this, EventArgs.Empty);
+                }
+
+                return SyncResult.Completed(changed, uploaded, downloaded, deleted);
+            }
+            finally
+            {
+                client?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Whether <see cref="ConfirmDeletionsAsync"/> will actually surface a dialog for this plan (a
+        /// confirmer is wired and the count reaches the threshold). Used to decide whether to release the
+        /// client across the wait; mirrors the guard inside <see cref="ConfirmDeletionsAsync"/>.
+        /// </summary>
+        private bool WillPromptForDeletions(List<SyncChangeItem> deletions) =>
+            ConfirmBulkChanges is not null && deletions.Count >= BulkDeleteThreshold;
+
+        /// <summary>
+        /// Coalesces the ETag of a file known to exist (a listing entry, or a file just uploaded or
+        /// downloaded) to a stable non-null value. Servers that omit ETags would otherwise yield null,
+        /// which never equals the value stored in the baseline, making every unchanged note look changed
+        /// and loop forever (re-download or re-delete each pass). Existence is established by the caller
+        /// (listing membership / transfer success), never by this value, so a missing ETag safely
+        /// becomes the "present" sentinel.
+        /// </summary>
+        internal static string NormalizeETag(string? rawETag) =>
+            string.IsNullOrEmpty(rawETag) ? "present" : rawETag;
+
+        /// <summary>
+        /// Produces the change-detection validator token for a file known to exist, from the source
+        /// selected by <see cref="ChangeDetection"/>. In <see cref="ChangeDetectionMode.LastModified"/>
+        /// mode the timestamp is rendered as a stable round-trip UTC string; in ETag mode the ETag is
+        /// used. Either way a missing value collapses to the "present" sentinel (see
+        /// <see cref="NormalizeETag"/>) so an unchanged note still settles instead of looping.
+        /// </summary>
+        internal string ValidatorFor(string? rawETag, DateTimeOffset? lastModified) =>
+            ChangeDetection == ChangeDetectionMode.LastModified
+                ? NormalizeETag(lastModified?.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture))
+                : NormalizeETag(rawETag);
+
+        private static void CountAction(PlannedKey item, ApplyContext context, ref int uploaded, ref int downloaded, ref int deleted)
+        {
+            switch (item.Action)
+            {
+                case SyncAction.Upload:
+                    uploaded++;
+                    break;
+                case SyncAction.Download:
+                    // A download that applied a tombstone removed the local note; count it as a deletion,
+                    // otherwise as a content download.
+                    if (context.PrefetchedByKey.TryGetValue(item.SyncKey, out RemoteFetch? fetch) && fetch.Wire is { Deleted: true } && item.Local is not null)
+                    {
+                        deleted++;
+                    }
+                    else
+                    {
+                        downloaded++;
+                    }
+                    break;
+                case SyncAction.DeleteLocal:
+                case SyncAction.DeleteRemote:
+                    deleted++;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Builds the set of data-losing deletions the gate should confirm, and prefetches the remote
+        /// documents needed to classify them. Only <em>incoming</em> deletions are gated: an explicit
+        /// <see cref="SyncAction.DeleteLocal"/>, or — the common cross-device case — a
+        /// <see cref="SyncAction.Download"/> whose remote document is a tombstone, both of which remove a
+        /// note <em>from this device</em> as a surprise. A <see cref="SyncAction.DeleteRemote"/> is the
+        /// user's own local deletion propagating outward; the note is already gone here, so re-prompting
+        /// for it is just alert fatigue and would desensitize the user to the prompts that matter. The
+        /// tombstone-write still runs in the apply phase, guarded against a concurrent recreate.
+        /// The tombstone-download case is invisible without reading the remote file, so we fetch candidate
+        /// downloads here (bounded: only when enough deletions could exist to reach the confirmation
+        /// threshold) and cache them for reuse during apply.
+        /// </summary>
+        private async Task<(List<SyncChangeItem> Deletions, Dictionary<string, RemoteFetch> Prefetched)> BuildDeletionPlanAsync(
+            ISyncClient client, List<PlannedKey> work, CancellationToken cancellationToken)
+        {
+            List<SyncChangeItem> deletions = new List<SyncChangeItem>();
+            Dictionary<string, RemoteFetch> prefetched = new Dictionary<string, RemoteFetch>(StringComparer.Ordinal);
+
+            foreach (PlannedKey item in work)
+            {
+                if (item.Action == SyncAction.DeleteLocal)
+                {
+                    deletions.Add(new SyncChangeItem(item.SyncKey, item.Local?.Title ?? item.SyncKey, SyncDeleteSide.Local));
                 }
             }
 
-            HashSet<string> keys = new HashSet<string>(StringComparer.Ordinal);
-            keys.UnionWith(localByKey.Keys);
-            keys.UnionWith(remoteByKey.Keys);
-            keys.UnionWith(state.GetAllBaselines().Select(b => b.SyncKey));
+            // A tombstone-download only deletes when a local note exists to remove. If even treating
+            // every such candidate as a deletion cannot reach the threshold, skip the prefetch entirely.
+            List<PlannedKey> downloadCandidates = work
+                .Where(w => w.Action == SyncAction.Download && w.Local is not null)
+                .ToList();
 
-            bool changed = false;
-            foreach (string key in keys)
+            if (ConfirmBulkChanges is not null && deletions.Count + downloadCandidates.Count >= BulkDeleteThreshold)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (conflicted.Contains(key))
+                foreach (PlannedKey candidate in downloadCandidates)
                 {
-                    continue;
-                }
-
-                // A key with two local rows but no recorded conflict is a freshly duplicated pair; skip.
-                if (localByKey.TryGetValue(key, out List<AvaloniaNoteDocument>? rows) && rows.Count > 1)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    changed |= await ProcessKeyAsync(client, key, rows?.FirstOrDefault(),
-                        remoteByKey.GetValueOrDefault(key), cancellationToken).ConfigureAwait(false);
-                }
-                catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
-                {
-                    Logging.AppLogger.Debug($"Sync key '{key}' failed: {ex.Message}");
+                    RemoteFetch fetch = await FetchRemoteAsync(client, candidate.SyncKey, cancellationToken).ConfigureAwait(false);
+                    prefetched[candidate.SyncKey] = fetch;
+                    if (fetch.Wire is { Deleted: true })
+                    {
+                        deletions.Add(new SyncChangeItem(candidate.SyncKey, candidate.Local?.Title ?? candidate.SyncKey, SyncDeleteSide.Local));
+                    }
                 }
             }
 
-            if (changed)
+            return (deletions, prefetched);
+        }
+
+        private async Task<bool> ConfirmDeletionsAsync(List<SyncChangeItem> deletions)
+        {
+            if (deletions.Count > 0)
             {
-                SyncCompleted?.Invoke(this, EventArgs.Empty);
+                Logging.AppLogger.Info($"Sync plans {deletions.Count} deletion(s): " +
+                    string.Join(", ", deletions.Select(d => $"{d.Side} '{d.Title}'")));
             }
 
-            return SyncResult.Completed(changed);
+            Func<SyncChangePlan, Task<bool>>? confirm = ConfirmBulkChanges;
+            if (confirm is null || deletions.Count < BulkDeleteThreshold)
+            {
+                return true;
+            }
+
+            return await confirm(new SyncChangePlan { Deletions = deletions }).ConfigureAwait(false);
         }
 
         private string RemotePath(string relative) =>
@@ -255,7 +466,12 @@ namespace YASN.Infrastructure.Sync
         {
             disposed = true;
             Stop();
-            passGate.Dispose();
+
+            // Deliberately do NOT dispose passGate here. A pass running on the threadpool may have
+            // passed the disposed check and still hold the gate; its finally would then Release() a
+            // disposed semaphore and throw ObjectDisposedException on an unobserved fire-and-forget
+            // task. We never use the semaphore's AvailableWaitHandle, so SemaphoreSlim needs no
+            // explicit disposal — GC reclaims it once the in-flight pass completes.
         }
     }
 }

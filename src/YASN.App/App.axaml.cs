@@ -1,5 +1,7 @@
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using YASN.Application;
 using YASN.AvaloniaNotes;
 using YASN.Hotkeys;
@@ -61,7 +63,8 @@ namespace YASN
                 reminders.Activator = new NoteWindowReminderActivator(noteWindows, settings);
                 reminders.ContentWriter = new ReminderContentWriter(repository, noteWindows);
                 TutorialNoteSeeder tutorial = new(repository, noteWindows, settings);
-                sync = new SyncComposition(repository);
+                sync = new SyncComposition(repository, platformServices.Notifications);
+                sync.Engine.ConfirmBulkChanges = plan => ConfirmSyncDeletionsAsync(plan, localization, desktopLifetime);
                 trayShell = new TrayShell(desktopLifetime, repository, platformServices, localization, noteWindows, keybindings, tutorial, settings, sync);
                 trayShell.Initialize();
                 sync.ApplyConfiguration(settings);
@@ -69,6 +72,52 @@ namespace YASN
             }
 
             base.OnFrameworkInitializationCompleted();
+        }
+
+        /// <summary>
+        /// Shows the bulk-deletion confirmation dialog on the UI thread and returns whether the user
+        /// approved applying the sync's pending deletions. The dialog is parented to the active window
+        /// when one is open, otherwise shown ownerless. Any UI failure denies the deletions, since the
+        /// safe default is to keep notes rather than delete them unconfirmed.
+        /// </summary>
+        private static async Task<bool> ConfirmSyncDeletionsAsync(
+            Infrastructure.Sync.SyncChangePlan plan,
+            LocalizationService localization,
+            IClassicDesktopStyleApplicationLifetime lifetime)
+        {
+            return await Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                try
+                {
+                    Views.BulkChangeDialog dialog = new(plan, localization);
+                    Window? owner = lifetime.Windows.FirstOrDefault(w => w.IsActive)
+                        ?? lifetime.Windows.FirstOrDefault(w => w.IsVisible);
+                    if (owner is not null)
+                    {
+                        return await dialog.ShowDialog<bool>(owner).ConfigureAwait(true);
+                    }
+
+                    return await ShowOwnerlessAsync(dialog).ConfigureAwait(true);
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or OperationCanceledException or ObjectDisposedException)
+                {
+                    // Any failure to display the dialog (a closing window, or a shutting-down dispatcher
+                    // raising OperationCanceledException/ObjectDisposedException) must deny the deletions:
+                    // the safe default is to keep notes rather than delete them unconfirmed. Swallowing
+                    // here also stops the exception from faulting the fire-and-forget sync pass that
+                    // awaited this callback.
+                    AppLogger.Warn($"Sync deletion confirmation failed to display: {ex.Message}");
+                    return false;
+                }
+            }).ConfigureAwait(false);
+        }
+
+        private static async Task<bool> ShowOwnerlessAsync(Views.BulkChangeDialog dialog)
+        {
+            TaskCompletionSource<bool> tcs = new();
+            dialog.Closed += (_, _) => tcs.TrySetResult(dialog.GetResult());
+            dialog.Show();
+            return await tcs.Task.ConfigureAwait(true);
         }
 
         /// <summary>

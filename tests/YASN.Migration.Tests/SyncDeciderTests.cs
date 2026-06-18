@@ -7,8 +7,8 @@ namespace YASN.Migration.Tests
     /// </summary>
     public sealed class SyncDeciderTests
     {
-        private static SyncBaseline Base(string? localHash, string? remoteETag) =>
-            new SyncBaseline("k", localHash, remoteETag, "notes/k.json", DateTimeOffset.UnixEpoch, false);
+        private static SyncBaseline Base(string? localHash, string? remoteETag, bool deleted = false) =>
+            new SyncBaseline("k", localHash, remoteETag, "notes/k.json", DateTimeOffset.UnixEpoch, deleted);
 
         /// <summary>Nothing anywhere is a no-op.</summary>
         [Fact]
@@ -45,6 +45,19 @@ namespace YASN.Migration.Tests
         [Fact]
         public void LocalDeletedRemoteChangedCompares() =>
             Assert.Equal(SyncAction.CompareForConflict, SyncDecider.Decide(null, "e2", Base("h", "e")));
+
+        /// <summary>
+        /// A key already tombstoned (baseline.Deleted) whose remote tombstone is unchanged is settled:
+        /// returning DeleteRemote here would re-PUT the tombstone forever (the re-tombstone loop).
+        /// </summary>
+        [Fact]
+        public void AlreadyTombstonedUnchangedIsNone() =>
+            Assert.Equal(SyncAction.None, SyncDecider.Decide(null, "e", Base(null, "e", deleted: true)));
+
+        /// <summary>A not-yet-tombstoned local deletion still writes the tombstone once.</summary>
+        [Fact]
+        public void LocalDeletedNotYetTombstonedDeletesRemote() =>
+            Assert.Equal(SyncAction.DeleteRemote, SyncDecider.Decide(null, "e", Base("h", "e", deleted: false)));
 
         /// <summary>Both unchanged since baseline is a no-op.</summary>
         [Fact]
