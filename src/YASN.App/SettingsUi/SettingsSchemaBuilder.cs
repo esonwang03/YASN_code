@@ -318,21 +318,18 @@ namespace YASN.SettingsUi
                 });
 
                 string remote = Dir().Length == 0 ? SyncSettings.DefaultRemoteDir : Dir();
-                bool ok = await client.TestConnectionAsync(remote).ConfigureAwait(false);
-                if (!ok)
+                SyncProbeResult probe = await client.ProbeConnectionAsync(remote).ConfigureAwait(false);
+
+                if (!probe.IsUsable)
                 {
-                    return LocalizationService.Current["Settings.Sync.Test.Fail"];
+                    return LocalizationService.Current[ProbeFailureKey(probe.Status)];
                 }
 
-                // When ETag detection is selected, verify the server actually returns ETags; otherwise
-                // tell the user to switch to Last-Modified, since ETag mode would mask remote edits.
-                if (ChangeDetection.Parse(Mode()) == ChangeDetectionMode.ETag)
+                // Connected and read/write verified. If ETag detection is selected but the server omits
+                // ETags, warn — that mode would silently mask remote edits.
+                if (ChangeDetection.Parse(Mode()) == ChangeDetectionMode.ETag && !probe.ServerReturnsETags)
                 {
-                    bool? etags = await client.SupportsETagsAsync(remote).ConfigureAwait(false);
-                    if (etags == false)
-                    {
-                        return LocalizationService.Current["Settings.Sync.Test.NoETag"];
-                    }
+                    return LocalizationService.Current["Settings.Sync.Test.NoETag"];
                 }
 
                 return LocalizationService.Current["Settings.Sync.Test.Ok"];
@@ -342,6 +339,18 @@ namespace YASN.SettingsUi
                 return LocalizationService.Current["Settings.Sync.Test.Fail"];
             }
         }
+
+        /// <summary>Maps a non-Ok probe status to its localized, actionable message key.</summary>
+        private static string ProbeFailureKey(SyncProbeStatus status) => status switch
+        {
+            SyncProbeStatus.BadCredentials => "Settings.Sync.Test.BadCredentials",
+            SyncProbeStatus.WebDavDisabled => "Settings.Sync.Test.WebDavDisabled",
+            SyncProbeStatus.EndpointNotFound => "Settings.Sync.Test.EndpointNotFound",
+            SyncProbeStatus.DirectoryUnavailable => "Settings.Sync.Test.DirectoryUnavailable",
+            SyncProbeStatus.ReadWriteFailed => "Settings.Sync.Test.ReadWriteFailed",
+            SyncProbeStatus.Unreachable => "Settings.Sync.Test.Unreachable",
+            _ => "Settings.Sync.Test.Fail"
+        };
 
         private static SettingModule BuildAttachmentsModule()
         {

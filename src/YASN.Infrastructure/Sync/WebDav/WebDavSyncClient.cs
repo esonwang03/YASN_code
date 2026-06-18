@@ -32,43 +32,112 @@ namespace YASN.Infrastructure.Sync.WebDav
             _client = new WebDavClient(_httpClient);
         }
 
-        public async Task<bool> TestConnectionAsync(string remotePath)
+        public async Task<SyncProbeResult> ProbeConnectionAsync(string remotePath)
         {
             string path = NormalizeRemotePath(remotePath);
 
             try
             {
-                PropfindResponse response = await _client.Propfind(path, new PropfindParameters
+                // 1. Classify the endpoint/credentials with a metadata request before touching files.
+                PropfindResponse meta = await _client.Propfind(path, new PropfindParameters
                 {
                     ApplyTo = ApplyTo.Propfind.ResourceOnly
                 }).ConfigureAwait(false);
 
-                if (response.IsSuccessful || !string.IsNullOrEmpty(path) && await EnsureDirectoryAsync(path).ConfigureAwait(false))
+                SyncProbeStatus? endpointFault = ClassifyEndpoint(meta.StatusCode);
+                if (endpointFault is SyncProbeStatus fault)
                 {
-                    LastError = null;
-                    return true;
+                    LastError = meta.Description ?? $"WebDAV status {meta.StatusCode}";
+                    return new SyncProbeResult(fault, false, LastError);
                 }
 
-                LastError = response.Description ?? $"WebDAV status {response.StatusCode}";
-                return false;
+                // 2. Make sure the target directory exists (best effort; the round-trip is authoritative).
+                if (path.Length > 0 && !await EnsureDirectoryAsync(path).ConfigureAwait(false))
+                {
+                    return new SyncProbeResult(SyncProbeStatus.DirectoryUnavailable, false, LastError);
+                }
+
+                // 3. Prove read/write end-to-end and read back the probe file's ETag in one round-trip.
+                return await RoundTripProbeAsync(path).ConfigureAwait(false);
             }
-            catch (HttpRequestException ex)
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
             {
                 LastError = ex.Message;
-                AppLogger.Warn($"WebDAV test failed: {ex.Message}");
-                return false;
+                AppLogger.Warn($"WebDAV probe failed: {ex.Message}");
+                return new SyncProbeResult(SyncProbeStatus.Unreachable, false, ex.Message);
             }
-            catch (InvalidOperationException ex)
+        }
+
+        /// <summary>
+        /// Maps a metadata-request status code to an endpoint-level fault, or null when the endpoint and
+        /// credentials look healthy enough to proceed to the read/write round-trip. A 405 here means the
+        /// URL is not a WebDAV endpoint (PROPFIND unsupported) — the exact wrong-URL case we must catch.
+        /// </summary>
+        private static SyncProbeStatus? ClassifyEndpoint(int statusCode)
+        {
+            return statusCode switch
+            {
+                (int)HttpStatusCode.Unauthorized => SyncProbeStatus.BadCredentials,
+                (int)HttpStatusCode.Forbidden => SyncProbeStatus.WebDavDisabled,
+                (int)HttpStatusCode.NotFound => SyncProbeStatus.EndpointNotFound,
+                (int)HttpStatusCode.MethodNotAllowed => SyncProbeStatus.EndpointNotFound,
+                _ => null
+            };
+        }
+
+        /// <summary>
+        /// Writes a unique probe file under <paramref name="dir"/>, downloads it back, byte-compares to
+        /// prove read/write actually work, and reads its raw ETag to report server ETag support. The
+        /// probe file is always deleted. Returns <see cref="SyncProbeStatus.ReadWriteFailed"/> if any
+        /// step fails or the bytes round-trip incorrectly.
+        /// </summary>
+        private async Task<SyncProbeResult> RoundTripProbeAsync(string dir)
+        {
+            byte[] payload = Guid.NewGuid().ToByteArray();
+            string probePath = dir.Length == 0 ? ".yasn-probe" : $"{dir}/.yasn-probe";
+            string upTemp = Path.Combine(Path.GetTempPath(), $"yasn-probe-{Guid.NewGuid():N}.tmp");
+            string downTemp = Path.Combine(Path.GetTempPath(), $"yasn-probe-{Guid.NewGuid():N}.bin");
+
+            try
+            {
+                await File.WriteAllBytesAsync(upTemp, payload).ConfigureAwait(false);
+                if (!await UploadFileAsync(upTemp, probePath).ConfigureAwait(false))
+                {
+                    return new SyncProbeResult(SyncProbeStatus.ReadWriteFailed, false, LastError);
+                }
+
+                if (!await DownloadFileAsync(probePath, downTemp).ConfigureAwait(false))
+                {
+                    return new SyncProbeResult(SyncProbeStatus.ReadWriteFailed, false, LastError);
+                }
+
+                byte[] readBack = await File.ReadAllBytesAsync(downTemp).ConfigureAwait(false);
+                if (!readBack.AsSpan().SequenceEqual(payload))
+                {
+                    return new SyncProbeResult(SyncProbeStatus.ReadWriteFailed, false, "Round-trip payload mismatch.");
+                }
+
+                // Read the raw ETag (not the normalized "present" sentinel) so absence is detectable.
+                PropfindResponse meta = await _client.Propfind(NormalizeRemotePath(probePath), new PropfindParameters
+                {
+                    ApplyTo = ApplyTo.Propfind.ResourceOnly
+                }).ConfigureAwait(false);
+                string? rawETag = meta.IsSuccessful ? meta.Resources?.FirstOrDefault()?.ETag : null;
+
+                LastError = null;
+                return new SyncProbeResult(SyncProbeStatus.Ok, !string.IsNullOrWhiteSpace(rawETag));
+            }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException or IOException)
             {
                 LastError = ex.Message;
-                AppLogger.Warn($"WebDAV test failed: {ex.Message}");
-                return false;
+                AppLogger.Warn($"WebDAV round-trip probe failed: {ex.Message}");
+                return new SyncProbeResult(SyncProbeStatus.ReadWriteFailed, false, ex.Message);
             }
-            catch (TaskCanceledException ex)
+            finally
             {
-                LastError = ex.Message;
-                AppLogger.Warn($"WebDAV test failed: {ex.Message}");
-                return false;
+                TryDeleteTemp(upTemp);
+                TryDeleteTemp(downTemp);
+                await DeleteFileAsync(probePath).ConfigureAwait(false);
             }
         }
 

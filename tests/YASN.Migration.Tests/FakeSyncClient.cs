@@ -30,7 +30,8 @@ namespace YASN.Migration.Tests
         /// </summary>
         public bool SuppressETags { get; set; }
 
-        public Task<bool> TestConnectionAsync(string remotePath) => Task.FromResult(true);
+        public Task<SyncProbeResult> ProbeConnectionAsync(string remotePath) =>
+            Task.FromResult(new SyncProbeResult(SyncProbeStatus.Ok, !SuppressETags));
 
         public Task<bool> EnsureDirectoryAsync(string remotePath) => Task.FromResult(!FailEnsureDirectory);
 
