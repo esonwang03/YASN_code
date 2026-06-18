@@ -1,6 +1,4 @@
-using YASN.App.Settings;
 using YASN.Hotkeys;
-using YASN.Infrastructure;
 using YASN.Infrastructure.Settings;
 
 namespace YASN.SettingsUi

@@ -1,6 +1,5 @@
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using YASN.App.Settings;
 using YASN.Application;
 using YASN.AvaloniaNotes;
 using YASN.Hotkeys;
@@ -47,21 +46,21 @@ namespace YASN
                     return;
                 }
 
-                SettingsStore settings = new ();
-                LocalizationService localization = new (settings);
+                SettingsStore settings = new();
+                LocalizationService localization = new(settings);
                 LocalizationService.Current = localization;
                 MigrateLegacyStorage();
-                NoteRepository repository = new ();
-                ReminderStateStore reminderState = new (AppPaths.ReminderStatePath);
-                ReminderScheduler reminders = new (platformServices.Notifications, reminderState);
-                KeybindingRegistry keybindings = new (settings);
-                NoteWindowManager noteWindows = new (repository, platformServices, reminders, keybindings, settings);
+                NoteRepository repository = new();
+                ReminderStateStore reminderState = new(AppPaths.ReminderStatePath);
+                ReminderScheduler reminders = new(platformServices.Notifications, reminderState);
+                KeybindingRegistry keybindings = new(settings);
+                NoteWindowManager noteWindows = new(repository, platformServices, reminders, keybindings, settings);
 
                 // Resolve the scheduler ↔ window-manager cycle: the writer needs the manager, the
                 // manager needs the scheduler. Wire the in-app activator and the once-rule writer now.
                 reminders.Activator = new NoteWindowReminderActivator(noteWindows, settings);
                 reminders.ContentWriter = new ReminderContentWriter(repository, noteWindows);
-                TutorialNoteSeeder tutorial = new (repository, noteWindows, settings);
+                TutorialNoteSeeder tutorial = new(repository, noteWindows, settings);
                 sync = new SyncComposition(repository);
                 trayShell = new TrayShell(desktopLifetime, repository, platformServices, localization, noteWindows, keybindings, tutorial, settings, sync);
                 trayShell.Initialize();
