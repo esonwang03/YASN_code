@@ -11,7 +11,10 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+  <!-- Self-contained single-file packaging only applies to a RID-targeted publish (always win-x64).
+       A plain solution build passes no RID; gating on RuntimeIdentifier prevents the SDK from
+       resolving the host RID (e.g. osx-arm64 on the macOS CI runner), which restore never fetched. -->
+  <PropertyGroup Condition="'$(Configuration)'=='Release' And '$(RuntimeIdentifier)'!=''">
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
