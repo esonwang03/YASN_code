@@ -1,6 +1,11 @@
-name: Release
+name: Build
 
+# Single build pipeline for distributable artifacts.
+#   - push of a v* tag -> build, upload artifacts, AND publish a GitHub Release.
+#   - manual dispatch   -> build and upload the same artifacts to the run (no Release).
+# PR validation lives in ci.yml (restore + Release build + test on both OSes).
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*"
@@ -32,6 +37,18 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # On a tag the version is the tag without the leading 'v'; a manual dispatch has no
+      # release version, so use 0.0.0 (a valid CFBundleShortVersionString) for the bundle.
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Restore
         run: dotnet restore YASN.sln
 
@@ -50,13 +67,12 @@ jobs:
       - name: Bundle and sign .app (macOS)
         if: runner.os == 'macOS'
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           chmod +x scripts/bundle-macos.sh
           scripts/bundle-macos.sh \
             "publish/${{ matrix.rid }}" \
             build/macos/AppIcon.png \
             build/macos/Info.plist.template \
-            "$VERSION" \
+            "${{ steps.ver.outputs.version }}" \
             "dist/YASN.app"
 
       - name: Zip artifact (macOS)
@@ -64,7 +80,15 @@ jobs:
         # ditto preserves the code signature and bundle metadata that plain `zip` strips.
         run: ditto -c -k --keepParent "dist/YASN.app" "YASN-${{ matrix.rid }}.zip"
 
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: YASN-${{ matrix.rid }}
+          path: YASN-${{ matrix.rid }}.zip
+          if-no-files-found: error
+
       - name: Upload to Release
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           files: YASN-${{ matrix.rid }}.zip
