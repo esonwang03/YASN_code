@@ -46,6 +46,18 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path "publish/${{ matrix.rid }}/*" -DestinationPath "YASN-${{ matrix.rid }}.zip"
 
+      - name: Bundle and sign .app (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          chmod +x scripts/bundle-macos.sh
+          scripts/bundle-macos.sh \
+            "publish/${{ matrix.rid }}" \
+            build/macos/AppIcon.png \
+            build/macos/Info.plist.template \
+            "$VERSION" \
+            "dist/YASN.app"
+
       - name: Zip artifact (macOS)
         if: runner.os == 'macOS'
         run: |
