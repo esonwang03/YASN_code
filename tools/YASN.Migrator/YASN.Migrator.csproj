@@ -11,6 +11,14 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
   <!-- Link the shared, dependency-free migration core so the CLI and the app run identical logic. -->
   <ItemGroup>
     <Compile Include="..\..\src\YASN.App\Migration\WpfNoteStorageMigrator.cs" Link="Core\WpfNoteStorageMigrator.cs" />

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Info.plist template for the YASN macOS .app bundle.
+  The __VERSION__ token is substituted at build time by scripts/bundle-macos.sh.
+  YASN is a tray-only application (no main window), so LSUIElement marks it as an
+  agent: it runs without a Dock icon, mirroring the Windows system-tray behavior.
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>YASN</string>
+    <key>CFBundleDisplayName</key>
+    <string>YASN</string>
+    <key>CFBundleExecutable</key>
+    <string>YASN</string>
+    <key>CFBundleIdentifier</key>
+    <string>io.github.esonwang03.yasn</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION__</string>
+    <key>CFBundleVersion</key>
+    <string>__VERSION__</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>LSUIElement</key>
+    <true/>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
+</dict>
+</plist>

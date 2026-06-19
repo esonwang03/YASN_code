@@ -10,3 +10,7 @@
 *.axaml text eol=crlf
 *.xaml text eol=crlf
 *.manifest text eol=crlf
+
+# Shell scripts must stay LF: they run on the macOS release runner, where CRLF
+# breaks the shebang (bad interpreter: /usr/bin/env bash^M).
+*.sh text eol=lf
