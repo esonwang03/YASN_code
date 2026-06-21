@@ -80,6 +80,14 @@ namespace YASN.AvaloniaNotes
         public DateTimeOffset? ReminderAt { get; set; }
 
         /// <summary>
+        /// Gets or sets the UTC time the note content was last edited. Drives the "open most recently
+        /// edited note" command. Window moves, resizes, level changes, and title-only renames do not
+        /// update it; only content changes do. Null on notes that predate this field; the repository
+        /// backfills it from the content file's last-write time on load.
+        /// </summary>
+        public DateTimeOffset? ContentModifiedAt { get; set; }
+
+        /// <summary>
         /// Gets or sets the last editor display mode used for this note.
         /// </summary>
         public EditorDisplayMode DisplayMode { get; set; } = EditorDisplayMode.TextAndPreview;

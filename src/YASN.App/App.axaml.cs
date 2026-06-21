@@ -14,6 +14,7 @@ using YASN.Notifications;
 using YASN.PlatformServices;
 using YASN.Reminders;
 using YASN.SettingsUi;
+using YASN.Theming;
 
 namespace YASN
 {
@@ -51,6 +52,7 @@ namespace YASN
                 SettingsStore settings = new();
                 LocalizationService localization = new(settings);
                 LocalizationService.Current = localization;
+                ApplyTheme(settings);
                 MigrateLegacyStorage();
                 NoteRepository repository = new();
                 ReminderStateStore reminderState = new(AppPaths.ReminderStatePath);
@@ -72,6 +74,21 @@ namespace YASN
             }
 
             base.OnFrameworkInitializationCompleted();
+        }
+
+        /// <summary>
+        /// Applies the persisted theme preference to the application's requested theme variant.
+        /// A null variant (the "system" preference) leaves the requested variant unset so Avalonia
+        /// follows the operating-system theme. Safe to call repeatedly, including after a settings save.
+        /// </summary>
+        /// <param name="settings">The settings store holding the theme preference.</param>
+        public static void ApplyTheme(SettingsStore settings)
+        {
+            string value = settings.GetValue(ThemePreference.SettingKey, shouldSync: true, ThemePreference.DefaultValue);
+            if (Avalonia.Application.Current is { } app)
+            {
+                app.RequestedThemeVariant = ThemePreference.ToVariant(value);
+            }
         }
 
         /// <summary>

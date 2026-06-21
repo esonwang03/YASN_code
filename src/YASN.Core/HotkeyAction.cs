@@ -39,6 +39,9 @@ namespace YASN.Core
         CycleWindowLevel,
 
         /// <summary>Editor: open the quick-layout overlay.</summary>
-        QuickLayout
+        QuickLayout,
+
+        /// <summary>Editor: toggle the note window title bar (chrome) between shown and collapsed.</summary>
+        ToggleChrome
     }
 }

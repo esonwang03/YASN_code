@@ -17,16 +17,26 @@ namespace YASN.SingleNote
         public const string DoubleRightClickMessage = "preview-right-double-click";
 
         /// <summary>
+        /// Message posted to the host on a single (non-double) right-click in the preview. The host
+        /// toggles the note window title bar so the chrome can be shown or hidden without leaving the
+        /// preview. Deferred past the double-click threshold so a double-click focuses the editor
+        /// instead of toggling.
+        /// </summary>
+        public const string ToggleChromeMessage = "preview-toggle-chrome";
+
+        /// <summary>
         /// Prefix of the message posted to the host when a link in the preview is clicked. The host
         /// opens the resolved absolute URL in the operating system's default application instead of
         /// navigating the embedded WebView.
         /// </summary>
         public const string OpenLinkMessagePrefix = "preview-open-link:";
 
-        // Forwards preview right-clicks to the Avalonia host via the WebView message channel so a
-        // double right-click can return focus to the editor, mirroring the original WebView2 bridge.
-        // Anchor clicks are intercepted and forwarded as open-link messages so attachments and
-        // external links open in the OS default app rather than inside the preview WebView.
+        // Forwards preview right-clicks to the Avalonia host via the WebView message channel. A single
+        // right-click toggles the title bar; a double right-click returns focus to the editor. The
+        // single action is deferred past the double-click threshold and cancelled when a second click
+        // arrives, so a double-click does not also fire the toggle. Anchor clicks are intercepted and
+        // forwarded as open-link messages so attachments and external links open in the OS default app
+        // rather than inside the preview WebView.
         private const string RightClickBridgeScript = """
             (() => {
               const post = (message) => {
@@ -34,14 +44,26 @@ namespace YASN.SingleNote
                   window.chrome.webview.postMessage(message);
                 }
               };
-              const thresholdMs = 900;
+              const thresholdMs = 400;
               let lastRightClickAt = 0;
+              let pendingSingle = 0;
               document.addEventListener('contextmenu', (event) => {
                 const now = Date.now();
                 const isDouble = now - lastRightClickAt <= thresholdMs;
                 lastRightClickAt = now;
-                post(isDouble ? 'preview-right-double-click' : 'preview-right-click');
                 event.preventDefault();
+                if (isDouble) {
+                  if (pendingSingle) {
+                    clearTimeout(pendingSingle);
+                    pendingSingle = 0;
+                  }
+                  post('preview-right-double-click');
+                  return;
+                }
+                pendingSingle = setTimeout(() => {
+                  pendingSingle = 0;
+                  post('preview-toggle-chrome');
+                }, thresholdMs);
               }, true);
               document.addEventListener('click', (event) => {
                 const anchor = event.target && event.target.closest ? event.target.closest('a[href]') : null;

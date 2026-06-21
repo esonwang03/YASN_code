@@ -142,7 +142,9 @@ namespace YASN.Application
 
         private void OpenNoteWindow()
         {
-            AvaloniaNoteDocument note = repository.LoadAll().FirstOrDefault() ?? repository.CreateNote();
+            AvaloniaNoteDocument note = repository.LoadAll()
+                .OrderByDescending(n => n.ContentModifiedAt ?? DateTimeOffset.MinValue)
+                .FirstOrDefault() ?? repository.CreateNote();
             noteWindows.Open(note);
         }
 
@@ -184,6 +186,7 @@ namespace YASN.Application
 
         private void OnSettingsSaved()
         {
+            YASN.YasnApplication.ApplyTheme(settings);
             noteWindows.RefreshTaskbarVisibilityForAll();
             RegisterGlobalHotkeys();
             sync?.ApplyConfiguration(settings);

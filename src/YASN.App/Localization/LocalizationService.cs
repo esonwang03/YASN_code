@@ -78,6 +78,11 @@ namespace YASN.Localization
                     ["Settings.Migration.NothingToDo"] = "Note IDs are already up to date.",
                     ["Settings.Migration.Failed"] = "Note ID migration failed. See the log for details.",
                     ["Settings.Reminder.ActivateOnFire"] = "Activate note and scroll to reminder when it fires",
+                    ["Settings.RestoreOpenNotes"] = "Reopen notes that were open last time",
+                    ["Settings.Theme"] = "Theme",
+                    ["Settings.Theme.System"] = "Follow system",
+                    ["Settings.Theme.Light"] = "Light",
+                    ["Settings.Theme.Dark"] = "Dark",
                     ["Settings.Unrecognized.Title"] = "Some settings were not recognized",
                     ["Settings.Unrecognized.Body"] = "Old configuration from a previous version was found and is being ignored. Review your settings to re-apply them.",
                     ["Settings.DataDir.Restart"] = "The data folder change takes effect after restarting the app.",
@@ -123,6 +128,7 @@ namespace YASN.Localization
                     ["Settings.Shortcuts.Module"] = "Shortcuts",
                     ["Settings.Shortcuts.Reset"] = "Reset",
                     ["Settings.Shortcuts.Conflict"] = "The shortcut {0} is already used by '{1}'. Change it before saving '{2}'.",
+                    ["Settings.Shortcuts.ConflictInline"] = "Conflicts with '{0}'.",
                     ["Hotkey.RaiseMainWindow"] = "Open note manager (global)",
                     ["Hotkey.RaiseSettingsWindow"] = "Open settings (global)",
                     ["Hotkey.CreateNote"] = "New note (global)",
@@ -130,7 +136,9 @@ namespace YASN.Localization
                     ["Hotkey.InsertAttachment"] = "Insert attachment",
                     ["Hotkey.CycleEditorMode"] = "Switch editor view",
                     ["Hotkey.CycleWindowLevel"] = "Cycle window level",
-                    ["Hotkey.QuickLayout"] = "Quick layout"
+                    ["Hotkey.QuickLayout"] = "Quick layout",
+                    ["Hotkey.ToggleChrome"] = "Show/hide title bar",
+                    ["Window.ToggleChrome"] = "Show/hide title bar",
                 }
             };
 

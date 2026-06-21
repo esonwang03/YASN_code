@@ -12,7 +12,7 @@ namespace YASN.AvaloniaNotes
         /// Gets or sets the current index schema version.
         /// </summary>
         [JsonPropertyName("schemaVersion")]
-        public int SchemaVersion { get; set; } = 6;
+        public int SchemaVersion { get; set; } = 7;
 
         /// <summary>
         /// Gets or sets serialized note metadata records.
@@ -94,6 +94,13 @@ namespace YASN.AvaloniaNotes
         /// </summary>
         [JsonPropertyName("reminderAt")]
         public DateTimeOffset? ReminderAt { get; set; }
+
+        /// <summary>
+        /// Gets or sets the UTC time the note content was last edited. Null on pre-schema-7 entries;
+        /// backfilled by the repository from the content file's last-write time on load.
+        /// </summary>
+        [JsonPropertyName("contentModifiedAt")]
+        public DateTimeOffset? ContentModifiedAt { get; set; }
 
         /// <summary>
         /// Gets or sets the last editor display mode used for this note.

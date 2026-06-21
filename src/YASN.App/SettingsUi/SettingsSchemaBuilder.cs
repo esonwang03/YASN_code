@@ -6,6 +6,7 @@ using YASN.Infrastructure.Sync.WebDav;
 using YASN.Localization;
 using YASN.Migration;
 using YASN.PlatformServices;
+using YASN.Theming;
 
 namespace YASN.SettingsUi
 {
@@ -19,6 +20,12 @@ namespace YASN.SettingsUi
         /// the settings store; it is applied directly through <see cref="IAutoStartService"/>.
         /// </summary>
         public const string AutoStartKey = "app.autoStart";
+
+        /// <summary>
+        /// Local-only key controlling whether notes left open last session are reopened on startup.
+        /// Machine-specific (not synced) since window state is local. Defaults to true.
+        /// </summary>
+        public const string RestoreOpenNotesKey = "app.restoreOpenNotes";
 
         /// <summary>
         /// Synced key for the master attachment auto-copy toggle.
@@ -143,6 +150,15 @@ namespace YASN.SettingsUi
                 });
             }
 
+            module.Fields.Add(new SettingField
+            {
+                Key = RestoreOpenNotesKey,
+                Title = LocalizationService.Current["Settings.RestoreOpenNotes"],
+                FieldType = SettingFieldType.Toggle,
+                ShouldSync = false,
+                BoolValue = true
+            });
+
             SettingField language = new SettingField
             {
                 Key = LocalizationSettings.LanguageKey,
@@ -152,6 +168,19 @@ namespace YASN.SettingsUi
             };
             language.Options.Add(new SettingOption { Label = "English", Value = "en" });
             module.Fields.Add(language);
+
+            SettingField theme = new SettingField
+            {
+                Key = ThemePreference.SettingKey,
+                Title = LocalizationService.Current["Settings.Theme"],
+                FieldType = SettingFieldType.Select,
+                ShouldSync = true,
+                Value = ThemePreference.DefaultValue
+            };
+            theme.Options.Add(new SettingOption { Label = LocalizationService.Current["Settings.Theme.System"], Value = ThemePreference.SystemValue });
+            theme.Options.Add(new SettingOption { Label = LocalizationService.Current["Settings.Theme.Light"], Value = ThemePreference.LightValue });
+            theme.Options.Add(new SettingOption { Label = LocalizationService.Current["Settings.Theme.Dark"], Value = ThemePreference.DarkValue });
+            module.Fields.Add(theme);
 
             module.Fields.Add(new SettingField
             {

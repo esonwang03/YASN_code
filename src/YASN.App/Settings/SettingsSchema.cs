@@ -99,6 +99,26 @@ namespace YASN.App.Settings
         public Action<SettingField>? OnChanged { get; set; }
         public ObservableCollection<SettingOption> Options { get; } = new();
 
+        private string _error = string.Empty;
+
+        /// <summary>
+        /// Gets or sets a per-field validation message shown inline below the field. Empty when the
+        /// field is valid. Used by the shortcuts module to surface gesture conflicts live.
+        /// </summary>
+        public string Error
+        {
+            get => _error;
+            set
+            {
+                string next = value ?? string.Empty;
+                if (_error != next)
+                {
+                    _error = next;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         /// <summary>
         /// Gets or sets the numeric view of <see cref="Value"/> for <see cref="SettingFieldType.Number"/>
         /// fields. Setting clamps to <see cref="Minimum"/>/<see cref="Maximum"/> and writes the

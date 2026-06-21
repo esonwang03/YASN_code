@@ -64,9 +64,16 @@ namespace YASN.Application
         /// </summary>
         public void RestoreOpenNotes()
         {
-            foreach (AvaloniaNoteDocument note in repository.LoadOpenNotes())
+            bool restore = bool.TryParse(
+                settings.GetValue(SettingsUi.SettingsSchemaBuilder.RestoreOpenNotesKey, shouldSync: false, "true"),
+                out bool parsed) ? parsed : true;
+
+            if (restore)
             {
-                Open(note);
+                foreach (AvaloniaNoteDocument note in repository.LoadOpenNotes())
+                {
+                    Open(note);
+                }
             }
 
             IReadOnlyList<AvaloniaNoteDocument> allNotes = repository.LoadAll();

@@ -151,7 +151,9 @@ namespace YASN.Hotkeys
                 new(HotkeyAction.CycleWindowLevel, HotkeyScope.Editor,
                     new KeyGesture(Key.L, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.CycleWindowLevel"),
                 new(HotkeyAction.QuickLayout, HotkeyScope.Editor,
-                    new KeyGesture(Key.G, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.QuickLayout")
+                    new KeyGesture(Key.G, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.QuickLayout"),
+                new(HotkeyAction.ToggleChrome, HotkeyScope.Editor,
+                    new KeyGesture(Key.H, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.ToggleChrome")
             };
         }
     }

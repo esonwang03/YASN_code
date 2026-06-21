@@ -105,7 +105,7 @@ namespace YASN.AvaloniaNotes
             File.WriteAllText(GetMarkdownPath(note.Id), note.Content);
 
             NoteIndexData index = LoadIndex();
-            index.SchemaVersion = 6;
+            index.SchemaVersion = 7;
             index.Notes.RemoveAll(entry => entry.Id == note.Id);
             index.Notes.Add(ToEntry(note));
             index.Notes = index.Notes.OrderBy(entry => entry.Id, StringComparer.Ordinal).ToList();
@@ -137,7 +137,7 @@ namespace YASN.AvaloniaNotes
 
             string syncKey = entry.SyncKey ?? string.Empty;
             index.Notes.RemoveAll(e => e.Id == noteId);
-            index.SchemaVersion = 6;
+            index.SchemaVersion = 7;
             string json = JsonSerializer.Serialize(index, JsonOptions);
             File.WriteAllText(indexPath, json);
 
@@ -187,7 +187,7 @@ namespace YASN.AvaloniaNotes
                 return;
             }
 
-            index.SchemaVersion = 6;
+            index.SchemaVersion = 7;
             File.WriteAllText(indexPath, JsonSerializer.Serialize(index, JsonOptions));
         }
 
@@ -208,8 +208,21 @@ namespace YASN.AvaloniaNotes
                 Level = entry.Level,
                 ShowInTaskbar = entry.ShowInTaskbar,
                 ReminderAt = entry.ReminderAt,
+                ContentModifiedAt = entry.ContentModifiedAt ?? ContentFileWriteTime(id),
                 DisplayMode = entry.DisplayMode
             };
+        }
+
+        /// <summary>
+        /// Returns the content file's last-write time in UTC, used to backfill
+        /// <see cref="AvaloniaNoteDocument.ContentModifiedAt"/> for notes written before the field
+        /// existed. Returns <see langword="null"/> when the file is missing so a freshly created,
+        /// not-yet-saved note sorts last rather than to the epoch's opposite.
+        /// </summary>
+        private DateTimeOffset? ContentFileWriteTime(string noteId)
+        {
+            string path = GetMarkdownPath(noteId);
+            return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : null;
         }
 
         private string LoadContent(string noteId)
@@ -233,6 +246,7 @@ namespace YASN.AvaloniaNotes
                 Level = note.Level,
                 ShowInTaskbar = note.ShowInTaskbar,
                 ReminderAt = note.ReminderAt,
+                ContentModifiedAt = note.ContentModifiedAt,
                 DisplayMode = note.DisplayMode
             };
         }

@@ -86,6 +86,7 @@ namespace YASN.ViewModels
                 }
 
                 note.Content = next;
+                note.ContentModifiedAt = DateTimeOffset.UtcNow;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(Title));
                 Save();

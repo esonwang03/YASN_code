@@ -119,7 +119,8 @@ namespace YASN.Views
                 [HotkeyAction.InsertAttachment] = () => _ = PickAttachmentAsync(),
                 [HotkeyAction.CycleEditorMode] = CycleEditorMode,
                 [HotkeyAction.CycleWindowLevel] = CycleWindowLevel,
-                [HotkeyAction.QuickLayout] = () => _ = ShowQuickLayoutOverlay()
+                [HotkeyAction.QuickLayout] = () => _ = ShowQuickLayoutOverlay(),
+                [HotkeyAction.ToggleChrome] = ToggleChrome
             });
             AddHandler(KeyDownEvent, HandleWindowKeyDown, RoutingStrategies.Tunnel);
 
@@ -139,6 +140,7 @@ namespace YASN.Views
 
             ConfigureLevelSelector();
             ApplyInitialWindowState();
+            InitializeChromeCollapse();
         }
 
         private static NoteWindowViewModel CreateDefaultViewModel()
@@ -151,6 +153,16 @@ namespace YASN.Views
 
         private void HandleWindowKeyDown(object? sender, KeyEventArgs e)
         {
+            // Esc from any editing mode reverts to preview, giving the keyboard a quick "done editing"
+            // exit that mirrors the QuickLayout overlay's Esc-to-cancel. Bound directly rather than
+            // through the registry since it is a fixed, non-rebindable key.
+            if (e.Key == Key.Escape && viewModel.DisplayMode is EditorDisplayMode.TextOnly or EditorDisplayMode.TextAndPreview)
+            {
+                SetDisplayMode(EditorDisplayMode.PreviewOnly, adjustWidth: true);
+                e.Handled = true;
+                return;
+            }
+
             if (editorHotkeys.Handle(e))
             {
                 e.Handled = true;
@@ -161,6 +173,7 @@ namespace YASN.Views
         {
             RefreshPreview();
             ApplyWindowLevel();
+            BeginChromeAutoCollapse();
         }
 
         private void HandleClosing(object? sender, WindowClosingEventArgs e)
@@ -391,6 +404,11 @@ namespace YASN.Views
             CycleEditorMode();
         }
 
+        private void HandleToggleChromeClick(object? sender, RoutedEventArgs e)
+        {
+            ToggleChrome();
+        }
+
         /// <summary>
         /// Advances the editor display mode in the order Preview → Text → Split → Preview.
         /// </summary>
@@ -484,6 +502,12 @@ namespace YASN.Views
 
         private void HandlePreviewMessage(object? sender, Avalonia.Controls.WebMessageReceivedEventArgs e)
         {
+            if (e.Body == MarkdownPreviewDocument.ToggleChromeMessage)
+            {
+                ToggleChrome();
+                return;
+            }
+
             if (e.Body == MarkdownPreviewDocument.DoubleRightClickMessage)
             {
                 editorTextBox.Focus();

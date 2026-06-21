@@ -69,6 +69,9 @@
                       <TextBlock Text="{Binding Description}" FontSize="12" Foreground="#777777"
                                  TextWrapping="Wrap"
                                  IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                      <TextBlock Text="{Binding Error}" FontSize="12" Foreground="#CC3333"
+                                 TextWrapping="Wrap"
+                                 IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>

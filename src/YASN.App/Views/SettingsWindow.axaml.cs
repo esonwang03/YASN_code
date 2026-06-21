@@ -44,6 +44,16 @@ namespace YASN.Views
 
             viewModel = SettingsSchemaBuilder.Build(store, autoStart, keybindings, showTutorial);
             DataContext = viewModel;
+
+            foreach (SettingField field in EnumerateFields())
+            {
+                if (field.FieldType == SettingFieldType.Hotkey)
+                {
+                    field.OnChanged = _ => RevalidateHotkeys();
+                }
+            }
+
+            RevalidateHotkeys();
         }
 
         /// <summary>
@@ -176,16 +186,65 @@ namespace YASN.Views
             return null;
         }
 
-        private SettingField? FindField(string key)
+        /// <summary>
+        /// Recomputes inline conflict messages for every hotkey field. Within each scope, the first
+        /// field to claim a gesture is the "owner"; any later field with the same gesture is flagged
+        /// with a message naming the owner. Fields without a conflict are cleared. Runs live on every
+        /// capture so the user sees the conflict before pressing Save, where <see cref="FindHotkeyConflict"/>
+        /// still blocks the persist as the final gate.
+        /// </summary>
+        private void RevalidateHotkeys()
+        {
+            Dictionary<HotkeyScope, Dictionary<string, string>> seen = new();
+            foreach (KeybindingDefinition definition in keybindings.Definitions)
+            {
+                SettingField? field = FindField(definition.SettingKey);
+                if (field is null)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(field.Value))
+                {
+                    field.Error = string.Empty;
+                    continue;
+                }
+
+                Dictionary<string, string> scopeMap = seen.TryGetValue(definition.Scope, out Dictionary<string, string>? map)
+                    ? map
+                    : seen[definition.Scope] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                if (scopeMap.TryGetValue(field.Value, out string? otherLabel))
+                {
+                    string template = localization["Settings.Shortcuts.ConflictInline"];
+                    field.Error = string.Format(System.Globalization.CultureInfo.CurrentCulture, template, otherLabel);
+                }
+                else
+                {
+                    field.Error = string.Empty;
+                    scopeMap[field.Value] = localization[definition.LabelKey];
+                }
+            }
+        }
+
+        private IEnumerable<SettingField> EnumerateFields()
         {
             foreach (SettingModule module in viewModel.Modules)
             {
                 foreach (SettingField field in module.Fields)
                 {
-                    if (field.Key == key)
-                    {
-                        return field;
-                    }
+                    yield return field;
+                }
+            }
+        }
+
+        private SettingField? FindField(string key)
+        {
+            foreach (SettingField field in EnumerateFields())
+            {
+                if (field.Key == key)
+                {
+                    return field;
                 }
             }
 
