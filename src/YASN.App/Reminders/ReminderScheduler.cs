@@ -27,13 +27,13 @@ namespace YASN.Reminders
         /// <param name="stateStore">Optional store tracking when each cron rule last fired, for catch-up.</param>
         /// <param name="clock">Optional clock override (UTC); defaults to <see cref="DateTimeOffset.UtcNow"/>.</param>
         /// <param name="activator">Optional in-app activator that focuses a note and scrolls to the reminder when a rule fires.</param>
-        /// <param name="contentWriter">Optional writer that auto-disables a fire-once rule after it fires.</param>
+        /// <param name="contentWriter">Optional writer that reduces a finite rule's count after it fires.</param>
         public ReminderScheduler(
             INotificationService notifications,
             ReminderStateStore? stateStore = null,
             Func<DateTimeOffset>? clock = null,
             IReminderActivator? activator = null,
-            IReminderContentWriter? contentWriter = null)
+            INoteContentWriter? contentWriter = null)
         {
             this.notifications = notifications;
             this.stateStore = stateStore;
@@ -49,10 +49,10 @@ namespace YASN.Reminders
         public IReminderActivator? Activator { get; set; }
 
         /// <summary>
-        /// Gets or sets the writer that auto-disables a fire-once rule after it fires. Settable
+        /// Gets or sets the writer that reduces a finite rule's count after it fires. Settable
         /// post-construction for the same startup-wiring reason as <see cref="Presenter"/>.
         /// </summary>
-        public IReminderContentWriter? ContentWriter { get; set; }
+        public INoteContentWriter? ContentWriter { get; set; }
 
         /// <summary>
         /// Sends notifications for reminders due at or before the supplied time.
@@ -131,7 +131,7 @@ namespace YASN.Reminders
                 }
 
                 // A once-rule that fired during catch-up disabled itself; do not arm a future timer.
-                if (CatchUp(note, rule, now) && rule.Once)
+                if (CatchUp(note, rule, now) && rule.RemainingCount <= 1)
                 {
                     continue;
                 }
@@ -179,9 +179,9 @@ namespace YASN.Reminders
             {
                 stateStore.SetLastFired(note.Id, rule.RuleId, now);
                 Deliver(note, rule);
-                if (rule.Once)
+                if (rule.IsFinite)
                 {
-                    ContentWriter?.DisableOnceRule(note.Id, rule.RuleId);
+                    ContentWriter?.ReduceReminderCounter(note.Id, rule.RuleId);
                 }
 
                 return true;
@@ -222,10 +222,16 @@ namespace YASN.Reminders
             stateStore?.SetLastFired(note.Id, rule.RuleId, firedAt);
             Deliver(note, rule);
 
-            if (rule.Once)
+            if (rule.IsFinite)
             {
-                // A fire-once rule disables itself in the note content and never re-arms.
-                ContentWriter?.DisableOnceRule(note.Id, rule.RuleId);
+                // A finite rule counts down in the note content. Reduce its remaining count, and re-arm
+                // only while fires remain; the last fire leaves a spent X-control that never re-arms.
+                ContentWriter?.ReduceReminderCounter(note.Id, rule.RuleId);
+                if (rule.RemainingCount > 1)
+                {
+                    ArmCron(note, rule, firedAt);
+                }
+
                 return;
             }
 

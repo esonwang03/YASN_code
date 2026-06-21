@@ -188,11 +188,16 @@ li.task-list-item {
 li.task-list-item > input[type="checkbox"] {
   margin: 0 0.5em 0 -1.3em;
   vertical-align: middle;
+  width: 1.05em;
+  height: 1.05em;
+  cursor: pointer;
   accent-color: var(--accent);
 }
 
 li.task-list-item > input[type="checkbox"]:checked + * {
   color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--muted);
 }
 
 hr {
@@ -474,6 +479,13 @@ div.nomnoml {
 
 .yasn-reminder-icon {
   font-size: 0.95em;
+}
+
+.yasn-reminder-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82em;
+  font-weight: 600;
+  opacity: 0.8;
 }
 
 .yasn-reminder-disabled {

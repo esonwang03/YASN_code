@@ -281,6 +281,8 @@ namespace YASN.Migration.Tests
             }
 
             public bool TryApplyExternalContent(string noteId, string content) => false;
+
+            public bool TryEditContent(string noteId, Func<string, string?> transform) => false;
         }
     }
 }

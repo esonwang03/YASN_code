@@ -31,6 +31,13 @@ namespace YASN.SingleNote
         /// </summary>
         public const string OpenLinkMessagePrefix = "preview-open-link:";
 
+        /// <summary>
+        /// Prefix of the message posted to the host when a task-list checkbox is toggled in the preview.
+        /// The payload is <c>&lt;sourceLine&gt;:&lt;0|1&gt;</c> — the 0-based source line of the task
+        /// item and its new checked state — so the host can rewrite the underlying Markdown.
+        /// </summary>
+        public const string TaskToggleMessagePrefix = "preview-task-toggle:";
+
         // Forwards preview right-clicks to the Avalonia host via the WebView message channel. A single
         // right-click toggles the title bar; a double right-click returns focus to the editor. The
         // single action is deferred past the double-click threshold and cancelled when a second click
@@ -79,13 +86,15 @@ namespace YASN.SingleNote
             })();
             """;
 
-        // Exposes window.__scrollToSourceLine(line): scrolls the preview so the block whose
-        // data-source-line is the greatest value <= the editor's caret line aligns to the top.
-        // Source-line anchors are emitted by the Markdig SourceLineExtension. The host calls this
-        // (debounced) when the caret moves and again after each navigation completes.
+        // Exposes window.__scrollToSourceLine(line, opts): aligns the preview to the block whose
+        // data-source-line is the greatest value <= the editor's caret line. Source-line anchors are
+        // emitted by the Markdig SourceLineExtension. opts.onlyIfOffscreen skips the scroll when the
+        // target is already visible (used on caret moves, so typing within view does not jolt the
+        // preview); opts.smooth animates (caret moves) vs. an instant jump (after a re-render).
         private const string ScrollSyncScript = """
             (() => {
-              window.__scrollToSourceLine = (line) => {
+              window.__scrollToSourceLine = (line, opts) => {
+                opts = opts || {};
                 const nodes = document.querySelectorAll('[data-source-line]');
                 if (!nodes.length) {
                   return;
@@ -99,8 +108,47 @@ namespace YASN.SingleNote
                     break;
                   }
                 }
-                target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                const scroller = document.getElementById('page') || document.scrollingElement || document.body;
+                if (opts.onlyIfOffscreen) {
+                  const c = scroller.getBoundingClientRect();
+                  const t = target.getBoundingClientRect();
+                  if (t.top >= c.top && t.bottom <= c.bottom) {
+                    return;
+                  }
+                }
+                target.scrollIntoView({
+                  block: opts.smooth ? 'center' : 'start',
+                  behavior: opts.smooth ? 'smooth' : 'auto'
+                });
               };
+            })();
+            """;
+
+        // Makes Markdig's task-list checkboxes interactive (Markdig renders them disabled). Enables each
+        // checkbox and, on change, posts the toggle to the host with the 0-based source line read from
+        // the nearest data-source-line ancestor (the list-item block), so the host rewrites the source.
+        private const string TaskCheckboxScript = """
+            (() => {
+              const post = (message) => {
+                if (window.chrome && window.chrome.webview) {
+                  window.chrome.webview.postMessage(message);
+                }
+              };
+              const boxes = document.querySelectorAll('li.task-list-item > input[type="checkbox"]');
+              for (const box of boxes) {
+                box.disabled = false;
+                box.addEventListener('change', () => {
+                  let node = box.closest('[data-source-line]');
+                  if (!node) {
+                    return;
+                  }
+                  const line = parseInt(node.getAttribute('data-source-line'), 10);
+                  if (isNaN(line)) {
+                    return;
+                  }
+                  post('preview-task-toggle:' + line + ':' + (box.checked ? '1' : '0'));
+                });
+              }
             })();
             """;
 
@@ -136,6 +184,7 @@ namespace YASN.SingleNote
                   </main>
                   <script>{RightClickBridgeScript}</script>
                   <script>{ScrollSyncScript}</script>
+                  <script>{TaskCheckboxScript}</script>
                 </body>
                 </html>
                 """;

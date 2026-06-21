@@ -64,7 +64,7 @@ namespace YASN
                 // Resolve the scheduler ↔ window-manager cycle: the writer needs the manager, the
                 // manager needs the scheduler. Wire the in-app activator and the once-rule writer now.
                 reminders.Activator = new NoteWindowReminderActivator(noteWindows, settings);
-                reminders.ContentWriter = new ReminderContentWriter(repository, noteWindows);
+                reminders.ContentWriter = new NoteContentWriter(repository, noteWindows);
                 TutorialNoteSeeder tutorial = new(repository, noteWindows, settings);
                 sync = new SyncComposition(repository, platformServices.Notifications);
                 sync.Engine.ConfirmBulkChanges = plan => ConfirmSyncDeletionsAsync(plan, localization, desktopLifetime);

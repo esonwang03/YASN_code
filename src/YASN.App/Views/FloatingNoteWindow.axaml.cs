@@ -11,6 +11,7 @@ using YASN.AvaloniaNotes;
 using YASN.Core;
 using YASN.Hotkeys;
 using YASN.Infrastructure;
+using YASN.Infrastructure.Markdown;
 using YASN.Notifications;
 using YASN.PlatformServices;
 using YASN.Reminders;
@@ -96,7 +97,7 @@ namespace YASN.Views
             previewColumn = contentGrid.ColumnDefinitions[1];
 
             previewWebView.WebMessageReceived += HandlePreviewMessage;
-            previewWebView.NavigationCompleted += (_, _) => ScrollPreviewToCaretLine();
+            previewWebView.NavigationCompleted += (_, _) => ScrollPreviewToCaretLine(onlyIfOffscreen: false, smooth: false);
             resizeGrip.AddHandler(Thumb.PointerPressedEvent, HandleResizeGripPressed, RoutingStrategies.Tunnel);
 
             // Debounce caret moves: editing/cursor changes fire rapidly, but each preview scroll is a
@@ -191,6 +192,20 @@ namespace YASN.Views
         public void ApplyExternalContent(string content)
         {
             viewModel.Content = content;
+        }
+
+        /// <summary>
+        /// Applies a transform to the live note content so a programmatic edit composes with the
+        /// current (possibly unsaved) editor text instead of replacing it wholesale. A
+        /// <see langword="null"/> result leaves the content unchanged.
+        /// </summary>
+        /// <param name="transform">The content transform; returning <see langword="null"/> is a no-op.</param>
+        public void EditContent(Func<string, string?> transform)
+        {
+            if (transform(viewModel.Content) is { } updated)
+            {
+                viewModel.Content = updated;
+            }
         }
 
         private void ConfigureLevelSelector()
@@ -323,7 +338,8 @@ namespace YASN.Views
         public void ScrollToSourceLine(int line)
         {
             caretLine = Math.Max(0, line);
-            ScrollPreviewToCaretLine();
+            // A fired reminder should reveal its location wherever it is, smoothly.
+            ScrollPreviewToCaretLine(onlyIfOffscreen: false, smooth: true);
         }
 
         /// <summary>
@@ -337,22 +353,77 @@ namespace YASN.Views
             ScrollToSourceLine(LineForOffset(viewModel.Content, sourceOffset));
         }
 
-        private void HandleCaretSyncTick(object? sender, EventArgs e)
+        /// <summary>
+        /// Focuses the text editor with the caret on the given 0-based source line so the user can edit
+        /// the token there (e.g. a reminder rule from the manager). Switches out of preview-only mode
+        /// first when needed so the editor is visible, and the TextBox scrolls the caret into view.
+        /// </summary>
+        /// <param name="line">The 0-based source line to place the caret on.</param>
+        public void FocusEditorAtLine(int line)
         {
-            caretSyncTimer.Stop();
-            ScrollPreviewToCaretLine();
+            if (viewModel.DisplayMode == EditorDisplayMode.PreviewOnly)
+            {
+                SetDisplayMode(EditorDisplayMode.TextAndPreview, adjustWidth: true);
+            }
+
+            string text = viewModel.Content;
+            int offset = OffsetForLine(text, Math.Max(0, line));
+            editorTextBox.CaretIndex = offset;
+            editorTextBox.Focus();
         }
 
         /// <summary>
-        /// Asks the preview to scroll the block matching the caret's source line into view. Invoked on
-        /// the debounce tick and after each navigation completes (the reloaded document re-defines the
-        /// scroll function). Failures are non-fatal: the WebView may be mid-teardown or not yet ready.
+        /// Returns the character offset of the start of the given 0-based line, the inverse of
+        /// <see cref="LineForOffset"/>. Clamps to the end of the text when the line is past the content.
         /// </summary>
-        private async void ScrollPreviewToCaretLine()
+        /// <param name="text">The note content.</param>
+        /// <param name="line">The 0-based line whose start offset is wanted.</param>
+        /// <returns>The character offset of the line start.</returns>
+        private static int OffsetForLine(string text, int line)
+        {
+            if (line <= 0)
+            {
+                return 0;
+            }
+
+            int seen = 0;
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (text[i] == '\n')
+                {
+                    seen++;
+                    if (seen == line)
+                    {
+                        return i + 1;
+                    }
+                }
+            }
+
+            return text.Length;
+        }
+
+        private void HandleCaretSyncTick(object? sender, EventArgs e)
+        {
+            caretSyncTimer.Stop();
+            // While typing, only nudge the preview when the caret line scrolled out of view, and
+            // animate it so it reads as a follow rather than a jump.
+            ScrollPreviewToCaretLine(onlyIfOffscreen: true, smooth: true);
+        }
+
+        /// <summary>
+        /// Asks the preview to align the block matching the caret's source line. Invoked on the debounce
+        /// tick (only-if-offscreen, smooth) and after each navigation completes (unconditional instant
+        /// jump, so a re-render lands on the caret line without animating). Failures are non-fatal: the
+        /// WebView may be mid-teardown or not yet ready.
+        /// </summary>
+        /// <param name="onlyIfOffscreen">When true, do nothing if the target block is already visible.</param>
+        /// <param name="smooth">When true, animate the scroll; otherwise jump instantly.</param>
+        private async void ScrollPreviewToCaretLine(bool onlyIfOffscreen, bool smooth)
         {
             try
             {
-                await previewWebView.InvokeScript($"window.__scrollToSourceLine && window.__scrollToSourceLine({caretLine})")
+                string opts = $"{{onlyIfOffscreen:{(onlyIfOffscreen ? "true" : "false")},smooth:{(smooth ? "true" : "false")}}}";
+                await previewWebView.InvokeScript($"window.__scrollToSourceLine && window.__scrollToSourceLine({caretLine},{opts})")
                     .ConfigureAwait(true);
             }
             catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or ObjectDisposedException)
@@ -514,6 +585,12 @@ namespace YASN.Views
                 return;
             }
 
+            if (e.Body is { } toggleBody && toggleBody.StartsWith(MarkdownPreviewDocument.TaskToggleMessagePrefix, StringComparison.Ordinal))
+            {
+                HandleTaskToggle(toggleBody[MarkdownPreviewDocument.TaskToggleMessagePrefix.Length..]);
+                return;
+            }
+
             if (e.Body is { } body && body.StartsWith(MarkdownPreviewDocument.OpenLinkMessagePrefix, StringComparison.Ordinal))
             {
                 string target = body[MarkdownPreviewDocument.OpenLinkMessagePrefix.Length..];
@@ -521,6 +598,30 @@ namespace YASN.Views
                 {
                     AppLogger.Warn($"Failed to open preview link '{target}' in the default application.");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Applies a checkbox toggle from the preview to the live note content. The payload is
+        /// <c>&lt;sourceLine&gt;:&lt;0|1&gt;</c>. The clicked line is set as the caret line so the
+        /// post-render jump keeps the item in view rather than scrolling away.
+        /// </summary>
+        /// <param name="payload">The message payload after the toggle prefix.</param>
+        private void HandleTaskToggle(string payload)
+        {
+            int separator = payload.LastIndexOf(':');
+            if (separator <= 0
+                || !int.TryParse(payload.AsSpan(0, separator), out int sourceLine)
+                || sourceLine < 0)
+            {
+                return;
+            }
+
+            bool isChecked = payload[(separator + 1)..] == "1";
+            if (NoteTaskEditor.TrySetChecked(viewModel.Content, sourceLine, isChecked, out string updated))
+            {
+                caretLine = sourceLine;
+                viewModel.Content = updated;
             }
         }
 
@@ -550,12 +651,12 @@ namespace YASN.Views
 
         private async void HandleSetReminderClick(object? sender, RoutedEventArgs e)
         {
-            ReminderDialog dialog = new ReminderDialog(viewModel.ReminderAt);
-            ReminderDialogResult? result = await dialog.ShowDialog<ReminderDialogResult?>(this).ConfigureAwait(true);
-            if (result is not null)
-            {
-                viewModel.ReminderAt = result.ReminderAt;
-            }
+            ReminderManagerDialog dialog = new ReminderManagerDialog(
+                () => viewModel.Content,
+                updated => viewModel.Content = updated,
+                FocusEditorAtLine,
+                YASN.Localization.LocalizationService.Current);
+            await dialog.ShowDialog(this).ConfigureAwait(true);
         }
 
         private async void HandleInsertImageClick(object? sender, RoutedEventArgs e)

@@ -19,10 +19,21 @@ namespace YASN.Infrastructure.Reminders
         public bool Enabled => !Control.Contains('X', StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
-        /// Gets whether the control segment marks the rule as fire-once (contains <c>1</c>). A once
-        /// rule auto-disables after firing, leaving a spent <c>X1</c> control.
+        /// Gets the remaining fire count parsed from the digit run in the control segment, or
+        /// <see langword="null"/> when the control has no digits (an always-recurring rule). The count
+        /// is decremented after each fire; at zero the rule is spent (its control gains an <c>X</c>).
         /// </summary>
-        public bool Once => Control.Contains('1', StringComparison.Ordinal);
+        public int? RemainingCount =>
+            int.TryParse(new string(Control.Where(char.IsDigit).ToArray()), out int count) ? count : null;
+
+        /// <summary>Gets whether the rule fires a finite number of times (its control carries a count).</summary>
+        public bool IsFinite => RemainingCount is not null;
+
+        /// <summary>
+        /// Gets whether the control segment marks the rule as fire-once (remaining count is <c>1</c>). A
+        /// once rule auto-disables after firing, leaving a spent <c>X1</c> control.
+        /// </summary>
+        public bool Once => RemainingCount == 1;
     }
 
     /// <summary>

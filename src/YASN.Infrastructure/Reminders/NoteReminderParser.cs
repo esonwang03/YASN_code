@@ -36,7 +36,7 @@ namespace YASN.Infrastructure.Reminders
                 {
                     DisplayText = match.DisplayText,
                     Enabled = match.Enabled,
-                    Once = match.Once,
+                    RemainingCount = match.RemainingCount,
                     CronText = match.CronText,
                     Schedule = schedule,
                     Content = match.Content,

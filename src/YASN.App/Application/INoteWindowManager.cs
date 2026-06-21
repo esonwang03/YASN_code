@@ -77,5 +77,19 @@ namespace YASN.Application
         /// <param name="content">The new note content.</param>
         /// <returns><see langword="true"/> when an open window handled the update.</returns>
         bool TryApplyExternalContent(string noteId, string content);
+
+        /// <summary>
+        /// Applies a transform to a note's <em>live</em> content when its window is open, so an edit
+        /// composes with unsaved editor changes instead of clobbering them. The transform receives the
+        /// current content and returns the new content, or <see langword="null"/> to make no change.
+        /// </summary>
+        /// <param name="noteId">The note identifier.</param>
+        /// <param name="transform">The content transform; returning <see langword="null"/> is a no-op.</param>
+        /// <returns>
+        /// <see langword="true"/> when a window was open and the transform was applied to its live
+        /// content; <see langword="false"/> when no window is open (the caller should edit via the
+        /// repository instead).
+        /// </returns>
+        bool TryEditContent(string noteId, Func<string, string?> transform);
     }
 }

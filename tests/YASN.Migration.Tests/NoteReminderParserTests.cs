@@ -43,6 +43,20 @@ namespace YASN.Migration.Tests
             Assert.Equal(expectedOnce, rule.Once);
         }
 
+        [Theory]
+        [InlineData("[!t][]{* * * * *}{c}", null)]
+        [InlineData("[!t][on]{* * * * *}{c}", null)]
+        [InlineData("[!t][1]{* * * * *}{c}", 1)]
+        [InlineData("[!t][3]{* * * * *}{c}", 3)]
+        [InlineData("[!t][X1]{* * * * *}{c}", 1)]
+        [InlineData("[!t][12]{* * * * *}{c}", 12)]
+        public void ControlSegmentParsesRemainingCount(string content, int? expectedCount)
+        {
+            NoteReminderRule rule = Assert.Single(NoteReminderParser.Parse(content));
+            Assert.Equal(expectedCount, rule.RemainingCount);
+            Assert.Equal(expectedCount is not null, rule.IsFinite);
+        }
+
         [Fact]
         public void OnceRuleIsSchedulableUntilDisabled()
         {

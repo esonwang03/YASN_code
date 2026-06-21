@@ -205,6 +205,18 @@ namespace YASN.Application
         }
 
         /// <inheritdoc/>
+        public bool TryEditContent(string noteId, Func<string, string?> transform)
+        {
+            if (noteWindows.TryGetValue(noteId, out FloatingNoteWindow? window))
+            {
+                window.EditContent(transform);
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <inheritdoc/>
         public void SetOpenMainWindowAction(Action? action)
         {
             openMainWindowAction = action;

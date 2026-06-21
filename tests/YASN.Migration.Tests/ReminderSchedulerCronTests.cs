@@ -147,14 +147,14 @@ namespace YASN.Migration.Tests
             string ruleId = NoteReminderParser.Parse(note.Content)[0].RuleId;
 
             scheduler.RescheduleCron(note);
-            await WaitForAsync(() => writer.Disabled.Count > 0);
+            await WaitForAsync(() => writer.Reduced.Count > 0);
 
             // Wait out another two cron seconds to prove it does not re-fire.
             await Task.Delay(2200).ConfigureAwait(true);
 
             Assert.Single(notifications.Requests);
             Assert.Equal("once ping", notifications.Requests[0].Body);
-            Assert.Equal(("10", ruleId), Assert.Single(writer.Disabled));
+            Assert.Equal(("10", ruleId), Assert.Single(writer.Reduced));
             Assert.Single(activator.Activated);
         }
 
@@ -182,7 +182,7 @@ namespace YASN.Migration.Tests
             scheduler.RescheduleCron(note);
 
             Assert.Single(notifications.Requests);
-            Assert.Equal(("11", ruleId), Assert.Single(writer.Disabled));
+            Assert.Equal(("11", ruleId), Assert.Single(writer.Reduced));
         }
 
         private static async Task WaitForAsync(Func<bool> condition)
@@ -210,16 +210,20 @@ namespace YASN.Migration.Tests
             }
         }
 
-        private sealed class RecordingContentWriter : IReminderContentWriter
+        private sealed class RecordingContentWriter : INoteContentWriter
         {
-            internal List<(string NoteId, string RuleId)> Disabled { get; } = new();
+            internal List<(string NoteId, string RuleId)> Reduced { get; } = new();
 
-            public void DisableOnceRule(string noteId, string ruleId)
+            public void ReduceReminderCounter(string noteId, string ruleId)
             {
-                lock (Disabled)
+                lock (Reduced)
                 {
-                    Disabled.Add((noteId, ruleId));
+                    Reduced.Add((noteId, ruleId));
                 }
+            }
+
+            public void SetTaskChecked(string noteId, int sourceLine, bool isChecked)
+            {
             }
         }
 

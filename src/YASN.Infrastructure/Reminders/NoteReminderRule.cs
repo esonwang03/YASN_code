@@ -16,10 +16,20 @@ namespace YASN.Infrastructure.Reminders
         public required bool Enabled { get; init; }
 
         /// <summary>
-        /// Gets whether the rule fires only once. A once rule (control contains <c>1</c>) auto-disables
+        /// Gets whether the rule fires only once. A once rule (remaining count <c>1</c>) auto-disables
         /// after it fires, leaving a spent <c>X1</c> control in the note Markdown.
         /// </summary>
-        public required bool Once { get; init; }
+        public bool Once => RemainingCount == 1;
+
+        /// <summary>
+        /// Gets the remaining number of times this rule will fire, or <see langword="null"/> for an
+        /// always-recurring rule (no digit in the control segment). Decremented after each fire; the
+        /// rule is disabled once it reaches zero.
+        /// </summary>
+        public int? RemainingCount { get; init; }
+
+        /// <summary>Gets whether the rule fires a finite number of times (its control carries a count).</summary>
+        public bool IsFinite => RemainingCount is not null;
 
         /// <summary>Gets the raw cron text (the first <c>{}</c> segment).</summary>
         public required string CronText { get; init; }

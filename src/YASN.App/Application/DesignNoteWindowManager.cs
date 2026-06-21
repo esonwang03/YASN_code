@@ -56,5 +56,8 @@ namespace YASN.Application
 
         /// <inheritdoc />
         public bool TryApplyExternalContent(string noteId, string content) => false;
+
+        /// <inheritdoc />
+        public bool TryEditContent(string noteId, Func<string, string?> transform) => false;
     }
 }
