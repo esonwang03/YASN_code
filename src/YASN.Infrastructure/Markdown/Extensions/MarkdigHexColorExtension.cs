@@ -153,7 +153,7 @@ namespace YASN.Infrastructure.Markdown.Extensions
 
     internal sealed class HexColorInlineRenderer : HtmlObjectRenderer<HexColorInline>
     {
-        private static readonly MarkdownPipeline InlinePipeline = MarkdownPipelineConfig.Create();
+        private static readonly MarkdownPipeline InlinePipeline = MarkdownPipelineConfig.CreateInline();
 
         protected override void Write(HtmlRenderer renderer, HexColorInline obj)
         {
