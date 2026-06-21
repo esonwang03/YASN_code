@@ -33,7 +33,8 @@ namespace YASN.Views
         /// <param name="keybindings">The registry backing the shortcuts module.</param>
         /// <param name="onSaved">An optional callback invoked after settings are persisted.</param>
         /// <param name="showTutorial">An optional handler that adds the tutorial note, backing the General-module action.</param>
-        public SettingsWindow(SettingsStore store, LocalizationService localization, IAutoStartService autoStart, KeybindingRegistry keybindings, Action? onSaved = null, Func<Task<string>>? showTutorial = null)
+        /// <param name="deleteAllData">An optional handler that wipes all app data, backing the General-module action.</param>
+        public SettingsWindow(SettingsStore store, LocalizationService localization, IAutoStartService autoStart, KeybindingRegistry keybindings, Action? onSaved = null, Func<Task<string>>? showTutorial = null, Func<Task<string>>? deleteAllData = null)
         {
             this.store = store;
             this.localization = localization;
@@ -42,7 +43,7 @@ namespace YASN.Views
             this.onSaved = onSaved;
             InitializeComponent();
 
-            viewModel = SettingsSchemaBuilder.Build(store, autoStart, keybindings, showTutorial);
+            viewModel = SettingsSchemaBuilder.Build(store, autoStart, keybindings, showTutorial, deleteAllData);
             DataContext = viewModel;
 
             foreach (SettingField field in EnumerateFields())

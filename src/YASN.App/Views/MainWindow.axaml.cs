@@ -212,6 +212,11 @@ namespace YASN.Views
             SystemShellLauncher.Open(AppPaths.DataDirectory);
         }
 
+        private void HandleOpenCacheFolderClick(object? sender, RoutedEventArgs e)
+        {
+            SystemShellLauncher.Open(AppPaths.CacheRoot);
+        }
+
         private void HandleHideToTrayClick(object? sender, RoutedEventArgs e)
         {
             Hide();

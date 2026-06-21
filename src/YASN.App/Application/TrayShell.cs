@@ -2,9 +2,11 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Platform;
+using MsBox.Avalonia.Enums;
 using YASN.AvaloniaNotes;
 using YASN.Core;
 using YASN.Hotkeys;
+using YASN.Infrastructure;
 using YASN.Infrastructure.Settings;
 using YASN.Localization;
 using YASN.PlatformServices;
@@ -170,7 +172,7 @@ namespace YASN.Application
                 return;
             }
 
-            settingsWindow = new SettingsWindow(settings, localization, platformServices.AutoStart, keybindings, OnSettingsSaved, ShowTutorialNote);
+            settingsWindow = new SettingsWindow(settings, localization, platformServices.AutoStart, keybindings, OnSettingsSaved, ShowTutorialNote, DeleteAllDataAsync);
             settingsWindow.Closed += (_, _) => settingsWindow = null;
             settingsWindow.Show();
         }
@@ -182,6 +184,37 @@ namespace YASN.Application
         {
             tutorial.CreateAndOpen();
             return Task.FromResult(localization["Settings.Tutorial.Added"]);
+        }
+
+        /// <summary>
+        /// Settings-action handler: after a Yes/No confirmation, permanently deletes all app data and
+        /// quits. The sync engine is disposed first to release its open SQLite handle so the database
+        /// file can be removed (Windows locks open files). On confirmation the app shuts down, so the
+        /// returned status is only meaningful when the user cancels.
+        /// </summary>
+        private async Task<string> DeleteAllDataAsync()
+        {
+            MsBox.Avalonia.Base.IMsBox<ButtonResult> box = MsBox.Avalonia.MessageBoxManager
+                .GetMessageBoxStandard(
+                    localization["Settings.Data.DeleteAll.Confirm.Title"],
+                    localization["Settings.Data.DeleteAll.Confirm.Body"],
+                    ButtonEnum.YesNo);
+
+            // The action button lives in the settings window, so it is the natural dialog owner; fall
+            // back to an ownerless dialog if it has somehow closed.
+            ButtonResult result = settingsWindow is { } owner
+                ? await box.ShowWindowDialogAsync(owner).ConfigureAwait(true)
+                : await box.ShowAsync().ConfigureAwait(true);
+
+            if (result != ButtonResult.Yes)
+            {
+                return localization["Settings.Data.DeleteAll.Cancelled"];
+            }
+
+            sync?.Dispose();
+            AppPaths.DeleteAllData();
+            desktopLifetime.Shutdown();
+            return string.Empty;
         }
 
         private void OnSettingsSaved()

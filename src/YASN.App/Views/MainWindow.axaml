@@ -63,6 +63,7 @@
       <Button x:Name="SyncNowButton" Content="{l:Tr Sync.Now}" HorizontalAlignment="Stretch" Click="HandleSyncNowClick" />
       <Button Content="{l:Tr Main.Settings}" HorizontalAlignment="Stretch" Click="HandleSettingsClick" />
       <Button Content="{l:Tr Main.OpenDataFolder}" HorizontalAlignment="Stretch" Click="HandleOpenDataFolderClick" />
+      <Button Content="{l:Tr Main.OpenCacheFolder}" HorizontalAlignment="Stretch" Click="HandleOpenCacheFolderClick" />
       <Button Content="{l:Tr Main.HideToTray}" HorizontalAlignment="Stretch" Click="HandleHideToTrayClick" />
     </StackPanel>
   </Grid>

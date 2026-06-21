@@ -54,6 +54,7 @@ namespace YASN
                 LocalizationService.Current = localization;
                 ApplyTheme(settings);
                 MigrateLegacyStorage();
+                PreviewStyleManager.EnsureInitialized();
                 NoteRepository repository = new();
                 ReminderStateStore reminderState = new(AppPaths.ReminderStatePath);
                 ReminderScheduler reminders = new(platformServices.Notifications, reminderState);

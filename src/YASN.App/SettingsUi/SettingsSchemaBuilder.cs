@@ -55,15 +55,16 @@ namespace YASN.SettingsUi
         /// <param name="autoStart">The auto-start service used to seed the auto-start toggle.</param>
         /// <param name="keybindings">The keybinding registry used to seed the shortcuts module.</param>
         /// <param name="showTutorial">Optional handler backing the "show tutorial note" action; omitted when null.</param>
+        /// <param name="deleteAllData">Optional handler backing the "delete all data" action; omitted when null.</param>
         /// <returns>A populated settings view model.</returns>
-        public static SettingsViewModel Build(SettingsStore store, IAutoStartService autoStart, KeybindingRegistry keybindings, Func<Task<string>>? showTutorial = null)
+        public static SettingsViewModel Build(SettingsStore store, IAutoStartService autoStart, KeybindingRegistry keybindings, Func<Task<string>>? showTutorial = null, Func<Task<string>>? deleteAllData = null)
         {
             ArgumentNullException.ThrowIfNull(store);
             ArgumentNullException.ThrowIfNull(autoStart);
             ArgumentNullException.ThrowIfNull(keybindings);
 
             SettingsViewModel viewModel = new SettingsViewModel();
-            viewModel.Modules.Add(BuildGeneralModule(autoStart, showTutorial));
+            viewModel.Modules.Add(BuildGeneralModule(autoStart, showTutorial, deleteAllData));
             viewModel.Modules.Add(BuildSyncModule());
             viewModel.Modules.Add(BuildAttachmentsModule());
             viewModel.Modules.Add(BuildEditorModule());
@@ -106,7 +107,7 @@ namespace YASN.SettingsUi
             return module;
         }
 
-        private static SettingModule BuildGeneralModule(IAutoStartService autoStart, Func<Task<string>>? showTutorial)
+        private static SettingModule BuildGeneralModule(IAutoStartService autoStart, Func<Task<string>>? showTutorial, Func<Task<string>>? deleteAllData)
         {
             SettingModule module = new SettingModule
             {
@@ -207,6 +208,16 @@ namespace YASN.SettingsUi
                 Label = LocalizationService.Current["Settings.Migration.RunIds"],
                 ExecuteAsync = MigrateNoteIdsAsync
             });
+
+            if (deleteAllData is not null)
+            {
+                module.Actions.Add(new SettingAction
+                {
+                    Key = "data.deleteAll",
+                    Label = LocalizationService.Current["Settings.Data.DeleteAll"],
+                    ExecuteAsync = deleteAllData
+                });
+            }
 
             return module;
         }
