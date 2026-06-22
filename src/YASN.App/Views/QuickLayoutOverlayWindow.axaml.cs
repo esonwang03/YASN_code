@@ -23,7 +23,7 @@ namespace YASN.Views
         private readonly Rectangle selectionRectangle;
         private readonly double currentWidthDip;
         private readonly double currentHeightDip;
-        private readonly PixelRect virtualBounds;
+        private readonly double scaling;
         private readonly PixelPoint virtualOrigin;
 
         private Point? dragStart;
@@ -32,19 +32,25 @@ namespace YASN.Views
         /// Initializes the overlay for the XAML designer.
         /// </summary>
         public QuickLayoutOverlayWindow()
-            : this(640, 400)
+            : this(640, 400, 1.0)
         {
         }
 
         /// <summary>
-        /// Initializes the overlay for a target window of the given current size.
+        /// Initializes the overlay for a target window of the given current size and screen scaling.
         /// </summary>
         /// <param name="currentWidthDip">The target window width, in DIP, used for a click reposition.</param>
         /// <param name="currentHeightDip">The target window height, in DIP, used for a click reposition.</param>
-        public QuickLayoutOverlayWindow(double currentWidthDip, double currentHeightDip)
+        /// <param name="scaling">
+        /// The scale factor of the screen the target window is on (physical pixels per DIP). Passed in
+        /// rather than read from the overlay's own <see cref="TopLevel.RenderScaling"/>, which is
+        /// ambiguous for a window spanning monitors and is not yet valid before the window is shown.
+        /// </param>
+        public QuickLayoutOverlayWindow(double currentWidthDip, double currentHeightDip, double scaling)
         {
             this.currentWidthDip = currentWidthDip;
             this.currentHeightDip = currentHeightDip;
+            this.scaling = scaling <= 0 ? 1.0 : scaling;
             InitializeComponent();
 
             overlayCanvas = this.FindControl<Canvas>("OverlayCanvas")
@@ -53,32 +59,24 @@ namespace YASN.Views
                 ?? throw new InvalidOperationException("SelectionRectangle was not found.");
 
             PixelRect bounds = GetVirtualDesktopBounds();
-            virtualBounds = bounds;
             virtualOrigin = bounds.Position;
-            Position = bounds.Position;
 
-            // Size is deferred to OnOpened: RenderScaling is only valid once the window is shown.
-            // Computing it here reads an uninitialized scale, which on macOS Retina (where the
-            // primary screen reports Scaling 1.0 despite a 2x render scale) sizes the overlay 2x too
-            // large and breaks the click/drag -> position/size mapping.
+            // The union origin is physical pixels; Window.Position is physical on Windows but logical
+            // points on macOS, so map it through the platform seam. Size is DIP on every platform, so
+            // divide the physical span by scaling. Both use the target window's screen scaling, which
+            // is valid here (no need to defer to OnOpened).
+            Position = new PixelPoint(
+                (int)Math.Round(WindowPositionScaling.PhysicalToPosition(bounds.X, this.scaling, WindowPositionScaling.PositionIsLogical)),
+                (int)Math.Round(WindowPositionScaling.PhysicalToPosition(bounds.Y, this.scaling, WindowPositionScaling.PositionIsLogical)));
+            Width = bounds.Width / this.scaling;
+            Height = bounds.Height / this.scaling;
+
+            AppLogger.Debug($"QuickLayout overlay: positionLogical={WindowPositionScaling.PositionIsLogical} scaling={this.scaling} union={bounds} pos={Position} sizeDip={Width}x{Height}");
 
             overlayCanvas.PointerPressed += HandlePointerPressed;
             overlayCanvas.PointerMoved += HandlePointerMoved;
             overlayCanvas.PointerReleased += HandlePointerReleased;
             KeyDown += HandleKeyDown;
-        }
-
-        /// <summary>
-        /// Sizes the overlay to span the virtual desktop once the window is shown and
-        /// <see cref="TopLevel.RenderScaling"/> reports the real scale factor.
-        /// </summary>
-        protected override void OnOpened(EventArgs e)
-        {
-            base.OnOpened(e);
-
-            double scaling = RenderScalingSafe();
-            Width = virtualBounds.Width / scaling;
-            Height = virtualBounds.Height / scaling;
         }
 
         private void InitializeComponent()
@@ -101,17 +99,6 @@ namespace YASN.Views
             }
 
             return union;
-        }
-
-        private double RenderScalingSafe()
-        {
-            double scaling = RenderScaling;
-            if (scaling > 0)
-            {
-                return scaling;
-            }
-
-            return Screens.Primary?.Scaling is { } primary and > 0 ? primary : 1.0;
         }
 
         private void HandlePointerPressed(object? sender, PointerPressedEventArgs e)
@@ -166,12 +153,14 @@ namespace YASN.Views
             WindowRect result = QuickLayoutSelection.Resolve(
                 start,
                 end,
-                RenderScalingSafe(),
+                scaling,
                 virtualOrigin.X,
                 virtualOrigin.Y,
                 currentWidthDip,
                 currentHeightDip,
                 MinSelectionDip);
+
+            AppLogger.Debug($"QuickLayout release: start={start} end={end} scaling={scaling} origin=({virtualOrigin.X},{virtualOrigin.Y}) result={result}");
 
             Close(result);
         }

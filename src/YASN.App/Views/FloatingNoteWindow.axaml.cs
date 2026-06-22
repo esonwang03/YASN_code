@@ -642,7 +642,8 @@ namespace YASN.Views
         /// </summary>
         public async Task ShowQuickLayoutOverlay()
         {
-            QuickLayoutOverlayWindow overlay = new QuickLayoutOverlayWindow(Width, Height);
+            double scaling = WindowScreenScaling.Get(this);
+            QuickLayoutOverlayWindow overlay = new QuickLayoutOverlayWindow(Width, Height, scaling);
             WindowRect? bounds = await overlay.ShowDialog<WindowRect?>(this).ConfigureAwait(true);
             if (bounds is not null)
             {

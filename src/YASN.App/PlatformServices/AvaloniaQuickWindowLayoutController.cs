@@ -17,8 +17,10 @@ namespace YASN.PlatformServices
         /// <param name="target">The target screen region.</param>
         public void Move(Window window, QuickMoveTarget target)
         {
-            double scaling = GetScaling(window);
-            WindowRect result = QuickWindowLayout.Move(ToPhysicalRect(window, scaling), GetWorkingArea(window), target);
+            double scaling = WindowScreenScaling.Get(window);
+            WindowRect current = ToPhysicalRect(window, scaling);
+            WindowRect result = QuickWindowLayout.Move(current, GetWorkingArea(window), target);
+            AppLogger.Debug($"QuickLayout move: target={target} scaling={scaling} current={current} result={result}");
             Apply(window, result, scaling);
         }
 
@@ -30,14 +32,16 @@ namespace YASN.PlatformServices
         /// <param name="height">The requested height in logical units.</param>
         public void Resize(Window window, double width, double height)
         {
-            double scaling = GetScaling(window);
+            double scaling = WindowScreenScaling.Get(window);
+            WindowRect current = ToPhysicalRect(window, scaling);
             WindowRect result = QuickWindowLayout.Resize(
-                ToPhysicalRect(window, scaling),
+                current,
                 GetWorkingArea(window),
                 width * scaling,
                 height * scaling,
                 window.MinWidth * scaling,
                 window.MinHeight * scaling);
+            AppLogger.Debug($"QuickLayout resize: requestedDip={width}x{height} scaling={scaling} current={current} result={result}");
             Apply(window, result, scaling);
         }
 
@@ -49,26 +53,26 @@ namespace YASN.PlatformServices
         public void ApplyBounds(Window window, WindowRect bounds)
         {
             // Left/Top arrive in physical pixels (window position space) and Width/Height in DIP
-            // (window size space), so each component is applied to its matching coordinate space.
-            window.Position = new PixelPoint((int)Math.Round(bounds.Left), (int)Math.Round(bounds.Top));
+            // (window size space). Left/Top is mapped through the platform position seam (identity on
+            // Windows, divide-by-scaling on macOS); Width/Height are already DIP and applied directly.
+            double scaling = WindowScreenScaling.Get(window);
+            int left = (int)Math.Round(WindowPositionScaling.PhysicalToPosition(bounds.Left, scaling, WindowPositionScaling.PositionIsLogical));
+            int top = (int)Math.Round(WindowPositionScaling.PhysicalToPosition(bounds.Top, scaling, WindowPositionScaling.PositionIsLogical));
+            window.Position = new PixelPoint(left, top);
             window.Width = Math.Max(window.MinWidth, bounds.Width);
             window.Height = Math.Max(window.MinHeight, bounds.Height);
+            AppLogger.Debug($"QuickLayout applyBounds: bounds={bounds} scaling={scaling} pos=({left},{top}) sizeDip={window.Width}x{window.Height}");
         }
 
-        // Avalonia exposes window position in physical pixels but width/height in logical units,
-        // while screen working areas are physical pixels. Quick-layout math must run in a single
-        // space, so everything is normalized to physical pixels here using the window scaling.
+        // Avalonia exposes window width/height in logical units while screen working areas are physical
+        // pixels, and Window.Position is physical pixels on Windows but logical points on macOS. Quick-
+        // layout math must run in a single space, so everything is normalized to physical pixels here:
+        // the position is mapped through the platform seam and the DIP size is multiplied by scaling.
         private static WindowRect ToPhysicalRect(Window window, double scaling)
         {
-            return new WindowRect(window.Position.X, window.Position.Y, window.Width * scaling, window.Height * scaling);
-        }
-
-        private static double GetScaling(Window window)
-        {
-            Screen? screen = window.Screens.ScreenFromWindow(window) ?? window.Screens.Primary;
-            double scaling = screen?.Scaling ?? window.RenderScaling;
-
-            return scaling <= 0 ? 1.0 : scaling;
+            double left = WindowPositionScaling.PositionToPhysical(window.Position.X, scaling, WindowPositionScaling.PositionIsLogical);
+            double top = WindowPositionScaling.PositionToPhysical(window.Position.Y, scaling, WindowPositionScaling.PositionIsLogical);
+            return new WindowRect(left, top, window.Width * scaling, window.Height * scaling);
         }
 
         private static WindowRect GetWorkingArea(Window window)
@@ -81,9 +85,12 @@ namespace YASN.PlatformServices
 
         private static void Apply(Window window, WindowRect rect, double scaling)
         {
-            window.Position = new PixelPoint((int)Math.Round(rect.Left), (int)Math.Round(rect.Top));
+            int left = (int)Math.Round(WindowPositionScaling.PhysicalToPosition(rect.Left, scaling, WindowPositionScaling.PositionIsLogical));
+            int top = (int)Math.Round(WindowPositionScaling.PhysicalToPosition(rect.Top, scaling, WindowPositionScaling.PositionIsLogical));
+            window.Position = new PixelPoint(left, top);
             window.Width = rect.Width / scaling;
             window.Height = rect.Height / scaling;
+            AppLogger.Debug($"QuickLayout apply: rect={rect} scaling={scaling} pos=({left},{top}) sizeDip={window.Width}x{window.Height}");
         }
     }
 }
