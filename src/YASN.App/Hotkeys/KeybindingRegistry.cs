@@ -134,26 +134,34 @@ namespace YASN.Hotkeys
 
         private static List<KeybindingDefinition> CreateDefaults()
         {
+            // macOS ships with no default shortcuts: global hotkeys are unsupported there
+            // (UnsupportedGlobalHotkeyService) and the Ctrl-based editor defaults clash with the
+            // platform's Cmd conventions, so users bind their own. Windows/Linux keep the defaults.
+            bool blankDefaults = OperatingSystem.IsMacOS();
+
+            KeyGesture? Default(Key key, KeyModifiers modifiers) =>
+                blankDefaults ? null : new KeyGesture(key, modifiers);
+
             return new List<KeybindingDefinition>
             {
                 new(HotkeyAction.RaiseMainWindow, HotkeyScope.Global,
-                    new KeyGesture(Key.M, KeyModifiers.Control | KeyModifiers.Alt), "Hotkey.RaiseMainWindow"),
+                    Default(Key.M, KeyModifiers.Control | KeyModifiers.Alt), "Hotkey.RaiseMainWindow"),
                 new(HotkeyAction.RaiseSettingsWindow, HotkeyScope.Global,
-                    new KeyGesture(Key.OemComma, KeyModifiers.Control | KeyModifiers.Alt), "Hotkey.RaiseSettingsWindow"),
+                    Default(Key.OemComma, KeyModifiers.Control | KeyModifiers.Alt), "Hotkey.RaiseSettingsWindow"),
                 new(HotkeyAction.CreateNote, HotkeyScope.Global,
-                    new KeyGesture(Key.N, KeyModifiers.Control | KeyModifiers.Alt), "Hotkey.CreateNote"),
+                    Default(Key.N, KeyModifiers.Control | KeyModifiers.Alt), "Hotkey.CreateNote"),
                 new(HotkeyAction.InsertImage, HotkeyScope.Editor,
-                    new KeyGesture(Key.I, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.InsertImage"),
+                    Default(Key.I, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.InsertImage"),
                 new(HotkeyAction.InsertAttachment, HotkeyScope.Editor,
-                    new KeyGesture(Key.K, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.InsertAttachment"),
+                    Default(Key.K, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.InsertAttachment"),
                 new(HotkeyAction.CycleEditorMode, HotkeyScope.Editor,
-                    new KeyGesture(Key.E, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.CycleEditorMode"),
+                    Default(Key.E, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.CycleEditorMode"),
                 new(HotkeyAction.CycleWindowLevel, HotkeyScope.Editor,
-                    new KeyGesture(Key.L, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.CycleWindowLevel"),
+                    Default(Key.L, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.CycleWindowLevel"),
                 new(HotkeyAction.QuickLayout, HotkeyScope.Editor,
-                    new KeyGesture(Key.G, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.QuickLayout"),
+                    Default(Key.G, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.QuickLayout"),
                 new(HotkeyAction.ToggleChrome, HotkeyScope.Editor,
-                    new KeyGesture(Key.H, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.ToggleChrome")
+                    Default(Key.H, KeyModifiers.Control | KeyModifiers.Shift), "Hotkey.ToggleChrome")
             };
         }
     }

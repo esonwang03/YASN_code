@@ -14,9 +14,10 @@ namespace YASN.Hotkeys
         /// </summary>
         /// <param name="action">The action the gesture triggers.</param>
         /// <param name="scope">The scope in which the gesture is dispatched.</param>
-        /// <param name="defaultGesture">The factory-default gesture.</param>
+        /// <param name="defaultGesture">The factory-default gesture, or <see langword="null"/> when
+        /// the action ships unbound (e.g. on macOS, where defaults start blank).</param>
         /// <param name="labelKey">The localization key for the action's display label.</param>
-        public KeybindingDefinition(HotkeyAction action, HotkeyScope scope, KeyGesture defaultGesture, string labelKey)
+        public KeybindingDefinition(HotkeyAction action, HotkeyScope scope, KeyGesture? defaultGesture, string labelKey)
         {
             Action = action;
             Scope = scope;
@@ -31,8 +32,8 @@ namespace YASN.Hotkeys
         /// <summary>Gets the dispatch scope.</summary>
         public HotkeyScope Scope { get; }
 
-        /// <summary>Gets the factory-default gesture used by reset.</summary>
-        public KeyGesture DefaultGesture { get; }
+        /// <summary>Gets the factory-default gesture used by reset, or <see langword="null"/> when unbound.</summary>
+        public KeyGesture? DefaultGesture { get; }
 
         /// <summary>Gets the localization key for the action label.</summary>
         public string LabelKey { get; }

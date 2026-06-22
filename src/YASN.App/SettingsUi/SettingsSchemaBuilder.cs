@@ -100,7 +100,7 @@ namespace YASN.SettingsUi
                     FieldType = SettingFieldType.Hotkey,
                     ShouldSync = false,
                     Value = definition.Gesture?.ToString() ?? string.Empty,
-                    DefaultValue = definition.DefaultGesture.ToString()
+                    DefaultValue = definition.DefaultGesture?.ToString() ?? string.Empty
                 });
             }
 
