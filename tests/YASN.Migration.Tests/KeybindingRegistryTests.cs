@@ -48,9 +48,9 @@ namespace YASN.Migration.Tests
         [Fact]
         public void FindConflictDetectsSameScopeDuplicate()
         {
-            KeybindingRegistry registry = new (new SettingsStore());
+            KeybindingRegistry registry = new(new SettingsStore());
             KeybindingDefinition insertImage = registry.Definitions.Single(d => d.Action == HotkeyAction.InsertImage);
-            KeyGesture gesture = new (Key.I, KeyModifiers.Control | KeyModifiers.Shift);
+            KeyGesture gesture = new(Key.I, KeyModifiers.Control | KeyModifiers.Shift);
             insertImage.Gesture = gesture;
 
             Assert.Equal(HotkeyAction.InsertImage, registry.FindConflict(HotkeyScope.Editor, gesture, HotkeyAction.CycleEditorMode));
