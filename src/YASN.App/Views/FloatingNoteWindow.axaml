@@ -32,22 +32,53 @@
       </ResourceDictionary.ThemeDictionaries>
     </ResourceDictionary>
   </Window.Resources>
-  <!-- The body fills the whole window and the title bar floats over it (declared last, so it draws on
-       top). The bar auto-hides in preview mode by fading and sliding up via RenderTransform — never by
-       resizing the body. Resizing the native preview WebView each animation frame made Chromium emit
-       synthetic hover/move events that re-triggered the show, causing the chrome to oscillate; an
-       overlay leaves the WebView untouched. In editing modes the body is inset by the bar height so the
-       always-visible bar does not cover the editor toolbar. -->
-  <Grid>
-    <Grid x:Name="BodyContent" ColumnDefinitions="*,*">
+  <!-- Keep the title bar and native preview host in separate layout rows. Native WebView hosts can
+       draw outside Avalonia overlay ordering on macOS, so structural layout is the stable boundary. -->
+  <Grid RowDefinitions="Auto,*">
+    <Border
+        x:Name="TitleBar"
+        Grid.Row="0"
+        Padding="12,8"
+        Background="{DynamicResource NoteTitleBarBackground}"
+        BorderBrush="{DynamicResource NoteChromeBorder}"
+        BorderThickness="0,0,0,1">
+      <Border.ContextFlyout>
+        <MenuFlyout>
+          <MenuItem Header="{l:Tr Window.ToggleChrome}" Click="HandleToggleChromeClick" />
+          <MenuItem Header="{l:Tr Rename.MenuItem}" Click="HandleRenameClick" />
+          <MenuItem Header="{l:Tr Window.Menu.Manage}" Click="MenuItem_OnClick"></MenuItem>
+        </MenuFlyout>
+      </Border.ContextFlyout>
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+        <StackPanel>
+          <TextBlock Text="{l:Tr App.Title}" FontSize="13" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding Title}" FontSize="12" Foreground="{DynamicResource NoteSecondaryText}" />
+        </StackPanel>
+        <ComboBox x:Name="LevelSelector" Grid.Column="1" Width="120" Margin="0,0,8,0" />
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
+          <Button x:Name="EditorModeButton" ToolTip.Tip="{l:Tr Window.EditorMode.Hint}" Click="HandleEditorModeClick">
+            <mi:MaterialIcon x:Name="EditorModeIcon" Width="18" Height="18" />
+          </Button>
+          <Button ToolTip.Tip="{l:Tr Window.QuickLayout.Hint}" Click="HandleQuickLayoutClick">
+            <mi:MaterialIcon Kind="ViewDashboardOutline" Width="18" Height="18" />
+          </Button>
+          <Button ToolTip.Tip="{l:Tr Window.SetReminder}" Click="HandleSetReminderClick">
+            <mi:MaterialIcon Kind="BellOutline" Width="18" Height="18" />
+          </Button>
+          <Button ToolTip.Tip="{l:Tr Window.Close}" Click="HandleCloseClick">
+            <mi:MaterialIcon Kind="Close" Width="18" Height="18" />
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+    <Grid x:Name="BodyContent" Grid.Row="1" ColumnDefinitions="*,*">
       <DockPanel x:Name="EditorPanel" Grid.Column="0">
         <StackPanel
             x:Name="EditorToolbar"
             DockPanel.Dock="Top"
             Orientation="Horizontal"
             Spacing="6"
-            Margin="8,6"
-            >
+            Margin="8,6">
           <Button x:Name="InsertImageButton" ToolTip.Tip="{l:Tr Editor.InsertImage}" Click="HandleInsertImageClick">
             <mi:MaterialIcon Kind="Image" Width="18" Height="18" />
           </Button>
@@ -91,55 +122,5 @@
         </Thumb.Template>
       </Thumb>
     </Grid>
-    <Border
-        x:Name="TitleBar"
-        VerticalAlignment="Top"
-        Padding="12,8"
-        Background="{DynamicResource NoteTitleBarBackground}"
-        BorderBrush="{DynamicResource NoteChromeBorder}"
-        BorderThickness="0,0,0,1">
-      <Border.RenderTransform>
-        <TranslateTransform>
-          <TranslateTransform.Transitions>
-            <Transitions>
-              <DoubleTransition Property="Y" Duration="0:0:0.18" Easing="CubicEaseOut" />
-            </Transitions>
-          </TranslateTransform.Transitions>
-        </TranslateTransform>
-      </Border.RenderTransform>
-      <Border.Transitions>
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
-        </Transitions>
-      </Border.Transitions>
-      <Border.ContextFlyout>
-        <MenuFlyout>
-          <MenuItem Header="{l:Tr Window.ToggleChrome}" Click="HandleToggleChromeClick" />
-          <MenuItem Header="{l:Tr Rename.MenuItem}" Click="HandleRenameClick" />
-          <MenuItem Header="{l:Tr Window.Menu.Manage}" Click="MenuItem_OnClick"></MenuItem>
-        </MenuFlyout>
-      </Border.ContextFlyout>
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-        <StackPanel>
-          <TextBlock Text="{l:Tr App.Title}" FontSize="13" FontWeight="SemiBold" />
-          <TextBlock Text="{Binding Title}" FontSize="12" Foreground="{DynamicResource NoteSecondaryText}" />
-        </StackPanel>
-        <ComboBox x:Name="LevelSelector" Grid.Column="1" Width="120" Margin="0,0,8,0" />
-        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
-          <Button x:Name="EditorModeButton" ToolTip.Tip="{l:Tr Window.EditorMode.Hint}" Click="HandleEditorModeClick">
-            <mi:MaterialIcon x:Name="EditorModeIcon" Width="18" Height="18" />
-          </Button>
-          <Button ToolTip.Tip="{l:Tr Window.QuickLayout.Hint}" Click="HandleQuickLayoutClick">
-            <mi:MaterialIcon Kind="ViewDashboardOutline" Width="18" Height="18" />
-          </Button>
-          <Button ToolTip.Tip="{l:Tr Window.SetReminder}" Click="HandleSetReminderClick">
-            <mi:MaterialIcon Kind="BellOutline" Width="18" Height="18" />
-          </Button>
-          <Button ToolTip.Tip="{l:Tr Window.Close}" Click="HandleCloseClick">
-            <mi:MaterialIcon Kind="Close" Width="18" Height="18" />
-          </Button>
-        </StackPanel>
-      </Grid>
-    </Border>
   </Grid>
 </Window>
