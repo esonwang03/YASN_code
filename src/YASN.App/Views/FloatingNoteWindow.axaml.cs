@@ -5,6 +5,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using MsBox.Avalonia;
 using MsBox.Avalonia.Enums;
 using YASN.AvaloniaNotes;
@@ -729,13 +730,19 @@ namespace YASN.Views
 
         private async void HandleEditorKeyDown(object? sender, KeyEventArgs e)
         {
-            bool isPasteShortcut = e.Key == Key.V && e.KeyModifiers.HasFlag(KeyModifiers.Control);
+            TopLevel? topLevel = GetTopLevel(this);
+
+            // Use the platform's command modifier (Ctrl on Windows/Linux, Cmd/Meta on macOS) rather
+            // than hardcoding Control, so Cmd+V triggers the file paste on macOS.
+            KeyModifiers commandModifier = this.GetPlatformSettings()?.HotkeyConfiguration.CommandModifiers
+                ?? KeyModifiers.Control;
+            bool isPasteShortcut = e.Key == Key.V && e.KeyModifiers.HasFlag(commandModifier);
             if (!isPasteShortcut)
             {
                 return;
             }
 
-            IClipboard? clipboard = GetTopLevel(this)?.Clipboard;
+            IClipboard? clipboard = topLevel?.Clipboard;
             if (clipboard is null)
             {
                 return;

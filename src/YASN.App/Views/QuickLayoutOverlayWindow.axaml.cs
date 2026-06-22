@@ -23,6 +23,7 @@ namespace YASN.Views
         private readonly Rectangle selectionRectangle;
         private readonly double currentWidthDip;
         private readonly double currentHeightDip;
+        private readonly PixelRect virtualBounds;
         private readonly PixelPoint virtualOrigin;
 
         private Point? dragStart;
@@ -51,16 +52,33 @@ namespace YASN.Views
             selectionRectangle = this.FindControl<Rectangle>("SelectionRectangle")
                 ?? throw new InvalidOperationException("SelectionRectangle was not found.");
 
-            PixelRect virtualBounds = GetVirtualDesktopBounds();
-            virtualOrigin = virtualBounds.Position;
-            Position = virtualBounds.Position;
-            Width = virtualBounds.Width / RenderScalingSafe();
-            Height = virtualBounds.Height / RenderScalingSafe();
+            PixelRect bounds = GetVirtualDesktopBounds();
+            virtualBounds = bounds;
+            virtualOrigin = bounds.Position;
+            Position = bounds.Position;
+
+            // Size is deferred to OnOpened: RenderScaling is only valid once the window is shown.
+            // Computing it here reads an uninitialized scale, which on macOS Retina (where the
+            // primary screen reports Scaling 1.0 despite a 2x render scale) sizes the overlay 2x too
+            // large and breaks the click/drag -> position/size mapping.
 
             overlayCanvas.PointerPressed += HandlePointerPressed;
             overlayCanvas.PointerMoved += HandlePointerMoved;
             overlayCanvas.PointerReleased += HandlePointerReleased;
             KeyDown += HandleKeyDown;
+        }
+
+        /// <summary>
+        /// Sizes the overlay to span the virtual desktop once the window is shown and
+        /// <see cref="TopLevel.RenderScaling"/> reports the real scale factor.
+        /// </summary>
+        protected override void OnOpened(EventArgs e)
+        {
+            base.OnOpened(e);
+
+            double scaling = RenderScalingSafe();
+            Width = virtualBounds.Width / scaling;
+            Height = virtualBounds.Height / scaling;
         }
 
         private void InitializeComponent()
