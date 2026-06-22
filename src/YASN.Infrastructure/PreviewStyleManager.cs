@@ -4,7 +4,7 @@ namespace YASN.Infrastructure
     {
         internal const string SettingKey = "note.previewStyle";
         internal const string DefaultStyleRelativePath = "default.css";
-        private static readonly string BundledStyleRoot = Path.Combine(AppPaths.BaseDirectory, "style");
+        private static readonly string BundledStyleRoot = Path.Combine(AppPaths.BundledContentRoot, "style");
         private static readonly object InitLock = new();
         private static bool _initialized;
         private static bool _missingBundleDirLogged;

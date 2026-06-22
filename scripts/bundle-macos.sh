@@ -56,8 +56,8 @@ rm -rf "$OUT_APP"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 # 1. Payload: copy the publish output (executable, native dylibs, content) into Contents/MacOS.
-#    Content (style/, tutorial.md) must live beside the executable because the app resolves
-#    data paths from AppContext.BaseDirectory; the dylibs are relocated in step 1b below.
+#    The dylibs and content are relocated out of Contents/MacOS in steps 1b/1c below so that
+#    codesign sees only the apphost as nested code there.
 cp -R "$PUBLISH_DIR"/. "$MACOS_DIR"/
 chmod +x "$MACOS_DIR/$EXECUTABLE_NAME"
 
@@ -65,9 +65,20 @@ chmod +x "$MACOS_DIR/$EXECUTABLE_NAME"
 #     publish drops the dylibs loose beside the apphost; Apple's bundle layout requires
 #     nested Mach-O under Contents/Frameworks, and codesign --deep --strict rejects
 #     dotted-name dylibs in Contents/MacOS. The NativeLibraryResolver hook loads them back
-#     from ../Frameworks at runtime. Content (style/, Resources/) stays in Contents/MacOS.
+#     from ../Frameworks at runtime.
 mkdir -p "$FRAMEWORKS_DIR"
 find "$MACOS_DIR" -maxdepth 1 -type f -name '*.dylib' -exec mv {} "$FRAMEWORKS_DIR"/ \;
+
+# 1c. Relocate read-only content (style/, Resources/) into Contents/Resources. codesign treats
+#     every file under Contents/MacOS except the apphost as nested Mach-O code and rejects plain
+#     text such as style/*.md as an unsigned subcomponent. Contents/Resources is the canonical,
+#     non-code location; AppPaths.BundledContentRoot resolves there (../Resources) on macOS so the
+#     app reads styles from Resources/style and the tutorial from Resources/Resources/tutorial.md.
+for content in style Resources; do
+    if [ -e "$MACOS_DIR/$content" ]; then
+        mv "$MACOS_DIR/$content" "$RESOURCES_DIR"/
+    fi
+done
 
 # 2. Icon: build a Retina .icns from the 1024x1024 PNG via an .iconset.
 ICONSET="$(mktemp -d)/AppIcon.iconset"

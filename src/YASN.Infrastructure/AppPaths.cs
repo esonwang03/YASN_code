@@ -18,6 +18,18 @@ namespace YASN.Infrastructure
         public static string BaseDirectory { get; } = AppDomain.CurrentDomain.BaseDirectory;
 
         /// <summary>
+        /// Root for the read-only content shipped beside the app (preview styles, bundled tutorial).
+        /// On macOS this content lives in <c>Contents/Resources</c>, not <c>Contents/MacOS</c>, because
+        /// codesign treats every file under <c>Contents/MacOS</c> except the apphost as nested Mach-O
+        /// code and rejects plain text files (e.g. <c>style/*.md</c>) as unsigned subcomponents. On
+        /// other platforms the content sits next to the executable, so this resolves to
+        /// <see cref="BaseDirectory"/>.
+        /// </summary>
+        public static string BundledContentRoot { get; } = OperatingSystem.IsMacOS()
+            ? Path.GetFullPath(Path.Combine(BaseDirectory, "..", "Resources"))
+            : BaseDirectory;
+
+        /// <summary>
         /// Fixed per-user root for persistent, machine-local files (local settings, sync database,
         /// reminder state, log). Platform-standard and writable, unlike the executable directory.
         /// Windows: <c>%AppData%/yasn</c>. macOS: <c>~/Library/Application Support/&lt;bundle-id&gt;</c>.
@@ -47,7 +59,7 @@ namespace YASN.Infrastructure
         /// Path to the bundled tutorial note Markdown, copied next to the executable at build time.
         /// Read-only source for the first-run welcome note and the "show tutorial" settings action.
         /// </summary>
-        public static string BundledTutorialPath => Path.Combine(BaseDirectory, "Resources", "tutorial.md");
+        public static string BundledTutorialPath => Path.Combine(BundledContentRoot, "Resources", "tutorial.md");
 
         public static string SyncSettingsPath => Path.Combine(DataDirectory, "settings.sync.json");
         public static string LocalSettingsPath { get; } = Path.Combine(PersistentRoot, "settings.local.json");
