@@ -26,27 +26,32 @@ namespace YASN.Migration.Tests
         }
 
         /// <summary>
-        /// Matches a gesture to its action only within the requested scope.
+        /// Matches a gesture to its action only within the requested scope. The gesture is bound
+        /// explicitly so the test holds on macOS, where editor actions ship with blank defaults.
         /// </summary>
         [Fact]
         public void MatchRespectsScope()
         {
             KeybindingRegistry registry = new KeybindingRegistry(new SettingsStore());
             KeybindingDefinition insertImage = registry.Definitions.Single(d => d.Action == HotkeyAction.InsertImage);
+            KeyGesture gesture = new KeyGesture(Key.I, KeyModifiers.Control | KeyModifiers.Shift);
+            insertImage.Gesture = gesture;
 
-            Assert.Equal(HotkeyAction.InsertImage, registry.Match(HotkeyScope.Editor, insertImage.Gesture!));
-            Assert.Null(registry.Match(HotkeyScope.Global, insertImage.Gesture!));
+            Assert.Equal(HotkeyAction.InsertImage, registry.Match(HotkeyScope.Editor, gesture));
+            Assert.Null(registry.Match(HotkeyScope.Global, gesture));
         }
 
         /// <summary>
-        /// Flags a same-scope duplicate gesture and ignores the action being edited.
+        /// Flags a same-scope duplicate gesture and ignores the action being edited. The gesture is
+        /// bound explicitly so the test holds on macOS, where editor actions ship with blank defaults.
         /// </summary>
         [Fact]
         public void FindConflictDetectsSameScopeDuplicate()
         {
-            KeybindingRegistry registry = new KeybindingRegistry(new SettingsStore());
+            KeybindingRegistry registry = new (new SettingsStore());
             KeybindingDefinition insertImage = registry.Definitions.Single(d => d.Action == HotkeyAction.InsertImage);
-            KeyGesture gesture = insertImage.Gesture!;
+            KeyGesture gesture = new (Key.I, KeyModifiers.Control | KeyModifiers.Shift);
+            insertImage.Gesture = gesture;
 
             Assert.Equal(HotkeyAction.InsertImage, registry.FindConflict(HotkeyScope.Editor, gesture, HotkeyAction.CycleEditorMode));
             Assert.Null(registry.FindConflict(HotkeyScope.Editor, gesture, HotkeyAction.InsertImage));
