@@ -186,6 +186,18 @@ namespace YASN.Application
         }
 
         /// <summary>
+        /// Re-renders the preview of every open note window so a changed preview-style setting
+        /// takes effect immediately.
+        /// </summary>
+        public void RefreshPreviewForAll()
+        {
+            foreach (FloatingNoteWindow window in noteWindows.Values)
+            {
+                window.RefreshPreviewStyle();
+            }
+        }
+
+        /// <summary>
         /// Applies externally-changed content to a note's open window, if any, so its editor and
         /// preview refresh live. Returns <see langword="false"/> when no window is open (the caller
         /// should then persist through the repository directly).

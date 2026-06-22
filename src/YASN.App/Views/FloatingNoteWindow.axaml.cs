@@ -267,7 +267,8 @@ namespace YASN.Views
         private void RefreshPreview()
         {
             PreviewStyleManager.EnsureInitialized();
-            string stylePath = PreviewStyleManager.ToStyleAbsolutePath(PreviewStyleManager.DefaultStyleRelativePath);
+            string configuredStyle = settings.GetValue(PreviewStyleManager.SettingKey, shouldSync: true, PreviewStyleManager.DefaultStyleRelativePath);
+            string stylePath = PreviewStyleManager.ToStyleAbsolutePath(PreviewStyleManager.ResolveStyle(configuredStyle));
             string styleHref = new Uri(stylePath).AbsoluteUri;
             string baseHref = new Uri(AppPaths.DataDirectory + Path.DirectorySeparatorChar).AbsoluteUri;
             string html = MarkdownPreviewDocument.Render(viewModel.Content, styleHref, baseHref);
@@ -865,6 +866,14 @@ namespace YASN.Views
             string raw = settings.GetValue(TaskbarVisibility.SettingKey, shouldSync: true, TaskbarVisibility.AlwaysHideValue);
             TaskbarVisibilityMode mode = TaskbarVisibility.ParseMode(raw);
             ShowInTaskbar = TaskbarVisibility.ShouldShowInTaskbar(viewModel.Level, mode);
+        }
+
+        /// <summary>
+        /// Re-renders the preview so a changed preview-style setting takes effect on this open window.
+        /// </summary>
+        public void RefreshPreviewStyle()
+        {
+            RefreshPreview();
         }
 
         private void HandleResizeGripPressed(object? sender, PointerPressedEventArgs e)

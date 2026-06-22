@@ -276,6 +276,10 @@ namespace YASN.Migration.Tests
             {
             }
 
+            public void RefreshPreviewForAll()
+            {
+            }
+
             public void SetOpenMainWindowAction(Action? action)
             {
             }

@@ -440,7 +440,34 @@ namespace YASN.SettingsUi
                 ShouldSync = false
             });
 
+            SettingField previewStyle = new SettingField
+            {
+                Key = PreviewStyleManager.SettingKey,
+                Title = LocalizationService.Current["Settings.PreviewStyle"],
+                FieldType = SettingFieldType.Select,
+                ShouldSync = true,
+                Value = PreviewStyleManager.DefaultStyleRelativePath
+            };
+            foreach (string style in PreviewStyleManager.ListStyles())
+            {
+                previewStyle.Options.Add(new SettingOption { Label = StyleDisplayLabel(style), Value = style });
+            }
+            module.Fields.Add(previewStyle);
+
             return module;
+        }
+
+        /// <summary>
+        /// Derives the dropdown label for a preview style: the relative path with its trailing
+        /// ".css" extension stripped (e.g. "default.css" → "default", "themes/mono.css" →
+        /// "themes/mono"). Any subfolder structure is preserved.
+        /// </summary>
+        /// <param name="styleRelativePath">The style file's data-dir-relative path.</param>
+        private static string StyleDisplayLabel(string styleRelativePath)
+        {
+            return styleRelativePath.EndsWith(".css", StringComparison.OrdinalIgnoreCase)
+                ? styleRelativePath[..^4]
+                : styleRelativePath;
         }
     }
 }

@@ -60,6 +60,12 @@ namespace YASN.Application
         void RefreshTaskbarVisibilityForAll();
 
         /// <summary>
+        /// Re-renders the preview of every open note window so a changed preview-style setting
+        /// takes effect immediately.
+        /// </summary>
+        void RefreshPreviewForAll();
+
+        /// <summary>
         /// Stores a callback that opens or activates the main note-manager window so that every
         /// note window can invoke it from its "Manage Notes" context menu without holding a
         /// direct reference to the manager window.

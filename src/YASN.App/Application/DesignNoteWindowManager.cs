@@ -50,6 +50,11 @@ namespace YASN.Application
         }
 
         /// <inheritdoc />
+        public void RefreshPreviewForAll()
+        {
+        }
+
+        /// <inheritdoc />
         public void SetOpenMainWindowAction(Action? action)
         {
         }

@@ -221,6 +221,7 @@ namespace YASN.Application
         {
             YASN.YasnApplication.ApplyTheme(settings);
             noteWindows.RefreshTaskbarVisibilityForAll();
+            noteWindows.RefreshPreviewForAll();
             RegisterGlobalHotkeys();
             sync?.ApplyConfiguration(settings);
         }

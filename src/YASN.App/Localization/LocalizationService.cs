@@ -99,6 +99,7 @@ namespace YASN.Localization
                     ["Settings.Theme.System"] = "Follow system",
                     ["Settings.Theme.Light"] = "Light",
                     ["Settings.Theme.Dark"] = "Dark",
+                    ["Settings.PreviewStyle"] = "Preview style",
                     ["Settings.Unrecognized.Title"] = "Some settings were not recognized",
                     ["Settings.Unrecognized.Body"] = "Old configuration from a previous version was found and is being ignored. Review your settings to re-apply them.",
                     ["Settings.DataDir.Restart"] = "The data folder change takes effect after restarting the app.",
