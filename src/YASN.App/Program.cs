@@ -20,6 +20,11 @@ namespace YASN
         [STAThread]
         public static int Main(string[] args)
         {
+            // Redirect native-library loads to Contents/Frameworks on macOS before any native
+            // code loads. Must run before AppBuilderFactory.Create(), whose UsePlatformDetect()
+            // triggers the first Avalonia/Skia P/Invoke.
+            NativeLibraryResolver.Register();
+
             // Give the process an explicit AppUserModelID so Windows treats this build as its own
             // taskbar identity. Without it, the shell falls back to a path/heuristic identity that a
             // prior YASN install can collide with, causing the old app's cached icon to appear on our

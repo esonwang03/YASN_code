@@ -49,15 +49,25 @@ fi
 CONTENTS="$OUT_APP/Contents"
 MACOS_DIR="$CONTENTS/MacOS"
 RESOURCES_DIR="$CONTENTS/Resources"
+FRAMEWORKS_DIR="$CONTENTS/Frameworks"
 
 # Start from a clean bundle so reruns are deterministic.
 rm -rf "$OUT_APP"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
-# 1. Payload: the executable, native dylibs, and content (style/, tutorial.md) all live
-#    beside the executable because the app resolves data paths from AppContext.BaseDirectory.
+# 1. Payload: copy the publish output (executable, native dylibs, content) into Contents/MacOS.
+#    Content (style/, tutorial.md) must live beside the executable because the app resolves
+#    data paths from AppContext.BaseDirectory; the dylibs are relocated in step 1b below.
 cp -R "$PUBLISH_DIR"/. "$MACOS_DIR"/
 chmod +x "$MACOS_DIR/$EXECUTABLE_NAME"
+
+# 1b. Relocate native libraries into Contents/Frameworks. A single-file self-contained
+#     publish drops the dylibs loose beside the apphost; Apple's bundle layout requires
+#     nested Mach-O under Contents/Frameworks, and codesign --deep --strict rejects
+#     dotted-name dylibs in Contents/MacOS. The NativeLibraryResolver hook loads them back
+#     from ../Frameworks at runtime. Content (style/, Resources/) stays in Contents/MacOS.
+mkdir -p "$FRAMEWORKS_DIR"
+find "$MACOS_DIR" -maxdepth 1 -type f -name '*.dylib' -exec mv {} "$FRAMEWORKS_DIR"/ \;
 
 # 2. Icon: build a Retina .icns from the 1024x1024 PNG via an .iconset.
 ICONSET="$(mktemp -d)/AppIcon.iconset"
@@ -73,16 +83,18 @@ rm -rf "$ICONSET"
 # 3. Info.plist: substitute the version token from the template.
 sed "s/__VERSION__/$VERSION/g" "$PLIST_TEMPLATE" > "$CONTENTS/Info.plist"
 
-# 4. Ad-hoc code signing. "--sign -" is an ad-hoc signature (no Developer ID, no
-#    notarization); "--deep" recurses into the nested Mach-O (the apphost and the native
-#    dylibs in Contents/MacOS) and "--force" overwrites the signatures that ship on the
-#    .NET apphost and prebuilt native libraries. This mirrors the referenced nix build's
-#    `codesign --force --deep --sign - "$APP"`.
-/usr/bin/codesign \
-    --force \
-    --deep \
-    --sign - \
-    "$OUT_APP"
+# 4. Ad-hoc code signing, inside-out (Apple's required order). Sign each nested dylib first,
+#    then the apphost, then the bundle. "--sign -" is an ad-hoc signature (no Developer ID, no
+#    notarization); "--force" overwrites the signatures that ship on the prebuilt native
+#    libraries and the .NET apphost. --deep is deprecated for signing, so it is used only for
+#    the verification step below, not here.
+find "$FRAMEWORKS_DIR" -type f -name '*.dylib' -print0 |
+    while IFS= read -r -d '' dylib; do
+        /usr/bin/codesign --force --sign - "$dylib"
+    done
+
+/usr/bin/codesign --force --sign - "$MACOS_DIR/$EXECUTABLE_NAME"
+/usr/bin/codesign --force --sign - "$OUT_APP"
 
 # 5. Fail loud if the signature is not valid.
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$OUT_APP"
