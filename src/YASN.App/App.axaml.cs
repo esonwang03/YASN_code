@@ -26,6 +26,7 @@ namespace YASN
         private TrayShell? trayShell;
         private PlatformServiceBundle? platformServices;
         private SyncComposition? sync;
+        private Cli.CliIpcServer? cliServer;
 
         /// <summary>
         /// Loads Avalonia XAML resources for the application.
@@ -72,6 +73,13 @@ namespace YASN
                 trayShell.Initialize();
                 sync.ApplyConfiguration(settings);
                 WarnAboutUnrecognizedSettings(settings, platformServices, keybindings);
+
+                // Host the CLI inter-process channel so `yasn <verb>` invocations route window,
+                // delete, and sync commands into this live instance. Disposed on ProcessExit.
+                Cli.CliCommandRouter router = new Cli.CliCommandRouter(
+                    repository, noteWindows, sync, trayShell.RaiseMainWindow, trayShell.RaiseSettingsWindow);
+                cliServer = new Cli.CliIpcServer(router);
+                cliServer.Start();
             }
 
             base.OnFrameworkInitializationCompleted();
@@ -191,6 +199,7 @@ namespace YASN
             base.RegisterServices();
             AppDomain.CurrentDomain.ProcessExit += (_, _) =>
             {
+                cliServer?.Dispose();
                 sync?.Dispose();
                 platformServices?.Dispose();
             };

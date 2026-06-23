@@ -91,6 +91,33 @@ namespace YASN.Infrastructure
         /// </summary>
         public static string SingleInstanceLockPath => Path.Combine(DataDirectory, "yasn.instance.lock");
 
+        /// <summary>
+        /// Stable, per-data-directory token used to name the CLI inter-process channel so two
+        /// installs pointed at different data directories (or two users) never share an endpoint.
+        /// A short uppercase-hex hash of the absolute <see cref="DataDirectory"/>; deterministic
+        /// across processes so the CLI client and the running instance derive the same value.
+        /// </summary>
+        public static string CliEndpointToken => ComputeEndpointToken(DataDirectory);
+
+        /// <summary>
+        /// Named-pipe name for the CLI channel on Windows. Scoped to the current session by the OS;
+        /// suffixed with <see cref="CliEndpointToken"/> for per-data-directory isolation.
+        /// </summary>
+        public static string CliPipeName => $"YASN.Cli.{CliEndpointToken}";
+
+        /// <summary>
+        /// Unix-domain-socket path for the CLI channel on macOS/Linux. Placed under the machine-local
+        /// <see cref="PersistentRoot"/> (always writable) rather than the possibly-synced data directory.
+        /// </summary>
+        public static string CliSocketPath => Path.Combine(PersistentRoot, $"yasn-cli-{CliEndpointToken}.sock");
+
+        private static string ComputeEndpointToken(string dataDirectory)
+        {
+            byte[] hash = System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(dataDirectory));
+            return Convert.ToHexString(hash, 0, 6);
+        }
+
         static AppPaths()
         {
             Directory.CreateDirectory(PersistentRoot);
@@ -224,7 +251,7 @@ namespace YASN.Infrastructure
                 try
                 {
                     string json = File.ReadAllText(LocalSettingsPath);
-                    Dictionary<string, string>? dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                    Dictionary<string, string>? dict = JsonSerializer.Deserialize(json, InfrastructureJsonContext.Default.DictionaryStringString);
                     if (dict != null && dict.TryGetValue(DataDirectorySettingKey, out string? value) &&
                         TryNormalizeDataDirectory(value, out string? configuredPath, out _))
                     {

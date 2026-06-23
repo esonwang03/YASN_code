@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace YASN.Infrastructure.Sync
 {
@@ -9,8 +10,12 @@ namespace YASN.Infrastructure.Sync
     /// </summary>
     public static class NoteWireSerializer
     {
-        private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
-        private static readonly JsonSerializerOptions HashOptions = new() { WriteIndented = false };
+        // The upload path uses the source-gen context's indented metadata directly. The hash path
+        // needs compact output over the same source-gen resolver, so it builds a one-off context with
+        // WriteIndented = false — still reflection-free and AOT/trim-safe.
+        private static readonly JsonTypeInfo<SyncNoteDocument> CompactTypeInfo =
+            (JsonTypeInfo<SyncNoteDocument>)new SyncJsonContext(new JsonSerializerOptions { WriteIndented = false })
+                .GetTypeInfo(typeof(SyncNoteDocument))!;
 
         /// <summary>
         /// Serializes a document to indented JSON bytes for upload.
@@ -20,7 +25,7 @@ namespace YASN.Infrastructure.Sync
         public static byte[] Serialize(SyncNoteDocument document)
         {
             ArgumentNullException.ThrowIfNull(document);
-            return JsonSerializer.SerializeToUtf8Bytes(document, WriteOptions);
+            return JsonSerializer.SerializeToUtf8Bytes(document, SyncJsonContext.Default.SyncNoteDocument);
         }
 
         /// <summary>
@@ -37,7 +42,7 @@ namespace YASN.Infrastructure.Sync
 
             try
             {
-                return JsonSerializer.Deserialize<SyncNoteDocument>(bytes);
+                return JsonSerializer.Deserialize(bytes, SyncJsonContext.Default.SyncNoteDocument);
             }
             catch (JsonException)
             {
@@ -73,7 +78,7 @@ namespace YASN.Infrastructure.Sync
                 ModifiedAtUtc = default
             };
 
-            byte[] json = JsonSerializer.SerializeToUtf8Bytes(canonical, HashOptions);
+            byte[] json = JsonSerializer.SerializeToUtf8Bytes(canonical, CompactTypeInfo);
             return Convert.ToHexStringLower(SHA256.HashData(json));
         }
     }

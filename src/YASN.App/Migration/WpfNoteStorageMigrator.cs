@@ -23,15 +23,6 @@ namespace YASN.Migration
         private const string BackupFileName = "notes.index.wpf-backup.json";
         private const string NotesFolderName = "notes";
 
-        private static readonly JsonSerializerOptions ReadOptions = new()
-        {
-            PropertyNameCaseInsensitive = true,
-            ReadCommentHandling = JsonCommentHandling.Skip,
-            AllowTrailingCommas = true
-        };
-
-        private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
-
         /// <summary>
         /// Migrates the note store under <paramref name="dataDirectory"/> in place, backing up the
         /// original index first.

@@ -34,3 +34,14 @@ jobs:
 
       - name: Test
         run: dotnet test YASN.sln -c Release --no-build
+
+      # Smoke-test the NativeAOT publish so trim/AOT breakage (a new reflection-based JSON call, an
+      # uncompiled binding, a missing trimmer root) is caught on PRs, not only at release time. AOT
+      # can't cross-compile, so each runner publishes its own RID; the runner images supply the
+      # native toolchain the link step needs. This rebuilds from source (an AOT publish cannot reuse
+      # the JIT build above), so it is the slowest CI step by design.
+      - name: AOT publish smoke
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then rid=win-x64; else rid=osx-arm64; fi
+          dotnet publish src/YASN.App/YASN.App.csproj -c Release -p:EnableAot=true -r "$rid" --no-restore -o publish/aot-smoke

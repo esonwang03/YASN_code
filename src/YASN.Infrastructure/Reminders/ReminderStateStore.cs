@@ -89,7 +89,7 @@ namespace YASN.Infrastructure.Reminders
                 {
                     string json = File.ReadAllText(path);
                     Dictionary<string, DateTimeOffset>? data =
-                        JsonSerializer.Deserialize<Dictionary<string, DateTimeOffset>>(json);
+                        JsonSerializer.Deserialize(json, InfrastructureJsonContext.Default.DictionaryStringDateTimeOffset);
                     if (data is not null)
                     {
                         return new Dictionary<string, DateTimeOffset>(data, StringComparer.Ordinal);
@@ -114,7 +114,7 @@ namespace YASN.Infrastructure.Reminders
                     Directory.CreateDirectory(directory);
                 }
 
-                File.WriteAllText(filePath, JsonSerializer.Serialize(lastFired));
+                File.WriteAllText(filePath, JsonSerializer.Serialize(lastFired, InfrastructureJsonContext.Default.DictionaryStringDateTimeOffset));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

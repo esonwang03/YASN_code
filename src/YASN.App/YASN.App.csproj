@@ -66,4 +66,20 @@
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
+
+  <!-- Opt-in NativeAOT publish: `dotnet publish ... -c Release -p:EnableAot=true -r <rid>`.
+       Flips on AOT + trimming and turns OFF single-file (AOT emits a native image, so the
+       single-file extractor properties no longer apply). Default Release (flag unset) keeps the
+       single-file JIT layout above unchanged. NativeAOT cannot cross-compile, so each RID must be
+       published on its own platform. -->
+  <PropertyGroup Condition="'$(Configuration)'=='Release' And '$(EnableAot)'=='true'">
+    <PublishAot>true</PublishAot>
+    <PublishTrimmed>true</PublishTrimmed>
+    <PublishSingleFile>false</PublishSingleFile>
+    <TrimMode>full</TrimMode>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(EnableAot)'=='true'">
+    <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
+  </ItemGroup>
 </Project>

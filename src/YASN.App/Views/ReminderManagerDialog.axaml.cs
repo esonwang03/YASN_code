@@ -134,37 +134,38 @@ namespace YASN.Views
         {
             Close();
         }
+    }
 
-        /// <summary>
-        /// A single reminder row bound by the list: presentation derived from a parsed rule, plus the
-        /// stable rule id and source line the action handlers act on.
-        /// </summary>
-        private sealed class ReminderRow
+    /// <summary>
+    /// A single reminder row bound by the list: presentation derived from a parsed rule, plus the
+    /// stable rule id and source line the action handlers act on. Top-level (not nested) so the XAML
+    /// compiler can name it as the template's <c>x:DataType</c> for compiled, trim/AOT-safe bindings.
+    /// </summary>
+    internal sealed class ReminderRow
+    {
+        public ReminderRow(NoteReminderRule rule, int sourceLine, LocalizationService localization)
         {
-            public ReminderRow(NoteReminderRule rule, int sourceLine, LocalizationService localization)
+            RuleId = rule.RuleId;
+            Enabled = rule.Enabled;
+            SourceLine = sourceLine;
+            DisplayText = string.IsNullOrWhiteSpace(rule.DisplayText) ? rule.Content : rule.DisplayText;
+
+            string cadence = rule.RemainingCount switch
             {
-                RuleId = rule.RuleId;
-                Enabled = rule.Enabled;
-                SourceLine = sourceLine;
-                DisplayText = string.IsNullOrWhiteSpace(rule.DisplayText) ? rule.Content : rule.DisplayText;
-
-                string cadence = rule.RemainingCount switch
-                {
-                    null => localization["Reminder.Manager.Recurring"],
-                    1 => localization["Reminder.Manager.Once"],
-                    { } n => string.Format(System.Globalization.CultureInfo.CurrentCulture, localization["Reminder.Manager.TimesLeft"], n)
-                };
-                string state = rule.Enabled ? cadence : localization["Reminder.Manager.Disabled"];
-                Summary = $"{state} · {rule.CronText}";
-                ToggleLabel = rule.Enabled ? localization["Reminder.Manager.Disable"] : localization["Reminder.Manager.Enable"];
-            }
-
-            public string RuleId { get; }
-            public bool Enabled { get; }
-            public int SourceLine { get; }
-            public string DisplayText { get; }
-            public string Summary { get; }
-            public string ToggleLabel { get; }
+                null => localization["Reminder.Manager.Recurring"],
+                1 => localization["Reminder.Manager.Once"],
+                { } n => string.Format(System.Globalization.CultureInfo.CurrentCulture, localization["Reminder.Manager.TimesLeft"], n)
+            };
+            string state = rule.Enabled ? cadence : localization["Reminder.Manager.Disabled"];
+            Summary = $"{state} · {rule.CronText}";
+            ToggleLabel = rule.Enabled ? localization["Reminder.Manager.Disable"] : localization["Reminder.Manager.Enable"];
         }
+
+        public string RuleId { get; }
+        public bool Enabled { get; }
+        public int SourceLine { get; }
+        public string DisplayText { get; }
+        public string Summary { get; }
+        public string ToggleLabel { get; }
     }
 }

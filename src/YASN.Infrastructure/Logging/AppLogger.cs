@@ -175,7 +175,7 @@ namespace YASN.Infrastructure.Logging
                 }
 
                 string json = File.ReadAllText(AppPaths.LocalSettingsPath);
-                Dictionary<string, string>? dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                Dictionary<string, string>? dict = JsonSerializer.Deserialize(json, InfrastructureJsonContext.Default.DictionaryStringString);
                 if (dict != null &&
                     dict.TryGetValue("log.maxSizeKb", out string? value) &&
                     int.TryParse(value, out int kb) &&

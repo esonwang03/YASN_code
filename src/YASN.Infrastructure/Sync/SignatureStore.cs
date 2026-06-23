@@ -41,7 +41,7 @@ namespace YASN.Infrastructure.Sync
                 Directory.CreateDirectory(directory);
             }
 
-            string json = JsonSerializer.Serialize(_signatures);
+            string json = JsonSerializer.Serialize(_signatures, InfrastructureJsonContext.Default.DictionaryStringString);
             File.WriteAllText(_path, json);
         }
 
@@ -55,7 +55,7 @@ namespace YASN.Infrastructure.Sync
                 }
 
                 string json = File.ReadAllText(path);
-                Dictionary<string, string>? data = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                Dictionary<string, string>? data = JsonSerializer.Deserialize(json, InfrastructureJsonContext.Default.DictionaryStringString);
                 return data != null
                     ? new Dictionary<string, string>(data, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

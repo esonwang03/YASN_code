@@ -142,6 +142,24 @@ namespace YASN.Application
             }
         }
 
+        /// <summary>
+        /// Raises (opens or activates) the manage-notes window. Public so the CLI command router can
+        /// drive the same window the tray menu opens. Must be called on the UI thread.
+        /// </summary>
+        public void RaiseMainWindow()
+        {
+            OpenMainWindow();
+        }
+
+        /// <summary>
+        /// Raises (opens or activates) the settings window. Public so the CLI command router can drive
+        /// the same window the tray menu opens. Must be called on the UI thread.
+        /// </summary>
+        public void RaiseSettingsWindow()
+        {
+            OpenSettingsWindow();
+        }
+
         private void OpenNoteWindow()
         {
             AvaloniaNoteDocument note = repository.LoadAll()

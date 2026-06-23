@@ -25,7 +25,7 @@ namespace YASN.Views
                 ?? throw new InvalidOperationException("ItemsList was not found.");
 
             list.ItemsSource = plan.Deletions
-                .Select(d => new Row(
+                .Select(d => new BulkChangeRow(
                     d.Title,
                     localization[d.Side == SyncDeleteSide.Local
                         ? "Sync.Confirm.DeleteLocal"
@@ -66,8 +66,9 @@ namespace YASN.Views
             approved = false;
             Close(false);
         }
-
-        /// <summary>One displayed deletion row.</summary>
-        private sealed record Row(string Title, string SideText);
     }
+
+    /// <summary>One displayed deletion row. Top-level (not nested) so the XAML compiler can name it
+    /// as the template's <c>x:DataType</c> for compiled, trim/AOT-safe bindings.</summary>
+    internal sealed record BulkChangeRow(string Title, string SideText);
 }

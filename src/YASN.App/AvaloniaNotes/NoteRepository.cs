@@ -8,7 +8,6 @@ namespace YASN.AvaloniaNotes
     /// </summary>
     public sealed class NoteRepository
     {
-        private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
         private readonly string indexPath;
         private readonly string notesRoot;
 
@@ -110,7 +109,7 @@ namespace YASN.AvaloniaNotes
             index.Notes.Add(ToEntry(note));
             index.Notes = index.Notes.OrderBy(entry => entry.Id, StringComparer.Ordinal).ToList();
 
-            string json = JsonSerializer.Serialize(index, JsonOptions);
+            string json = JsonSerializer.Serialize(index, NoteIndexJsonContext.Default.NoteIndexData);
             File.WriteAllText(indexPath, json);
 
             NoteSaved?.Invoke(note);
@@ -138,7 +137,7 @@ namespace YASN.AvaloniaNotes
             string syncKey = entry.SyncKey ?? string.Empty;
             index.Notes.RemoveAll(e => e.Id == noteId);
             index.SchemaVersion = 7;
-            string json = JsonSerializer.Serialize(index, JsonOptions);
+            string json = JsonSerializer.Serialize(index, NoteIndexJsonContext.Default.NoteIndexData);
             File.WriteAllText(indexPath, json);
 
             NoteDeleted?.Invoke(noteId, syncKey);
@@ -152,7 +151,7 @@ namespace YASN.AvaloniaNotes
             }
 
             string json = File.ReadAllText(indexPath);
-            NoteIndexData? index = JsonSerializer.Deserialize<NoteIndexData>(json);
+            NoteIndexData? index = JsonSerializer.Deserialize(json, NoteIndexJsonContext.Default.NoteIndexData);
             index ??= new NoteIndexData();
             BackfillSyncKeys(index);
             return index;
@@ -188,7 +187,7 @@ namespace YASN.AvaloniaNotes
             }
 
             index.SchemaVersion = 7;
-            File.WriteAllText(indexPath, JsonSerializer.Serialize(index, JsonOptions));
+            File.WriteAllText(indexPath, JsonSerializer.Serialize(index, NoteIndexJsonContext.Default.NoteIndexData));
         }
 
         private AvaloniaNoteDocument ToDocument(NoteIndexEntry entry)

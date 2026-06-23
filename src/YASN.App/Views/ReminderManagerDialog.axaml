@@ -3,6 +3,7 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:l="clr-namespace:YASN.Localization"
+    xmlns:views="clr-namespace:YASN.Views"
     Title="{l:Tr Reminder.Manager.Title}"
     Width="460"
     Height="360"
@@ -26,9 +27,9 @@
                IsVisible="False" />
     <Border BorderBrush="#33000000" BorderThickness="1" CornerRadius="4">
       <ScrollViewer>
-        <ItemsControl x:Name="ItemsList" x:CompileBindings="False">
+        <ItemsControl x:Name="ItemsList">
           <ItemsControl.ItemTemplate>
-            <DataTemplate>
+            <DataTemplate x:DataType="views:ReminderRow">
               <Grid Margin="10,8" ColumnDefinitions="*,Auto,Auto,Auto" RowDefinitions="Auto,Auto">
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding DisplayText}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
                 <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding Summary}" Foreground="#777777" FontSize="12" TextTrimming="CharacterEllipsis" />

@@ -3,6 +3,7 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:l="clr-namespace:YASN.Localization"
+    xmlns:views="clr-namespace:YASN.Views"
     Title="{l:Tr Sync.Confirm.Title}"
     Width="460"
     Height="360"
@@ -24,9 +25,9 @@
     </StackPanel>
     <Border BorderBrush="#33000000" BorderThickness="1" CornerRadius="4">
       <ScrollViewer>
-        <ItemsControl x:Name="ItemsList" x:CompileBindings="False">
+        <ItemsControl x:Name="ItemsList">
           <ItemsControl.ItemTemplate>
-            <DataTemplate>
+            <DataTemplate x:DataType="views:BulkChangeRow">
               <Grid Margin="10,6" ColumnDefinitions="*,Auto">
                 <TextBlock Grid.Column="0" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
                 <TextBlock Grid.Column="1" Text="{Binding SideText}" Foreground="#CC3333" FontSize="12" Margin="12,0,0,0" />

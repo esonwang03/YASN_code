@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Trimmer roots for the opt-in NativeAOT publish. These assemblies reach members reflectively in
+  ways the trim analyzer cannot follow, so we preserve them wholesale rather than risk the trimmer
+  removing members they load by name at runtime. Only consulted when EnableAot=true.
+-->
+<linker>
+  <!-- Native notification senders are resolved per-platform; on Linux/macOS this pulls in Tmds.DBus
+       which marshals via reflection over generated proxies. -->
+  <assembly fullname="OsNotifications" preserve="all" />
+
+  <!-- SQLitePCLRaw selects and binds its native provider by name at runtime. -->
+  <assembly fullname="SQLitePCLRaw.core" preserve="all" />
+  <assembly fullname="SQLitePCLRaw.provider.e_sqlite3" preserve="all" />
+  <assembly fullname="SQLitePCLRaw.batteries_v2" preserve="all" />
+
+  <!-- WebDAV client deserializes PROPFIND XML responses via reflection-based mapping. -->
+  <assembly fullname="WebDav.Client" preserve="all" />
+
+  <!-- Markdig instantiates extension and renderer types through its pipeline builder. -->
+  <assembly fullname="Markdig" preserve="all" />
+</linker>

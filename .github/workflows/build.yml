@@ -53,7 +53,13 @@ jobs:
         run: dotnet restore YASN.sln
 
       - name: Publish
-        run: dotnet publish src/YASN.App/YASN.App.csproj -c Release -r ${{ matrix.rid }} --self-contained true --no-restore -o publish/${{ matrix.rid }}
+        # EnableAot=true compiles a native image per RID (no JIT, no single-file). NativeAOT cannot
+        # cross-compile, so each RID builds on its own-OS runner (the matrix already does this); the
+        # runner images supply the native toolchain the link step needs (VS C++ on Windows, clang on
+        # macOS). Third-party native dylibs (Skia, HarfBuzz, e_sqlite3) are still emitted loose beside
+        # the native executable, so the macOS bundler's dylib relocation and NativeLibraryResolver
+        # path are unchanged.
+        run: dotnet publish src/YASN.App/YASN.App.csproj -c Release -p:EnableAot=true -r ${{ matrix.rid }} --self-contained true --no-restore -o publish/${{ matrix.rid }}
 
       - name: Publish migrate CLI (Windows)
         if: matrix.rid == 'win-x64'

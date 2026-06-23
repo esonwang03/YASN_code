@@ -139,7 +139,7 @@ namespace YASN.Infrastructure.Settings
                     LocalSettings = new Dictionary<string, string>(_localSettings)
                 };
 
-                string json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+                string json = JsonSerializer.Serialize(payload, SettingsJsonContext.Default.SettingsExportPayload);
                 File.WriteAllText(path, json);
                 return true;
             }
@@ -175,7 +175,7 @@ namespace YASN.Infrastructure.Settings
                 }
 
                 string json = File.ReadAllText(path);
-                SettingsExportPayload? payload = JsonSerializer.Deserialize<SettingsExportPayload>(json);
+                SettingsExportPayload? payload = JsonSerializer.Deserialize(json, SettingsJsonContext.Default.SettingsExportPayload);
                 if (payload == null)
                 {
                     errorMessage = "Invalid settings file.";
@@ -226,7 +226,7 @@ namespace YASN.Infrastructure.Settings
                 if (File.Exists(path))
                 {
                     string json = File.ReadAllText(path);
-                    return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new Dictionary<string, string>();
+                    return JsonSerializer.Deserialize(json, InfrastructureJsonContext.Default.DictionaryStringString) ?? new Dictionary<string, string>();
                 }
             }
             catch (IOException ex)
@@ -255,7 +255,7 @@ namespace YASN.Infrastructure.Settings
                     Directory.CreateDirectory(directory);
                 }
 
-                string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+                string json = JsonSerializer.Serialize(data, InfrastructureJsonContext.Default.DictionaryStringString);
                 File.WriteAllText(path, json);
             }
             catch (IOException ex)
@@ -272,7 +272,7 @@ namespace YASN.Infrastructure.Settings
             }
         }
 
-        private sealed class SettingsExportPayload
+        internal sealed class SettingsExportPayload
         {
             [JsonPropertyName("schemaVersion")]
             public int SchemaVersion { get; set; } = 1;
@@ -283,5 +283,16 @@ namespace YASN.Infrastructure.Settings
             [JsonPropertyName("localSettings")]
             public Dictionary<string, string> LocalSettings { get; set; } = new();
         }
+    }
+
+    /// <summary>
+    /// Source-generated serialization metadata for the settings export/import payload so it
+    /// round-trips without reflection under NativeAOT/trimming. Indented to keep the exported file
+    /// human-readable.
+    /// </summary>
+    [JsonSourceGenerationOptions(WriteIndented = true)]
+    [JsonSerializable(typeof(SettingsStore.SettingsExportPayload))]
+    internal sealed partial class SettingsJsonContext : JsonSerializerContext
+    {
     }
 }

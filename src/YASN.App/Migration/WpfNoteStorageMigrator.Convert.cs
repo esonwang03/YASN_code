@@ -17,11 +17,11 @@ namespace YASN.Migration
             string trimmed = json.TrimStart();
             if (trimmed.StartsWith('['))
             {
-                List<LegacyNote>? array = JsonSerializer.Deserialize<List<LegacyNote>>(json, ReadOptions);
+                List<LegacyNote>? array = JsonSerializer.Deserialize(json, MigrationReadJsonContext.Default.ListLegacyNote);
                 return new LegacyIndex { SchemaVersion = 1, Notes = array ?? new List<LegacyNote>() };
             }
 
-            LegacyIndex? wrapper = JsonSerializer.Deserialize<LegacyIndex>(json, ReadOptions);
+            LegacyIndex? wrapper = JsonSerializer.Deserialize(json, MigrationReadJsonContext.Default.LegacyIndex);
             return wrapper ?? new LegacyIndex();
         }
 
@@ -131,7 +131,7 @@ namespace YASN.Migration
                 note($"Backup already exists at {backupPath}; left as-is.");
             }
 
-            File.WriteAllText(indexPath, JsonSerializer.Serialize(output, WriteOptions));
+            File.WriteAllText(indexPath, JsonSerializer.Serialize(output, MigrationWriteJsonContext.Default.NewIndex));
             note($"Wrote {output.Notes.Count} notes to {indexPath} in schema v{CurrentSchemaVersion}.");
             report.Status = MigrationStatus.Migrated;
         }
