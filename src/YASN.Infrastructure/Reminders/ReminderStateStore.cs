@@ -52,6 +52,33 @@ namespace YASN.Infrastructure.Reminders
             }
         }
 
+        /// <summary>
+        /// Removes all recorded fire history for a note. Called when the note is deleted so its
+        /// orphaned cron state cannot trigger a catch-up replay after a later restart.
+        /// </summary>
+        /// <param name="noteId">The identifier of the deleted note.</param>
+        public void Remove(string noteId)
+        {
+            string prefix = noteId + ":";
+            lock (gate)
+            {
+                List<string> keys = lastFired.Keys
+                    .Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
+                    .ToList();
+                if (keys.Count == 0)
+                {
+                    return;
+                }
+
+                foreach (string key in keys)
+                {
+                    lastFired.Remove(key);
+                }
+
+                Save();
+            }
+        }
+
         private static string Key(string noteId, string ruleId) => $"{noteId}:{ruleId}";
 
         private static Dictionary<string, DateTimeOffset> Load(string path)

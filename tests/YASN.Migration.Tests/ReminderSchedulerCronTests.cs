@@ -185,6 +185,53 @@ namespace YASN.Migration.Tests
             Assert.Equal(("11", ruleId), Assert.Single(writer.Reduced));
         }
 
+        [Fact]
+        public async Task ForgetStopsCronDelivery()
+        {
+            RecordingNotificationService notifications = new RecordingNotificationService();
+            ReminderStateStore state = new ReminderStateStore(statePath);
+            using ReminderScheduler scheduler = new ReminderScheduler(notifications, state);
+
+            AvaloniaNoteDocument note = new AvaloniaNoteDocument
+            {
+                Id = "12",
+                Content = "[!tick][]{* * * * * *}{ping}"
+            };
+
+            scheduler.RescheduleCron(note);
+            scheduler.Forget(note.Id);
+            await Task.Delay(1300).ConfigureAwait(true);
+
+            Assert.Empty(notifications.Requests);
+        }
+
+        [Fact]
+        public void ForgetPurgesCatchUpStateSoDeletedNoteNeverReplays()
+        {
+            RecordingNotificationService notifications = new RecordingNotificationService();
+            ReminderStateStore state = new ReminderStateStore(statePath);
+
+            // A note that fired "yesterday" would normally catch up its missed 09:00 occurrence.
+            AvaloniaNoteDocument note = new AvaloniaNoteDocument
+            {
+                Id = "13",
+                Content = "[!daily][]{0 9 * * *}{standup}"
+            };
+            string ruleId = NoteReminderParser.Parse(note.Content)[0].RuleId;
+            state.SetLastFired("13", ruleId, new DateTimeOffset(2026, 1, 1, 9, 0, 0, TimeSpan.Zero));
+
+            DateTimeOffset now = new DateTimeOffset(2026, 1, 3, 12, 0, 0, TimeSpan.Zero);
+            using ReminderScheduler scheduler = new ReminderScheduler(notifications, state, () => now);
+
+            // Deleting the note forgets its reminders. Re-arming (as a restart's RescheduleCron would)
+            // must then find no fire history and replay nothing — the note stays deleted.
+            scheduler.Forget(note.Id);
+            scheduler.RescheduleCron(note);
+
+            Assert.Empty(notifications.Requests);
+            Assert.Null(state.GetLastFired("13", ruleId));
+        }
+
         private static async Task WaitForAsync(Func<bool> condition)
         {
             for (int attempt = 0; attempt < 100 && !condition(); attempt++)

@@ -159,6 +159,25 @@ namespace YASN.Reminders
             }
         }
 
+        /// <summary>
+        /// Forgets a deleted note entirely: cancels its one-shot and crontab timers, clears its
+        /// in-memory fired flag, and purges its persisted cron fire history. Without this a live
+        /// timer (or a stale catch-up entry after restart) would fire for the deleted note and
+        /// re-create it when the activator re-opens and re-saves it.
+        /// </summary>
+        /// <param name="noteId">The identifier of the deleted note.</param>
+        public void Forget(string noteId)
+        {
+            Cancel(noteId);
+            CancelCron(noteId);
+            lock (gate)
+            {
+                firedNoteIds.Remove(noteId);
+            }
+
+            stateStore?.Remove(noteId);
+        }
+
         private bool CatchUp(AvaloniaNoteDocument note, NoteReminderRule rule, DateTimeOffset now)
         {
             if (stateStore is null)

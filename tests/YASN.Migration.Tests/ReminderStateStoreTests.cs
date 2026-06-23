@@ -55,5 +55,27 @@ namespace YASN.Migration.Tests
             Assert.Null(store.GetLastFired("1", "b"));
             Assert.Null(store.GetLastFired("2", "a"));
         }
+
+        [Fact]
+        public void RemoveClearsAllRulesForNoteAndPersists()
+        {
+            DateTimeOffset t = DateTimeOffset.UtcNow;
+            ReminderStateStore store = new ReminderStateStore(path);
+            store.SetLastFired("1", "a", t);
+            store.SetLastFired("1", "b", t);
+            store.SetLastFired("2", "a", t);
+
+            store.Remove("1");
+
+            // Both of note 1's rules are gone; note 2's is untouched. A reopened store proves the
+            // removal persisted, so a deleted note cannot replay a catch-up after restart.
+            Assert.Null(store.GetLastFired("1", "a"));
+            Assert.Null(store.GetLastFired("1", "b"));
+            Assert.NotNull(store.GetLastFired("2", "a"));
+
+            ReminderStateStore reopened = new ReminderStateStore(path);
+            Assert.Null(reopened.GetLastFired("1", "a"));
+            Assert.NotNull(reopened.GetLastFired("2", "a"));
+        }
     }
 }

@@ -41,6 +41,10 @@ namespace YASN.Application
             this.reminders = reminders;
             this.keybindings = keybindings;
             this.settings = settings;
+
+            // A deleted note must release its reminders, otherwise a live timer (or, after a restart,
+            // a stale catch-up entry) fires and the activator re-opens and re-saves the note.
+            repository.NoteDeleted += (noteId, _) => reminders.Forget(noteId);
         }
 
         /// <summary>
