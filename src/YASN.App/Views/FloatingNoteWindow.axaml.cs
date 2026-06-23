@@ -6,6 +6,8 @@ using Avalonia.Interactivity;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
+using AvaloniaEdit;
+using AvaloniaEdit.CodeCompletion;
 using MsBox.Avalonia;
 using MsBox.Avalonia.Enums;
 using YASN.AvaloniaNotes;
@@ -13,6 +15,7 @@ using YASN.Core;
 using YASN.Hotkeys;
 using YASN.Infrastructure;
 using YASN.Infrastructure.Markdown;
+using YASN.MarkdownEditing;
 using YASN.Notifications;
 using YASN.PlatformServices;
 using YASN.Reminders;
@@ -32,7 +35,7 @@ namespace YASN.Views
         private readonly Infrastructure.Settings.SettingsStore settings;
         private readonly NativeWebView previewWebView;
         private readonly ComboBox levelSelector;
-        private readonly TextBox editorTextBox;
+        private readonly TextEditor editorTextEditor;
         private readonly ColumnDefinition editorColumn;
         private readonly ColumnDefinition previewColumn;
         private readonly Control editorPanel;
@@ -40,6 +43,7 @@ namespace YASN.Views
         private readonly Button editorModeButton;
         private readonly Material.Icons.Avalonia.MaterialIcon editorModeIcon;
         private readonly EditorHotkeyController editorHotkeys;
+        private CompletionWindow? completionWindow;
         private List<WindowLevel> supportedLevels = new();
         private double savedLeftPhysical = double.NaN;
         private double savedWidthDip = double.NaN;
@@ -80,8 +84,8 @@ namespace YASN.Views
                 ?? throw new InvalidOperationException("PreviewWebView was not found.");
             levelSelector = this.FindControl<ComboBox>("LevelSelector")
                 ?? throw new InvalidOperationException("LevelSelector was not found.");
-            editorTextBox = this.FindControl<TextBox>("EditorTextBox")
-                ?? throw new InvalidOperationException("EditorTextBox was not found.");
+            editorTextEditor = this.FindControl<TextEditor>("EditorTextEditor")
+                ?? throw new InvalidOperationException("EditorTextEditor was not found.");
             Thumb resizeGrip = this.FindControl<Thumb>("ResizeGrip")
                 ?? throw new InvalidOperationException("ResizeGrip was not found.");
             editorPanel = this.FindControl<DockPanel>("EditorPanel")
@@ -108,12 +112,15 @@ namespace YASN.Views
                 Interval = TimeSpan.FromMilliseconds(150)
             };
             caretSyncTimer.Tick += HandleCaretSyncTick;
-            editorTextBox.PropertyChanged += HandleEditorPropertyChanged;
+            editorTextEditor.Text = viewModel.Content;
+            editorTextEditor.TextChanged += HandleEditorTextChanged;
+            editorTextEditor.TextArea.Caret.PositionChanged += HandleEditorCaretPositionChanged;
 
-            DragDrop.SetAllowDrop(editorTextBox, true);
-            editorTextBox.AddHandler(DragDrop.DragOverEvent, HandleEditorDragOver);
-            editorTextBox.AddHandler(DragDrop.DropEvent, HandleEditorDrop);
-            editorTextBox.AddHandler(KeyDownEvent, HandleEditorKeyDown, RoutingStrategies.Tunnel);
+            DragDrop.SetAllowDrop(editorTextEditor, true);
+            editorTextEditor.AddHandler(DragDrop.DragOverEvent, HandleEditorDragOver);
+            editorTextEditor.AddHandler(DragDrop.DropEvent, HandleEditorDrop);
+            editorTextEditor.AddHandler(KeyDownEvent, HandleEditorKeyDown, RoutingStrategies.Tunnel);
+            editorTextEditor.AddHandler(TextInputEvent, HandleEditorTextInput, RoutingStrategies.Tunnel);
 
             editorHotkeys = new EditorHotkeyController(keybindings, new Dictionary<HotkeyAction, Action>
             {
@@ -137,6 +144,12 @@ namespace YASN.Views
                 {
                     ApplyWindowLevel();
                     RefreshTaskbarVisibility();
+                }
+
+                if (args.PropertyName == nameof(NoteWindowViewModel.Content)
+                    && editorTextEditor.Text != viewModel.Content)
+                {
+                    editorTextEditor.Text = viewModel.Content;
                 }
             };
 
@@ -284,14 +297,25 @@ namespace YASN.Views
             previewWebView.Navigate(new Uri(htmlPath));
         }
 
-        private void HandleEditorPropertyChanged(object? sender, Avalonia.AvaloniaPropertyChangedEventArgs e)
+        /// <summary>
+        /// Pushes AvaloniaEdit text changes into the view model and refreshes caret-preview sync.
+        /// </summary>
+        private void HandleEditorTextChanged(object? sender, EventArgs e)
         {
-            // Re-sync the preview when the caret moves or the text changes (text edits shift the caret's
-            // line even when CaretIndex stays put, e.g. inserting a line above).
-            if (e.Property == TextBox.CaretIndexProperty || e.Property == TextBox.TextProperty)
+            if (viewModel.Content != editorTextEditor.Text)
             {
-                OnCaretMoved();
+                viewModel.Content = editorTextEditor.Text;
             }
+
+            OnCaretMoved();
+        }
+
+        /// <summary>
+        /// Refreshes caret-preview sync when AvaloniaEdit moves the caret without changing text.
+        /// </summary>
+        private void HandleEditorCaretPositionChanged(object? sender, EventArgs e)
+        {
+            OnCaretMoved();
         }
 
         /// <summary>
@@ -301,8 +325,8 @@ namespace YASN.Views
         /// </summary>
         private void OnCaretMoved()
         {
-            string text = editorTextBox.Text ?? string.Empty;
-            int caret = Math.Clamp(editorTextBox.CaretIndex, 0, text.Length);
+            string text = editorTextEditor.Text ?? string.Empty;
+            int caret = Math.Clamp(editorTextEditor.CaretOffset, 0, text.Length);
 
             caretLine = LineForOffset(text, caret);
             caretSyncTimer.Stop();
@@ -358,7 +382,7 @@ namespace YASN.Views
         /// <summary>
         /// Focuses the text editor with the caret on the given 0-based source line so the user can edit
         /// the token there (e.g. a reminder rule from the manager). Switches out of preview-only mode
-        /// first when needed so the editor is visible, and the TextBox scrolls the caret into view.
+        /// first when needed so the editor is visible.
         /// </summary>
         /// <param name="line">The 0-based source line to place the caret on.</param>
         public void FocusEditorAtLine(int line)
@@ -370,8 +394,8 @@ namespace YASN.Views
 
             string text = viewModel.Content;
             int offset = OffsetForLine(text, Math.Max(0, line));
-            editorTextBox.CaretIndex = offset;
-            editorTextBox.Focus();
+            editorTextEditor.CaretOffset = offset;
+            editorTextEditor.Focus();
         }
 
         /// <summary>
@@ -583,7 +607,7 @@ namespace YASN.Views
 
             if (e.Body == MarkdownPreviewDocument.DoubleRightClickMessage)
             {
-                editorTextBox.Focus();
+                editorTextEditor.Focus();
                 return;
             }
 
@@ -732,12 +756,46 @@ namespace YASN.Views
 
         private async void HandleEditorKeyDown(object? sender, KeyEventArgs e)
         {
+            KeyModifiers commandModifier = this.GetPlatformSettings()?.HotkeyConfiguration.CommandModifiers
+                ?? KeyModifiers.Control;
+
+            if (e.Key == Key.Space && e.KeyModifiers.HasFlag(commandModifier))
+            {
+                ShowSnippetCompletion();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.B && e.KeyModifiers.HasFlag(commandModifier))
+            {
+                ApplyMarkdownCommand(MarkdownEditorCommand.Bold);
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.I && e.KeyModifiers.HasFlag(commandModifier))
+            {
+                ApplyMarkdownCommand(MarkdownEditorCommand.Italic);
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Enter
+                && !e.KeyModifiers.HasFlag(KeyModifiers.Shift)
+                && MarkdownAutoIndent.TryHandleEnter(
+                    RequireEditorDocument(),
+                    CurrentEditorSelection(),
+                    out MarkdownEditorEdit edit))
+            {
+                ApplyEditorEdit(edit);
+                e.Handled = true;
+                return;
+            }
+
             TopLevel? topLevel = GetTopLevel(this);
 
             // Use the platform's command modifier (Ctrl on Windows/Linux, Cmd/Meta on macOS) rather
             // than hardcoding Control, so Cmd+V triggers the file paste on macOS.
-            KeyModifiers commandModifier = this.GetPlatformSettings()?.HotkeyConfiguration.CommandModifiers
-                ?? KeyModifiers.Control;
             bool isPasteShortcut = e.Key == Key.V && e.KeyModifiers.HasFlag(commandModifier);
             if (!isPasteShortcut)
             {
@@ -826,14 +884,15 @@ namespace YASN.Views
 
         private void InsertSnippetAtCaret(string snippet)
         {
-            string current = editorTextBox.Text ?? string.Empty;
-            int caretIndex = Math.Clamp(editorTextBox.CaretIndex, 0, current.Length);
+            string current = editorTextEditor.Text ?? string.Empty;
+            int caretIndex = Math.Clamp(editorTextEditor.CaretOffset, 0, current.Length);
             string updated = current.Insert(caretIndex, snippet);
 
             // Route through the view model so the change persists and re-renders the preview.
             viewModel.Content = updated;
-            editorTextBox.CaretIndex = caretIndex + snippet.Length;
-            editorTextBox.Focus();
+            editorTextEditor.Text = updated;
+            editorTextEditor.CaretOffset = caretIndex + snippet.Length;
+            editorTextEditor.Focus();
         }
 
         private async Task ShowErrorAsync(string message)

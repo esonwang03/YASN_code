@@ -5,6 +5,7 @@
     xmlns:vm="clr-namespace:YASN.ViewModels"
     xmlns:l="clr-namespace:YASN.Localization"
     xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+    xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
     xmlns:webview="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.WebView"
     x:DataType="vm:NoteWindowViewModel"
     WindowDecorations="None"
@@ -86,14 +87,40 @@
             <mi:MaterialIcon Kind="Paperclip" Width="18" Height="18" />
           </Button>
         </StackPanel>
-        <TextBox
-            x:Name="EditorTextBox"
-            AcceptsReturn="True"
-            TextWrapping="Wrap"
+        <ae:TextEditor
+            x:Name="EditorTextEditor"
+            WordWrap="True"
             FontFamily="Consolas"
             FontSize="14"
-            Padding="14"
-            Text="{Binding Content, Mode=TwoWay}" />
+            Padding="14">
+          <ae:TextEditor.ContextFlyout>
+            <MenuFlyout>
+              <MenuItem Header="Cut" InputGesture="Ctrl+X" Click="HandleEditorCutClick" />
+              <MenuItem Header="Copy" InputGesture="Ctrl+C" Click="HandleEditorCopyClick" />
+              <MenuItem Header="Paste" InputGesture="Ctrl+V" Click="HandleEditorPasteClick" />
+              <MenuItem Header="-" />
+              <MenuItem Header="Bold" InputGesture="Ctrl+B" Click="HandleEditorBoldClick" />
+              <MenuItem Header="Italic" InputGesture="Ctrl+I" Click="HandleEditorItalicClick" />
+              <MenuItem Header="Inline Code" Click="HandleEditorInlineCodeClick" />
+              <MenuItem Header="Link" Click="HandleEditorLinkClick" />
+              <MenuItem Header="Quote" Click="HandleEditorQuoteClick" />
+              <MenuItem Header="Task Checkbox" Click="HandleEditorTaskCheckboxClick" />
+              <MenuItem Header="Paragraph">
+                <MenuItem Header="Above" Click="HandleEditorParagraphAboveClick" />
+                <MenuItem Header="Below" Click="HandleEditorParagraphBelowClick" />
+              </MenuItem>
+              <MenuItem Header="Insert">
+                <MenuItem Header="Table" Click="HandleEditorInsertTableClick" />
+                <MenuItem Header="Fenced Code Block" Click="HandleEditorInsertCodeBlockClick" />
+                <MenuItem Header="Math Block" Click="HandleEditorInsertMathBlockClick" />
+                <MenuItem Header="Footnote" Click="HandleEditorInsertFootnoteClick" />
+                <MenuItem Header="Horizontal Rule" Click="HandleEditorInsertHorizontalRuleClick" />
+                <MenuItem Header="Color Text" Click="HandleEditorInsertColorTextClick" />
+                <MenuItem Header="Reminder" Click="HandleEditorInsertReminderClick" />
+              </MenuItem>
+            </MenuFlyout>
+          </ae:TextEditor.ContextFlyout>
+        </ae:TextEditor>
       </DockPanel>
       <Border x:Name="PreviewPanel" Grid.Column="1" BorderBrush="{DynamicResource NoteChromeBorder}" BorderThickness="1,0,0,0">
         <webview:NativeWebView x:Name="PreviewWebView" />

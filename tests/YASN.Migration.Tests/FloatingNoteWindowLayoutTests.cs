@@ -36,6 +36,33 @@ namespace YASN.Migration.Tests
             Assert.Empty(titleBar.Elements(AvaloniaNamespace + "Border.RenderTransform"));
         }
 
+        /// <summary>
+        /// Ensures the Markdown source editor uses AvaloniaEdit instead of the plain Avalonia text box.
+        /// </summary>
+        [Fact]
+        public void EditorUsesAvaloniaEditTextEditor()
+        {
+            XNamespace editorNamespace = "https://github.com/avaloniaui/avaloniaedit";
+
+            Assert.DoesNotContain(WindowDocument.Descendants(AvaloniaNamespace + "TextBox"),
+                element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "EditorTextBox");
+            Assert.Single(WindowDocument.Descendants(editorNamespace + "TextEditor"),
+                element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "EditorTextEditor");
+        }
+
+        /// <summary>
+        /// Ensures the app loads AvaloniaEdit's Fluent control styles.
+        /// </summary>
+        [Fact]
+        public void AppIncludesAvaloniaEditStyles()
+        {
+            XDocument appDocument = XDocument.Load(
+                Path.Combine(RepositoryRoot, "src", "YASN.App", "App.axaml"));
+
+            Assert.Contains(appDocument.Descendants(AvaloniaNamespace + "StyleInclude"),
+                element => element.Attribute("Source")?.Value == "avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml");
+        }
+
         private static string FindRepositoryRoot()
         {
             string directory = AppContext.BaseDirectory;
