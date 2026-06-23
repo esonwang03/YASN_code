@@ -59,7 +59,13 @@ jobs:
         # macOS). Third-party native dylibs (Skia, HarfBuzz, e_sqlite3) are still emitted loose beside
         # the native executable, so the macOS bundler's dylib relocation and NativeLibraryResolver
         # path are unchanged.
-        run: dotnet publish src/YASN.App/YASN.App.csproj -c Release -p:EnableAot=true -r ${{ matrix.rid }} --self-contained true --no-restore -o publish/${{ matrix.rid }}
+        #
+        # NO --no-restore: the RID-specific runtime.<rid>.microsoft.dotnet.ilcompiler package is only
+        # pulled when restore runs with this RID + EnableAot. The earlier `dotnet restore YASN.sln`
+        # (no RID, no flag) doesn't pull it, so a --no-restore AOT publish silently skips ILC,
+        # suppresses the apphost, and emits only YASN.dll — leaving no 'YASN' executable for the
+        # bundler. Letting publish restore itself is required for AOT to actually run.
+        run: dotnet publish src/YASN.App/YASN.App.csproj -c Release -p:EnableAot=true -r ${{ matrix.rid }} --self-contained true -o publish/${{ matrix.rid }}
 
       - name: Publish migrate CLI (Windows)
         if: matrix.rid == 'win-x64'
