@@ -85,5 +85,19 @@ namespace YASN.Migration.Tests
             Assert.Contains("data-source-line", html, StringComparison.Ordinal);
             Assert.Contains("scrollIntoView", html, StringComparison.Ordinal);
         }
+
+        /// <summary>
+        /// Embeds the double-click bridge so the host can move the editor caret to a preview block's
+        /// source line — the reverse of the caret-driven preview scroll sync.
+        /// </summary>
+        [Fact]
+        public void RenderEmbedsEditorJumpBridge()
+        {
+            string html = MarkdownPreviewDocument.Render("# Title", "style/default.css");
+
+            Assert.Contains("dblclick", html, StringComparison.Ordinal);
+            Assert.Contains(MarkdownPreviewDocument.FocusEditorLineMessagePrefix, html, StringComparison.Ordinal);
+            Assert.StartsWith("preview-focus-line:", MarkdownPreviewDocument.FocusEditorLineMessagePrefix, StringComparison.Ordinal);
+        }
     }
 }

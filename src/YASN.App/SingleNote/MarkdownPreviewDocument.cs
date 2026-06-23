@@ -38,6 +38,13 @@ namespace YASN.SingleNote
         /// </summary>
         public const string TaskToggleMessagePrefix = "preview-task-toggle:";
 
+        /// <summary>
+        /// Prefix of the message posted to the host when a preview block is double-clicked. The payload
+        /// is the block's 0-based <c>data-source-line</c>, so the host can move the editor caret to that
+        /// line — the reverse of the caret-driven preview scroll sync.
+        /// </summary>
+        public const string FocusEditorLineMessagePrefix = "preview-focus-line:";
+
         // Forwards preview right-clicks to the Avalonia host via the WebView message channel. A single
         // right-click toggles the title bar; a double right-click returns focus to the editor. The
         // single action is deferred past the double-click threshold and cancelled when a second click
@@ -152,6 +159,33 @@ namespace YASN.SingleNote
             })();
             """;
 
+        // Closes the caret-sync loop: a double-click on any rendered block posts its 0-based
+        // data-source-line to the host so the editor caret jumps to that line. Uses the capture phase
+        // and the nearest data-source-line ancestor so clicks on inline children (text, spans) still
+        // resolve to their block. Left single-clicks are untouched, so text selection still works.
+        private const string EditorJumpBridgeScript = """
+            (() => {
+              const post = (message) => {
+                if (window.chrome && window.chrome.webview) {
+                  window.chrome.webview.postMessage(message);
+                }
+              };
+              document.addEventListener('dblclick', (event) => {
+                const node = event.target && event.target.closest
+                  ? event.target.closest('[data-source-line]')
+                  : null;
+                if (!node) {
+                  return;
+                }
+                const line = parseInt(node.getAttribute('data-source-line'), 10);
+                if (isNaN(line)) {
+                  return;
+                }
+                post('preview-focus-line:' + line);
+              }, true);
+            })();
+            """;
+
         /// <summary>
         /// Renders Markdown to a standalone HTML document with the selected style sheet.
         /// </summary>
@@ -185,6 +219,7 @@ namespace YASN.SingleNote
                   <script>{RightClickBridgeScript}</script>
                   <script>{ScrollSyncScript}</script>
                   <script>{TaskCheckboxScript}</script>
+                  <script>{EditorJumpBridgeScript}</script>
                 </body>
                 </html>
                 """;

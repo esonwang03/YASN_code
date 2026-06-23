@@ -381,8 +381,10 @@ namespace YASN.Views
 
         /// <summary>
         /// Focuses the text editor with the caret on the given 0-based source line so the user can edit
-        /// the token there (e.g. a reminder rule from the manager). Switches out of preview-only mode
-        /// first when needed so the editor is visible.
+        /// the token there (e.g. a reminder rule from the manager, or a double-clicked preview block).
+        /// Switches out of preview-only mode first when needed so the editor is visible, then scrolls
+        /// the target line to the vertical center — AvaloniaEdit does not auto-scroll on a caret-offset
+        /// change, and centering keeps the clicked block in context rather than pinned to an edge.
         /// </summary>
         /// <param name="line">The 0-based source line to place the caret on.</param>
         public void FocusEditorAtLine(int line)
@@ -395,6 +397,11 @@ namespace YASN.Views
             string text = viewModel.Content;
             int offset = OffsetForLine(text, Math.Max(0, line));
             editorTextEditor.CaretOffset = offset;
+
+            // ScrollTo takes a 1-based line and centers it (VisualYPosition.LineMiddle at half the
+            // viewport height); the source line here is 0-based, so add one. Out-of-range lines are
+            // clamped internally.
+            editorTextEditor.ScrollTo(Math.Max(0, line) + 1, column: -1);
             editorTextEditor.Focus();
         }
 
@@ -614,6 +621,17 @@ namespace YASN.Views
             if (e.Body is { } toggleBody && toggleBody.StartsWith(MarkdownPreviewDocument.TaskToggleMessagePrefix, StringComparison.Ordinal))
             {
                 HandleTaskToggle(toggleBody[MarkdownPreviewDocument.TaskToggleMessagePrefix.Length..]);
+                return;
+            }
+
+            if (e.Body is { } focusBody && focusBody.StartsWith(MarkdownPreviewDocument.FocusEditorLineMessagePrefix, StringComparison.Ordinal))
+            {
+                string payload = focusBody[MarkdownPreviewDocument.FocusEditorLineMessagePrefix.Length..];
+                if (int.TryParse(payload, out int sourceLine) && sourceLine >= 0)
+                {
+                    FocusEditorAtLine(sourceLine);
+                }
+
                 return;
             }
 
