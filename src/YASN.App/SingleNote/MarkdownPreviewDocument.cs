@@ -141,7 +141,7 @@ namespace YASN.SingleNote
                   window.chrome.webview.postMessage(message);
                 }
               };
-              const boxes = document.querySelectorAll('li.task-list-item > input[type="checkbox"]');
+              const boxes = document.querySelectorAll('li.task-list-item input[type="checkbox"]');
               for (const box of boxes) {
                 box.disabled = false;
                 box.addEventListener('change', () => {

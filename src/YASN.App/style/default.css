@@ -185,7 +185,7 @@ li.task-list-item {
   list-style: none;
 }
 
-li.task-list-item > input[type="checkbox"] {
+li.task-list-item input[type="checkbox"] {
   margin: 0 0.5em 0 -1.3em;
   vertical-align: middle;
   width: 1.05em;
@@ -194,7 +194,7 @@ li.task-list-item > input[type="checkbox"] {
   accent-color: var(--accent);
 }
 
-li.task-list-item > input[type="checkbox"]:checked + * {
+li.task-list-item input[type="checkbox"]:checked + * {
   color: var(--muted);
   text-decoration: line-through;
   text-decoration-color: var(--muted);
