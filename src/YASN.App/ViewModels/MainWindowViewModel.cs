@@ -82,6 +82,7 @@ namespace YASN.ViewModels
         /// </summary>
         public void SyncNow()
         {
+            AppLogger.Info("Manual sync triggered by user.");
             _ = sync?.SyncNowAsync();
         }
 

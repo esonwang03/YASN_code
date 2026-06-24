@@ -270,6 +270,7 @@ namespace YASN.Reminders
         private Task<NotificationSendResult> FireCronAsync(AvaloniaNoteDocument note, NoteReminderRule rule)
         {
             string body = string.IsNullOrWhiteSpace(rule.Content) ? "Reminder" : rule.Content;
+            AppLogger.Info($"Reminder firing: cron rule '{rule.RuleId}' on note '{note.Id}'.");
             NotificationRequest request = new NotificationRequest(note.Title, body, $"note:{note.Id}");
             return notifications.SendAsync(request);
         }
@@ -317,6 +318,7 @@ namespace YASN.Reminders
         {
             // A one-shot ReminderAt has no in-note anchor, so the activator focuses the note without
             // scrolling (rule: null).
+            AppLogger.Info($"Reminder firing: one-shot reminder on note '{note.Id}'.");
             Activator?.Activate(note, null);
             NotificationRequest request = new NotificationRequest(note.Title, "Reminder", $"note:{note.Id}");
             return notifications.SendAsync(request);

@@ -61,14 +61,14 @@ namespace YASN.Reminders
                 AvaloniaNoteDocument? note = repository.LoadAll().FirstOrDefault(n => n.Id == noteId);
                 if (note is null)
                 {
+                    AppLogger.Warn($"NoteContentWriter: note '{noteId}' not found in repository; edit dropped.");
                     return;
                 }
 
-                if (transform(note.Content) is { } updated)
-                {
-                    note.Content = updated;
-                    repository.Save(note);
-                }
+                if (transform(note.Content) is not { } updated) return;
+                AppLogger.Debug($"NoteContentWriter: applied edit to closed note '{noteId}' and saved.");
+                note.Content = updated;
+                repository.Save(note);
             });
         }
     }
