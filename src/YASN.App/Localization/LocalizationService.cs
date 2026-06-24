@@ -132,7 +132,7 @@ namespace YASN.Localization
                     ["Settings.Sync.Test.BadCredentials"] = "Authentication failed. Check the username and password.",
                     ["Settings.Sync.Test.WebDavDisabled"] = "The server reached, but WebDAV is not enabled for this account.",
                     ["Settings.Sync.Test.EndpointNotFound"] = "No WebDAV endpoint at this URL. Check the address (it may need a path like /webdav).",
-                    ["Settings.Sync.Test.DirectoryUnavailable"] = "Connected, but the remote folder could not be created. Check the path and permissions.",
+                    ["Settings.Sync.Test.DirectoryUnavailable"] = "Connected, but the remote folder could not be created. It (or its parent) may not exist — check that the remote path is correct and that you have permission to create it.",
                     ["Settings.Sync.Test.ReadWriteFailed"] = "Connected, but a test file could not be written and read back. Check write permissions and quota.",
                     ["Settings.Sync.Test.Unreachable"] = "Could not reach the server. Check the URL, network, and certificate.",
                     ["Settings.Sync.Test.NoETag"] = "Connected, but the server does not return ETags. Switch change detection to Last-Modified.",

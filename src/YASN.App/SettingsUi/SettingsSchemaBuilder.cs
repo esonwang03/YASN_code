@@ -49,6 +49,19 @@ namespace YASN.SettingsUi
         public const int DefaultAttachmentThresholdMb = 5;
 
         /// <summary>
+        /// Synced key for the floating note minimum window width, in device-independent pixels. Governs
+        /// how narrow a note can be resized and the lower bound QuickLayout / editor-mode expansion clamp
+        /// to.
+        /// </summary>
+        public const string NoteMinWidthKey = "editor.minWidth";
+
+        /// <summary>
+        /// Default floating note minimum width, in device-independent pixels. Matches the historical
+        /// hard-coded value so existing notes are unaffected until the user changes it.
+        /// </summary>
+        public const int DefaultNoteMinWidth = 620;
+
+        /// <summary>
         /// Builds the settings view model and applies persisted values.
         /// </summary>
         /// <param name="store">The settings store used to load persisted values.</param>
@@ -362,7 +375,13 @@ namespace YASN.SettingsUi
 
                 if (!probe.IsUsable)
                 {
-                    return LocalizationService.Current[ProbeFailureKey(probe.Status)];
+                    string message = LocalizationService.Current[ProbeFailureKey(probe.Status)];
+
+                    // Surface the backend's specific reason (e.g. "Parent directory is missing.") when it
+                    // carried one, so a missing remote folder is distinguishable from a permissions fault.
+                    return string.IsNullOrWhiteSpace(probe.Detail)
+                        ? message
+                        : $"{message} ({probe.Detail})";
                 }
 
                 // Connected and read/write verified. If ETag detection is selected but the server omits
@@ -438,6 +457,18 @@ namespace YASN.SettingsUi
                 Title = "Log size limit (KB)",
                 FieldType = SettingFieldType.Text,
                 ShouldSync = false
+            });
+
+            module.Fields.Add(new SettingField
+            {
+                Key = NoteMinWidthKey,
+                Title = "Minimum note width (px)",
+                Description = "The narrowest a note window can be resized. Also the lower bound QuickLayout and the text+preview split clamp to.",
+                FieldType = SettingFieldType.Number,
+                ShouldSync = true,
+                Minimum = 360,
+                Maximum = 1200,
+                Value = DefaultNoteMinWidth.ToString(System.Globalization.CultureInfo.InvariantCulture)
             });
 
             SettingField previewStyle = new SettingField
