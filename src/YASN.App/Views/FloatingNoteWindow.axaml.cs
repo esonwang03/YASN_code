@@ -108,6 +108,7 @@ namespace YASN.Views
             previewColumn = contentGrid.ColumnDefinitions[1];
 
             previewWebView.WebMessageReceived += HandlePreviewMessage;
+            previewWebView.EnvironmentRequested += HandlePreviewEnvironmentRequested;
             previewWebView.NavigationCompleted += (_, _) => ScrollPreviewToCaretLine(onlyIfOffscreen: false, smooth: false);
             resizeGrip.AddHandler(Thumb.PointerPressedEvent, HandleResizeGripPressed, RoutingStrategies.Tunnel);
 
@@ -681,6 +682,26 @@ namespace YASN.Views
             Screen? screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
             double workWidthPhysical = screen?.WorkingArea.Width ?? (Width * scaling);
             return Math.Max(MinWidth, workWidthPhysical / scaling - margin);
+        }
+
+        /// <summary>
+        /// When diagnose mode is on, configures the preview's WebView2 environment to enable developer
+        /// tools and auto-open a floating DevTools window as the preview loads. Fires once per WebView
+        /// environment creation, so a preview opened while diagnose is on gets DevTools; previews opened
+        /// earlier pick it up when reopened. Non-Windows backends ignore the Windows-specific args.
+        /// </summary>
+        private static void HandlePreviewEnvironmentRequested(object? sender, WebViewEnvironmentRequestedEventArgs e)
+        {
+            if (!Diagnostics.DiagnoseMode.IsEnabled)
+            {
+                return;
+            }
+
+            e.EnableDevTools = true;
+            if (e is WindowsWebView2EnvironmentRequestedEventArgs windows)
+            {
+                windows.AdditionalBrowserArguments = "--auto-open-devtools-for-tabs";
+            }
         }
 
         private void HandlePreviewMessage(object? sender, Avalonia.Controls.WebMessageReceivedEventArgs e)

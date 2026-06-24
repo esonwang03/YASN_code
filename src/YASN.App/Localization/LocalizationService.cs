@@ -91,6 +91,7 @@ namespace YASN.Localization
                     ["Settings.Migration.Failed"] = "Note ID migration failed. See the log for details.",
                     ["Settings.Reminder.ActivateOnFire"] = "Activate note and scroll to reminder when it fires",
                     ["Settings.RestoreOpenNotes"] = "Reopen notes that were open last time",
+                    ["Settings.Diagnose"] = "Diagnose mode (show log console and preview developer tools)",
                     ["Settings.Data.DeleteAll"] = "Delete all data and quit",
                     ["Settings.Data.DeleteAll.Confirm.Title"] = "Delete all data",
                     ["Settings.Data.DeleteAll.Confirm.Body"] = "Permanently delete all notes, settings, and cached data on this computer? This cannot be undone.",

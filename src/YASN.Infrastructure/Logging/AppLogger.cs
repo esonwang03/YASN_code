@@ -13,6 +13,13 @@ namespace YASN.Infrastructure.Logging
         private static readonly string LogPath = AppPaths.LogFilePath;
         private static long _maxBytes = 1024 * 1024;
 
+        /// <summary>
+        /// When true, every log line is also echoed to the process console. Diagnose mode raises a
+        /// console and sets this so logs are visible in Release builds, where the compile-time
+        /// <c>DEBUG</c> echo is absent. Volatile so a UI-thread toggle is observed by logging callers.
+        /// </summary>
+        public static volatile bool ConsoleEchoEnabled;
+
         static AppLogger()
         {
             LoadMaxSizeFromLocalSettings();
@@ -73,7 +80,7 @@ namespace YASN.Infrastructure.Logging
                     File.AppendAllLines(LogPath, [line]);
                 }
 
-                WriteToTerminalInDebug(line);
+                WriteToTerminal(line);
             }
             catch (IOException ex)
             {
@@ -93,26 +100,32 @@ namespace YASN.Infrastructure.Logging
             }
         }
 
-        private static void WriteToTerminalInDebug(string line)
+        private static void WriteToTerminal(string line)
         {
-#if DEBUG
+#if !DEBUG
+            // In Release the console echo is opt-in: only diagnose mode (which raises a console) sets
+            // the flag. In DEBUG builds the echo is unconditional, matching the prior behavior.
+            if (!ConsoleEchoEnabled)
+            {
+                return;
+            }
+#endif
             try
             {
                 Console.WriteLine(line);
             }
             catch (IOException ex)
             {
-                ReportInternalFailure("WriteToTerminalInDebug", ex);
+                ReportInternalFailure("WriteToTerminal", ex);
             }
             catch (ObjectDisposedException ex)
             {
-                ReportInternalFailure("WriteToTerminalInDebug", ex);
+                ReportInternalFailure("WriteToTerminal", ex);
             }
             catch (SecurityException ex)
             {
-                ReportInternalFailure("WriteToTerminalInDebug", ex);
+                ReportInternalFailure("WriteToTerminal", ex);
             }
-#endif
         }
 
         private static void EnsureDirectory()

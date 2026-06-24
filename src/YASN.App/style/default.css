@@ -99,7 +99,9 @@ body {
   height: 100%;
   box-sizing: border-box;
   overflow: auto;
-  padding: 18px 22px;
+  /* Bottom slack lets the caret-sync center even the last lines instead of clamping short, which
+     would otherwise re-trigger the centered scroll every tick and make the preview flash. */
+  padding: 18px 22px 50vh 22px;
   background: var(--page-bg);
 }
 

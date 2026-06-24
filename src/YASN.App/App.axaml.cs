@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using YASN.Application;
 using YASN.AvaloniaNotes;
+using YASN.Diagnostics;
 using YASN.Hotkeys;
 using YASN.Infrastructure;
 using YASN.Infrastructure.Reminders;
@@ -51,6 +52,7 @@ namespace YASN
                 }
 
                 SettingsStore settings = new();
+                ApplyDiagnoseMode(settings);
                 LocalizationService localization = new(settings);
                 LocalizationService.Current = localization;
                 ApplyTheme(settings);
@@ -83,6 +85,18 @@ namespace YASN
             }
 
             base.OnFrameworkInitializationCompleted();
+        }
+
+        /// <summary>
+        /// Applies the persisted diagnose-mode preference, raising the log console and enabling preview
+        /// developer tools when set. Read from local (machine-specific) settings; safe to call again
+        /// after a settings save to pick up a live toggle.
+        /// </summary>
+        /// <param name="settings">The settings store holding the diagnose preference.</param>
+        public static void ApplyDiagnoseMode(SettingsStore settings)
+        {
+            string value = settings.GetValue(SettingsSchemaBuilder.DiagnoseKey, shouldSync: false, "false");
+            DiagnoseMode.SetEnabled(string.Equals(value, "true", StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>

@@ -109,6 +109,13 @@ namespace YASN.Views
 
                     store.PersistField(field);
 
+                    if (field.Key == SettingsSchemaBuilder.DiagnoseKey)
+                    {
+                        // Apply diagnose live so the log console and preview developer tools react on
+                        // save without a restart. Persisted above so it also survives next launch.
+                        YASN.Diagnostics.DiagnoseMode.SetEnabled(field.BoolValue);
+                    }
+
                     if (field.Key == LocalizationSettings.LanguageKey && !string.IsNullOrWhiteSpace(field.Value))
                     {
                         localization.SetCulture(field.Value);

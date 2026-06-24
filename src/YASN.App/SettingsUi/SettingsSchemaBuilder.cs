@@ -28,6 +28,13 @@ namespace YASN.SettingsUi
         public const string RestoreOpenNotesKey = "app.restoreOpenNotes";
 
         /// <summary>
+        /// Local-only key for diagnose mode. When enabled the app raises a console streaming the live
+        /// log and opens developer tools for note previews. Machine-specific (not synced) and defaults
+        /// to false; applied through <see cref="YASN.Diagnostics.DiagnoseMode"/>.
+        /// </summary>
+        public const string DiagnoseKey = "app.diagnose";
+
+        /// <summary>
         /// Synced key for the master attachment auto-copy toggle.
         /// </summary>
         public const string AttachmentAutoSyncEnabledKey = "attachment.autoSyncEnabled";
@@ -171,6 +178,15 @@ namespace YASN.SettingsUi
                 FieldType = SettingFieldType.Toggle,
                 ShouldSync = false,
                 BoolValue = true
+            });
+
+            module.Fields.Add(new SettingField
+            {
+                Key = DiagnoseKey,
+                Title = LocalizationService.Current["Settings.Diagnose"],
+                FieldType = SettingFieldType.Toggle,
+                ShouldSync = false,
+                BoolValue = false
             });
 
             SettingField language = new SettingField
