@@ -235,6 +235,8 @@ namespace YASN.Infrastructure.Sync
                         {
                             changed = true;
                             CountAction(item, context, ref uploaded, ref downloaded, ref deleted);
+                            string noteName = item.Local?.Title ?? "(remote note)";
+                            Logging.AppLogger.Info($"Sync {item.Action}: note '{noteName}' [{item.SyncKey}].");
                         }
                     }
                     catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
@@ -244,6 +246,16 @@ namespace YASN.Infrastructure.Sync
                 }
 
                 Logging.AppLogger.Info($"Sync pass complete: {uploaded} uploaded, {downloaded} downloaded, {deleted} deleted.");
+
+                // Mirror referenced note assets (pasted images, attachments) after notes converge, so
+                // freshly downloaded notes contribute their asset references this same pass. Best-effort:
+                // never fails the pass, and asset transfers count as a change so the UI refreshes.
+                int assetsTransferred = await SyncAssetsAsync(client, cancellationToken).ConfigureAwait(false);
+                if (assetsTransferred > 0)
+                {
+                    changed = true;
+                }
+
                 if (changed)
                 {
                     SyncCompleted?.Invoke(this, EventArgs.Empty);
