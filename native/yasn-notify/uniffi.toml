@@ -1,0 +1,5 @@
+# UniFFI C# binding configuration (consumed by uniffi-bindgen-cs).
+# Pin the emitted namespace so the generated bindings land in a stable C# namespace
+# that the app references explicitly.
+[bindings.csharp]
+namespace = "YASN.Native.Notify"

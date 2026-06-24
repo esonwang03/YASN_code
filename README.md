@@ -24,3 +24,14 @@ YASN is a cross-platform Avalonia sticky-notes app for Windows and macOS. It kee
 ## Verification
 
 CI restores, tests, and builds the solution on Windows and macOS. Platform behavior that requires the host OS, such as tray/menu-bar integration, native notifications, auto-start, and window-level semantics, still needs manual verification on the matching desktop platform. Virtual desktop integration is not supported in the Avalonia shell; quick move and resize use Avalonia's cross-platform window and screen APIs.
+
+## Licensing
+
+YASN is released under the MIT License (see `LICENSE`).
+
+Native notifications are delivered through `native/yasn-notify`, a Rust `cdylib` that links the
+[`user-notify`](https://crates.io/crates/user-notify) crate, which is licensed under
+**LGPL-3.0-or-later**. It is distributed as a separate, replaceable dynamic library
+(`yasn_notify.dll` / `libyasn_notify.dylib`) loaded over an FFI boundary — the dynamic-linking case
+the LGPL permits — so YASN's own sources remain MIT. The LGPL license text ships with the crate
+under `native/yasn-notify/third-party-licenses/`.

@@ -52,7 +52,6 @@
          transitively, whose native lib (SQLitePCLRaw.lib.e_sqlite3 2.1.10) carries advisory
          GHSA-2m69-gcr7-jv3q. The 3.x bundle ships that native lib renamed to SourceGear.sqlite3. -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.2" />
-    <PackageReference Include="OsNotifications" Version="1.1.5" />
     <PackageReference Include="WebDav.Client" Version="2.9.0" />
   </ItemGroup>
 
@@ -87,10 +86,58 @@
     <ItemGroup>
       <_PublishSymbols Include="$(PublishDir)**/*.pdb" />
       <_PublishSymbols Include="$(PublishDir)**/*.dbg" />
-      <_PublishSymbols Include="$(PublishDir)**/*.dSYM/**" />
     </ItemGroup>
 
     <Delete Files="@(_PublishSymbols)" />
-    <RemoveDir Directories="$(PublishDir)**/*.dSYM" />
+
+    <!-- NativeAOT on macOS emits a YASN.dSYM debug bundle (a directory). MSBuild item globs match
+         files, not directories, and RemoveDir does not expand wildcards, so the dSYM directories
+         must be resolved on disk before removal — otherwise the bundle is left behind. -->
+    <ItemGroup Condition="Exists('$(PublishDir)')">
+      <_DsymDirectories Include="$([System.IO.Directory]::GetDirectories('$(PublishDir)', '*.dSYM', System.IO.SearchOption.AllDirectories))" />
+    </ItemGroup>
+
+    <RemoveDir Directories="@(_DsymDirectories)" Condition="'@(_DsymDirectories)' != ''" />
+  </Target>
+
+  <!-- Native notification library (native/yasn-notify, a Rust cdylib fronting user-notify). The
+       committed UniFFI bindings (Notifications/Generated/yasn_notify.cs) P/Invoke it by the bare
+       name `yasn_notify`, so the built library must sit beside the app. BuildRustNotify (default
+       true) can be set false to skip the cargo build for contributors without a Rust toolchain;
+       the app still compiles (bindings are committed) and notifications report unsupported at
+       runtime. The cdylib is built for the publish RID's Rust target triple, or the host triple
+       for a plain build/test (no RID). NativeAOT cannot cross-compile, but Rust can target the
+       sibling Apple arch on a macOS runner, so the RID->triple map drives the right output. -->
+  <PropertyGroup>
+    <BuildRustNotify Condition="'$(BuildRustNotify)' == ''">true</BuildRustNotify>
+    <YasnNotifyDir>$(MSBuildProjectDirectory)\..\..\native\yasn-notify</YasnNotifyDir>
+
+    <!-- RID -> Rust target triple. Empty RID (plain build/test) -> host triple below. -->
+    <RustTarget Condition="'$(RuntimeIdentifier)' == 'win-x64'">x86_64-pc-windows-msvc</RustTarget>
+    <RustTarget Condition="'$(RuntimeIdentifier)' == 'osx-x64'">x86_64-apple-darwin</RustTarget>
+    <RustTarget Condition="'$(RuntimeIdentifier)' == 'osx-arm64'">aarch64-apple-darwin</RustTarget>
+    <RustTarget Condition="'$(RustTarget)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">x86_64-pc-windows-msvc</RustTarget>
+    <RustTarget Condition="'$(RustTarget)' == '' And $([MSBuild]::IsOSPlatform('OSX')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">aarch64-apple-darwin</RustTarget>
+    <RustTarget Condition="'$(RustTarget)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">x86_64-apple-darwin</RustTarget>
+
+    <!-- cdylib filename is decided by the build host OS (host OS family == target OS family for
+         every supported RID). -->
+    <CdylibFile Condition="$([MSBuild]::IsOSPlatform('Windows'))">yasn_notify.dll</CdylibFile>
+    <CdylibFile Condition="$([MSBuild]::IsOSPlatform('OSX'))">libyasn_notify.dylib</CdylibFile>
+  </PropertyGroup>
+
+  <Target Name="BuildRustNotify"
+          Condition="'$(BuildRustNotify)' == 'true' And '$(RustTarget)' != ''"
+          BeforeTargets="AssignTargetPaths">
+    <Exec Command="cargo build --release --target $(RustTarget)"
+          WorkingDirectory="$(YasnNotifyDir)" />
+    <ItemGroup>
+      <!-- Ship the cdylib beside the app for dotnet run/publish; on macOS bundle-macos.sh later
+           relocates *.dylib into Contents/Frameworks and NativeLibraryResolver loads it back. -->
+      <None Include="$(YasnNotifyDir)\target\$(RustTarget)\release\$(CdylibFile)">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <Link>$(CdylibFile)</Link>
+      </None>
+    </ItemGroup>
   </Target>
 </Project>

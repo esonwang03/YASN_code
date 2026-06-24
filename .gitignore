@@ -45,6 +45,9 @@ packages/
 .idea/
 *.sln.iml
 
+# Rust (native/yasn-notify) build output
+native/**/target/
+
 # Test results
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*

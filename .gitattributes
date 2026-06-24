@@ -15,6 +15,13 @@
 # breaks the shebang (bad interpreter: /usr/bin/env bash^M).
 *.sh text eol=lf
 
+# Rust sources and Cargo manifests use LF by convention; keep them LF on every
+# platform so cargo and the macOS/Windows runners see no line-ending churn.
+*.rs text eol=lf
+Cargo.toml text eol=lf
+Cargo.lock text eol=lf
+*.toml text eol=lf
+
 # Vendored KaTeX assets ship from upstream; keep them byte-identical (no CRLF
 # normalization on the minified JS/CSS, fonts treated as binary).
 src/YASN.App/style/katex/** -text

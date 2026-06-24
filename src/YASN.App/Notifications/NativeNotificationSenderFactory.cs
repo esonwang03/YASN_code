@@ -13,7 +13,7 @@ namespace YASN.Notifications
         {
             if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
             {
-                return new OsNotificationSender();
+                return new RustNotificationSender();
             }
 
             return new UnsupportedNativeNotificationSender();

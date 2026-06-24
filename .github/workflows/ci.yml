@@ -23,6 +23,38 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # The native notification cdylib (native/yasn-notify) is built by an MSBuild target during
+      # build/test/publish, so the Rust toolchain must be present before the Build step. The target
+      # only builds the runner's own RID here (Rust can cross-compile darwin<->darwin, but CI just
+      # needs the host arch). uniffi-bindgen-cs regenerates the committed C# bindings for the drift
+      # check below; its tag pins the matching uniffi crate version (v0.11.0 -> uniffi 0.31.0).
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/yasn-notify
+
+      - name: Install uniffi-bindgen-cs
+        run: cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag v0.11.0+v0.31.0 --locked
+
+      # Regenerate the committed UniFFI bindings from a freshly built cdylib and fail if they drift.
+      # The generated file is committed (so the app compiles without Rust), so a stale checkout would
+      # otherwise silently diverge from the native ABI.
+      - name: Verify generated bindings are up to date
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then triple=x86_64-pc-windows-msvc; lib=yasn_notify.dll; else triple=aarch64-apple-darwin; lib=libyasn_notify.dylib; fi
+          # uniffi-bindgen-cs runs `cargo metadata` from its working dir, so generate from the crate.
+          ( cd native/yasn-notify && \
+            cargo build --release --target "$triple" && \
+            uniffi-bindgen-cs --library "target/$triple/release/$lib" --config uniffi.toml --out-dir target/cs-check )
+          # Compare line-ending-normalized (committed file is CRLF per .gitattributes).
+          sed 's/\r$//' src/YASN.App/Notifications/Generated/yasn_notify.cs > /tmp/committed.cs
+          sed 's/\r$//' native/yasn-notify/target/cs-check/yasn_notify.cs > /tmp/fresh.cs
+          diff -u /tmp/committed.cs /tmp/fresh.cs
+
       - name: Restore
         run: dotnet restore YASN.sln
 

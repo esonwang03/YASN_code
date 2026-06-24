@@ -51,6 +51,8 @@ namespace YASN
                     return;
                 }
 
+                GuardMacOsDockQuit(desktopLifetime);
+
                 // Catch UI-thread faults now that the dispatcher and notification service exist, so a
                 // bad operation during startup or later is logged and surfaced rather than killing the
                 // tray. Process-wide handlers were already registered in Program.Main.
@@ -227,6 +229,35 @@ namespace YASN
                 LocalizationService.Current["App.Unhandled.Body"],
                 "app:unhandled");
             _ = platformServices.Notifications.SendAsync(request);
+        }
+
+        /// <summary>
+        /// Routes a macOS OS-initiated quit (Dock "Quit", Cmd+Q, logout) through Avalonia's managed
+        /// shutdown instead of the native <c>NSApplication terminate:</c> path.
+        /// </summary>
+        /// <remarks>
+        /// Under NativeAOT, the native terminate path calls C runtime <c>exit()</c>, which runs the
+        /// C++ static destructors in <c>libAvaloniaNative.dylib</c>; those reverse-P/Invoke into the
+        /// managed runtime after it has begun tearing down, so the thread-attach fails fast and the
+        /// process aborts (SIGABRT). Cancelling the OS request and re-posting <see cref="IClassicDesktopStyleApplicationLifetime.Shutdown"/>
+        /// onto the dispatcher lets the app exit through the normal managed path, avoiding the native
+        /// <c>exit()</c> destructor re-entry. <c>Shutdown</c> (unlike <c>TryShutdown</c>) does not
+        /// re-raise <c>ShutdownRequested</c>, so this does not loop. No-op off macOS. See
+        /// https://github.com/sourcegit-scm/sourcegit/issues/2271.
+        /// </remarks>
+        /// <param name="desktopLifetime">The classic desktop lifetime to guard.</param>
+        private static void GuardMacOsDockQuit(IClassicDesktopStyleApplicationLifetime desktopLifetime)
+        {
+            if (!OperatingSystem.IsMacOS())
+            {
+                return;
+            }
+
+            desktopLifetime.ShutdownRequested += (_, args) =>
+            {
+                args.Cancel = true;
+                Dispatcher.UIThread.Post(() => desktopLifetime.Shutdown());
+            };
         }
 
         /// <summary>

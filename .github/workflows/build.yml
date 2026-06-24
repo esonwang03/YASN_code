@@ -37,6 +37,20 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # The native notification cdylib (native/yasn-notify) is built per RID by an MSBuild target
+      # during publish, so the Rust toolchain and the matching target triple must be present first.
+      # Unlike .NET AOT, Rust cross-compiles between the two Apple archs, so the osx-x64 image's
+      # cdylib can be built on the macos-14 (arm) runner once x86_64-apple-darwin is installed.
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rid == 'osx-x64' && 'x86_64-apple-darwin' || matrix.rid == 'osx-arm64' && 'aarch64-apple-darwin' || 'x86_64-pc-windows-msvc' }}
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/yasn-notify
+
       # On a tag the version is the tag without the leading 'v'; a manual dispatch has no
       # release version, so use 0.0.0 (a valid CFBundleShortVersionString) for the bundle.
       - name: Resolve version
