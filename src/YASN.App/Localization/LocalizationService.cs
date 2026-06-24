@@ -104,6 +104,8 @@ namespace YASN.Localization
                     ["Settings.PreviewStyle"] = "Preview style",
                     ["Settings.Unrecognized.Title"] = "Some settings were not recognized",
                     ["Settings.Unrecognized.Body"] = "Old configuration from a previous version was found and is being ignored. Review your settings to re-apply them.",
+                    ["App.Unhandled.Title"] = "An unexpected error occurred",
+                    ["App.Unhandled.Body"] = "An unexpected error occurred and was logged. The app is still running.",
                     ["Settings.DataDir.Restart"] = "The data folder change takes effect after restarting the app.",
                     ["Settings.DataDir.Invalid"] = "That folder path is not valid.",
                     ["Settings.DataDir.Description"] = "Takes effect after restart.",

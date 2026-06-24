@@ -51,6 +51,11 @@ namespace YASN
                     return;
                 }
 
+                // Catch UI-thread faults now that the dispatcher and notification service exist, so a
+                // bad operation during startup or later is logged and surfaced rather than killing the
+                // tray. Process-wide handlers were already registered in Program.Main.
+                GlobalExceptionHandler.RegisterUiThread(NotifyUnhandledException);
+
                 SettingsStore settings = new();
                 ApplyDiagnoseMode(settings);
                 LocalizationService localization = new(settings);
@@ -203,6 +208,25 @@ namespace YASN
             {
                 AppLogger.Warn($"Could not check settings for unrecognized keys: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Surfaces a handled UI-thread exception as a tray notification so the user knows something
+        /// failed and was logged. The exception detail is kept out of the toast (it is already in the
+        /// log); failure to notify is non-fatal and intentionally ignored by the caller.
+        /// </summary>
+        private void NotifyUnhandledException(Exception ex)
+        {
+            if (platformServices is null)
+            {
+                return;
+            }
+
+            NotificationRequest request = new NotificationRequest(
+                LocalizationService.Current["App.Unhandled.Title"],
+                LocalizationService.Current["App.Unhandled.Body"],
+                "app:unhandled");
+            _ = platformServices.Notifications.SendAsync(request);
         }
 
         /// <summary>

@@ -66,6 +66,16 @@ namespace YASN.Infrastructure.Logging
             Write("WARN", message);
         }
 
+        /// <summary>
+        /// Writes an error-level diagnostic message. Used for unhandled exceptions so a crash leaves
+        /// its cause on disk; the synchronous write flushes before a terminating handler returns.
+        /// </summary>
+        /// <param name="message">The message to record.</param>
+        public static void Error(string message)
+        {
+            Write("ERROR", message);
+        }
+
         private static void Write(string level, string message)
         {
             try

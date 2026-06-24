@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using YASN.Application;
 using YASN.Cli;
+using YASN.Diagnostics;
 
 namespace YASN
 {
@@ -21,6 +22,10 @@ namespace YASN
         [STAThread]
         public static int Main(string[] args)
         {
+            // Capture process-wide unhandled exceptions before anything else runs, so even early
+            // startup and the CLI path leave their crash cause in the log rather than quitting quietly.
+            GlobalExceptionHandler.RegisterProcessWide();
+
             // With arguments, YASN acts as a command-line front-end: it never starts Avalonia, but
             // serves read-only verbs directly or routes UI/state verbs to the running tray instance
             // over IPC (auto-launching it when needed). With no arguments it starts the tray app.
