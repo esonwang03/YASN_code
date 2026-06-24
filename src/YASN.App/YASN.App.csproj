@@ -82,4 +82,15 @@
   <ItemGroup Condition="'$(EnableAot)'=='true'">
     <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
   </ItemGroup>
+
+  <Target Name="RemovePublishSymbols" AfterTargets="Publish">
+    <ItemGroup>
+      <_PublishSymbols Include="$(PublishDir)**/*.pdb" />
+      <_PublishSymbols Include="$(PublishDir)**/*.dbg" />
+      <_PublishSymbols Include="$(PublishDir)**/*.dSYM/**" />
+    </ItemGroup>
+
+    <Delete Files="@(_PublishSymbols)" />
+    <RemoveDir Directories="$(PublishDir)**/*.dSYM" />
+  </Target>
 </Project>
