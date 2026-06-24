@@ -26,6 +26,11 @@ namespace YASN.MarkdownEditing
                 MarkdownEditorCommand.Bold => Wrap(document, clamped, "**", "**"),
                 MarkdownEditorCommand.Italic => Wrap(document, clamped, "*", "*"),
                 MarkdownEditorCommand.InlineCode => Wrap(document, clamped, "`", "`"),
+                MarkdownEditorCommand.Strikethrough => Wrap(document, clamped, "~~", "~~"),
+                MarkdownEditorCommand.Insert => Wrap(document, clamped, "++", "++"),
+                MarkdownEditorCommand.Highlight => Wrap(document, clamped, "==", "=="),
+                MarkdownEditorCommand.Superscript => Wrap(document, clamped, "^", "^"),
+                MarkdownEditorCommand.Subscript => Wrap(document, clamped, "~", "~"),
                 MarkdownEditorCommand.Link => ApplyLink(document, clamped),
                 MarkdownEditorCommand.Quote => PrefixSelectedLines(document, clamped, "> "),
                 MarkdownEditorCommand.TaskCheckbox => InsertSnippet(
@@ -81,7 +86,7 @@ namespace YASN.MarkdownEditing
         {
             string text = document.Text;
             int start = LineStartForOffset(text, selection.Start);
-            int end = LineEndForSelection(text, selection.Start + selection.Length);
+            int end = LineEndForSelection(text, selection.Start, selection.Start + selection.Length);
             string block = text[start..end];
             string[] lines = block.Split('\n');
             string replacement = string.Join("\n", lines.Select(line => prefix + line));
@@ -104,10 +109,15 @@ namespace YASN.MarkdownEditing
             return newline < 0 ? 0 : newline + 1;
         }
 
-        private static int LineEndForSelection(string text, int selectionEnd)
+        private static int LineEndForSelection(string text, int selectionStart, int selectionEnd)
         {
             int clamped = Math.Clamp(selectionEnd, 0, text.Length);
-            if (clamped > 0 && clamped <= text.Length && text[clamped - 1] == '\n')
+
+            // Only step back over a trailing newline when the selection actually spans into it (a
+            // multi-line selection ending at a line boundary), so the empty line after the boundary is
+            // not prefixed. For an empty selection (caret only) the boundary newline belongs to the
+            // caret's own line start, and stepping back would put end before start and throw.
+            if (clamped > selectionStart && clamped > 0 && clamped <= text.Length && text[clamped - 1] == '\n')
             {
                 return clamped - 1;
             }

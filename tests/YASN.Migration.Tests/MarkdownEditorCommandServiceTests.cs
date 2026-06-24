@@ -78,5 +78,89 @@ namespace YASN.Migration.Tests
             Assert.Equal("> quoted\n> ", document.Text);
             Assert.Equal(new MarkdownEditorEdit(document.TextLength, 0), edit);
         }
+
+        /// <summary>
+        /// Regression: a Quote command with an empty caret at the start of a line (offset just after a
+        /// newline) must prefix that line rather than throw. The line end previously stepped back over
+        /// the preceding newline, producing start &gt; end and an ArgumentOutOfRangeException — the crash
+        /// reported for the right-click "Quote" item.
+        /// </summary>
+        [Fact]
+        public void QuoteAtLineStartWithEmptySelectionDoesNotThrow()
+        {
+            TextDocument document = new TextDocument("first\nsecond");
+            // Caret at offset 6 = start of "second", immediately after the '\n'.
+            MarkdownEditorSelection selection = new MarkdownEditorSelection(6, 0);
+
+            MarkdownEditorEdit edit = MarkdownEditorCommandService.Apply(document, selection, MarkdownEditorCommand.Quote);
+
+            Assert.Equal("first\n> second", document.Text);
+            Assert.Equal(new MarkdownEditorEdit(8, 0), edit);
+        }
+
+        /// <summary>
+        /// Regression: Quote on an empty document must not throw and inserts the marker.
+        /// </summary>
+        [Fact]
+        public void QuoteOnEmptyDocumentDoesNotThrow()
+        {
+            TextDocument document = new TextDocument(string.Empty);
+
+            MarkdownEditorEdit edit = MarkdownEditorCommandService.Apply(document, new MarkdownEditorSelection(0, 0), MarkdownEditorCommand.Quote);
+
+            Assert.Equal("> ", document.Text);
+            Assert.Equal(new MarkdownEditorEdit(2, 0), edit);
+        }
+
+        /// <summary>
+        /// Regression: Quote with an empty caret at the very end of the document prefixes the last line.
+        /// </summary>
+        [Fact]
+        public void QuoteAtEndOfDocumentDoesNotThrow()
+        {
+            TextDocument document = new TextDocument("only line");
+
+            MarkdownEditorCommandService.Apply(
+                document,
+                new MarkdownEditorSelection(document.TextLength, 0),
+                MarkdownEditorCommand.Quote);
+
+            Assert.Equal("> only line", document.Text);
+        }
+
+        /// <summary>
+        /// A multi-line selection ending exactly on a line boundary prefixes only the spanned lines, not
+        /// the empty line after the boundary.
+        /// </summary>
+        [Fact]
+        public void QuoteMultiLineSelectionPrefixesSpannedLines()
+        {
+            TextDocument document = new TextDocument("one\ntwo\nthree");
+            // Selection covers "one\ntwo\n": offsets 0..8 (ends at the start of "three").
+            MarkdownEditorSelection selection = new MarkdownEditorSelection(0, 8);
+
+            MarkdownEditorCommandService.Apply(document, selection, MarkdownEditorCommand.Quote);
+
+            Assert.Equal("> one\n> two\nthree", document.Text);
+        }
+
+        /// <summary>
+        /// The welcome-document inline wrap commands surround the selection with their markers.
+        /// </summary>
+        [Theory]
+        [InlineData(MarkdownEditorCommand.Strikethrough, "~~beta~~")]
+        [InlineData(MarkdownEditorCommand.Insert, "++beta++")]
+        [InlineData(MarkdownEditorCommand.Highlight, "==beta==")]
+        [InlineData(MarkdownEditorCommand.Superscript, "^beta^")]
+        [InlineData(MarkdownEditorCommand.Subscript, "~beta~")]
+        public void InlineWrapCommandsSurroundSelection(MarkdownEditorCommand command, string expectedWrapped)
+        {
+            TextDocument document = new TextDocument("alpha beta");
+            MarkdownEditorSelection selection = new MarkdownEditorSelection(6, 4);
+
+            MarkdownEditorCommandService.Apply(document, selection, command);
+
+            Assert.Equal($"alpha {expectedWrapped}", document.Text);
+        }
     }
 }

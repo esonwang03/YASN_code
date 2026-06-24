@@ -33,6 +33,31 @@ namespace YASN.MarkdownEditing
         /// <summary>
         /// Inserts a Markdown task checkbox line.
         /// </summary>
-        TaskCheckbox
+        TaskCheckbox,
+
+        /// <summary>
+        /// Wraps the selection with strikethrough markers (<c>~~ ~~</c>).
+        /// </summary>
+        Strikethrough,
+
+        /// <summary>
+        /// Wraps the selection with inserted-text markers (<c>++ ++</c>).
+        /// </summary>
+        Insert,
+
+        /// <summary>
+        /// Wraps the selection with highlight markers (<c>== ==</c>).
+        /// </summary>
+        Highlight,
+
+        /// <summary>
+        /// Wraps the selection with superscript markers (<c>^ ^</c>).
+        /// </summary>
+        Superscript,
+
+        /// <summary>
+        /// Wraps the selection with subscript markers (<c>~ ~</c>).
+        /// </summary>
+        Subscript
     }
 }
