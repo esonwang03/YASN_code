@@ -13,7 +13,6 @@
     Title="{Binding Title}"
     Width="900"
     Height="560"
-    MinWidth="620"
     MinHeight="380">
   <Window.Resources>
     <ResourceDictionary>
@@ -102,6 +101,13 @@
               <MenuItem Header="Bold" InputGesture="Ctrl+B" Click="HandleEditorBoldClick" />
               <MenuItem Header="Italic" InputGesture="Ctrl+I" Click="HandleEditorItalicClick" />
               <MenuItem Header="Inline Code" Click="HandleEditorInlineCodeClick" />
+              <MenuItem Header="Format">
+                <MenuItem Header="Strikethrough" Click="HandleEditorStrikethroughClick" />
+                <MenuItem Header="Inserted" Click="HandleEditorInsertClick" />
+                <MenuItem Header="Highlight" Click="HandleEditorHighlightClick" />
+                <MenuItem Header="Superscript" Click="HandleEditorSuperscriptClick" />
+                <MenuItem Header="Subscript" Click="HandleEditorSubscriptClick" />
+              </MenuItem>
               <MenuItem Header="Link" Click="HandleEditorLinkClick" />
               <MenuItem Header="Quote" Click="HandleEditorQuoteClick" />
               <MenuItem Header="Task Checkbox" Click="HandleEditorTaskCheckboxClick" />

@@ -213,7 +213,7 @@ namespace YASN.Application
         {
             if (noteWindows.TryGetValue(noteId, out FloatingNoteWindow? window))
             {
-                window.ApplyExternalContent(content);
+                ((ILiveNoteContentEditor)window).ReplaceAll(content);
                 return true;
             }
 
@@ -225,10 +225,12 @@ namespace YASN.Application
         {
             if (noteWindows.TryGetValue(noteId, out FloatingNoteWindow? window))
             {
-                window.EditContent(transform);
+                AppLogger.Debug($"TryEditContent: applying transform to open note '{noteId}'.");
+                ((ILiveNoteContentEditor)window).ApplyTransform(transform);
                 return true;
             }
 
+            AppLogger.Debug($"TryEditContent: note '{noteId}' has no open window; caller will fall back to the repository.");
             return false;
         }
 

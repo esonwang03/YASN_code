@@ -60,6 +60,46 @@ namespace YASN.Views
         }
 
         /// <summary>
+        /// Wraps the current selection with strikethrough markers.
+        /// </summary>
+        private void HandleEditorStrikethroughClick(object? sender, RoutedEventArgs e)
+        {
+            ApplyMarkdownCommand(MarkdownEditorCommand.Strikethrough);
+        }
+
+        /// <summary>
+        /// Wraps the current selection with inserted-text markers.
+        /// </summary>
+        private void HandleEditorInsertClick(object? sender, RoutedEventArgs e)
+        {
+            ApplyMarkdownCommand(MarkdownEditorCommand.Insert);
+        }
+
+        /// <summary>
+        /// Wraps the current selection with highlight markers.
+        /// </summary>
+        private void HandleEditorHighlightClick(object? sender, RoutedEventArgs e)
+        {
+            ApplyMarkdownCommand(MarkdownEditorCommand.Highlight);
+        }
+
+        /// <summary>
+        /// Wraps the current selection with superscript markers.
+        /// </summary>
+        private void HandleEditorSuperscriptClick(object? sender, RoutedEventArgs e)
+        {
+            ApplyMarkdownCommand(MarkdownEditorCommand.Superscript);
+        }
+
+        /// <summary>
+        /// Wraps the current selection with subscript markers.
+        /// </summary>
+        private void HandleEditorSubscriptClick(object? sender, RoutedEventArgs e)
+        {
+            ApplyMarkdownCommand(MarkdownEditorCommand.Subscript);
+        }
+
+        /// <summary>
         /// Converts the current selection into a Markdown link.
         /// </summary>
         private void HandleEditorLinkClick(object? sender, RoutedEventArgs e)

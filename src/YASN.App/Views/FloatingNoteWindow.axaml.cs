@@ -27,7 +27,7 @@ namespace YASN.Views
     /// <summary>
     /// Displays the phase-two single note editor and Markdown preview.
     /// </summary>
-    public sealed partial class FloatingNoteWindow : Window
+    public sealed partial class FloatingNoteWindow : Window, ILiveNoteContentEditor
     {
         private readonly NoteWindowViewModel viewModel;
         private readonly IWindowLevelController windowLevels;
@@ -50,6 +50,12 @@ namespace YASN.Views
         private Action? openMainWindowAction;
         private readonly Avalonia.Threading.DispatcherTimer caretSyncTimer;
         private int caretLine;
+
+        // Guards the document<->view-model mirror against re-entrancy: when an edit pushes new text into
+        // the document, its TextChanged fires and writes viewModel.Content; this flag stops that write
+        // from bouncing back into the document. Set only while applying a document edit on the UI thread.
+        private bool applyingDocumentEdit;
+
         /// <summary>
         /// Initializes a note window for XAML loading and simple manual startup.
         /// </summary>
@@ -147,13 +153,23 @@ namespace YASN.Views
                 }
 
                 if (args.PropertyName == nameof(NoteWindowViewModel.Content)
-                    && editorTextEditor.Text != viewModel.Content)
+                    && !applyingDocumentEdit
+                    && editorTextEditor.Document is { } doc
+                    && doc.Text != viewModel.Content)
                 {
-                    editorTextEditor.Text = viewModel.Content;
+                    // A direct view-model content write (not originating from a document edit) is mirrored
+                    // back as a minimal splice so the editor stays in step without a full-text reset that
+                    // would clear undo and move the caret.
+                    MarkdownTextSplice splice = MarkdownTextDiff.Compute(doc.Text, viewModel.Content);
+                    if (!splice.IsNoOp)
+                    {
+                        doc.Replace(splice.Offset, splice.RemovedLength, splice.InsertedText);
+                    }
                 }
             };
 
             ConfigureLevelSelector();
+            ApplyConfiguredMinWidth();
             ApplyInitialWindowState();
             InitializeChromeCollapse();
         }
@@ -198,28 +214,83 @@ namespace YASN.Views
         }
 
         /// <summary>
-        /// Applies content changed outside the editor (e.g. a fire-once reminder disabling itself) so
-        /// the editor text and preview update live. Routes through the view model, which persists and
-        /// reschedules. No-op when the content is unchanged.
+        /// Gets the note's current live content: the editor document text, including unsaved edits.
+        /// </summary>
+        public string LiveContent => editorTextEditor.Document?.Text ?? viewModel.Content;
+
+        /// <summary>
+        /// Replaces the entire live content as a single minimal document edit, so an externally-authored
+        /// update (e.g. a fire-once reminder disabling itself) refreshes the editor and preview live,
+        /// stays on the undo stack, and keeps the caret where it was. No-op when unchanged.
         /// </summary>
         /// <param name="content">The new note content.</param>
-        public void ApplyExternalContent(string content)
+        public void ReplaceAll(string content)
         {
-            viewModel.Content = content;
+            ApplyContentSplice(content ?? string.Empty);
         }
 
         /// <summary>
-        /// Applies a transform to the live note content so a programmatic edit composes with the
-        /// current (possibly unsaved) editor text instead of replacing it wholesale. A
-        /// <see langword="null"/> result leaves the content unchanged.
+        /// Applies a transform to the live note content as a single minimal document edit, so a
+        /// programmatic edit composes with the current (possibly unsaved) editor text, is individually
+        /// undoable, and preserves the caret/selection outside the changed span. A <see langword="null"/>
+        /// result is a no-op.
         /// </summary>
         /// <param name="transform">The content transform; returning <see langword="null"/> is a no-op.</param>
-        public void EditContent(Func<string, string?> transform)
+        /// <returns><see langword="true"/> when a change was applied.</returns>
+        public bool ApplyTransform(Func<string, string?> transform)
         {
-            if (transform(viewModel.Content) is { } updated)
+            if (transform(LiveContent) is { } updated)
             {
-                viewModel.Content = updated;
+                return ApplyContentSplice(updated);
             }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Diffs the desired text against the current document and applies only the changed span as one
+        /// <see cref="AvaloniaEdit.Document.TextDocument.Replace(int, int, string)"/>. This is the single
+        /// funnel every whole-string content mutation flows through; the document's TextChanged then
+        /// mirrors the result into the view model. Falls back to assigning the view model directly when
+        /// the document is not yet available.
+        /// </summary>
+        /// <param name="desired">The full content the document should hold after the edit.</param>
+        /// <returns><see langword="true"/> when the document text changed.</returns>
+        private bool ApplyContentSplice(string desired)
+        {
+            AvaloniaEdit.Document.TextDocument? document = editorTextEditor.Document;
+            if (document is null)
+            {
+                // No editor document yet (pre-load); route straight to the view model.
+                if (viewModel.Content == desired)
+                {
+                    return false;
+                }
+
+                viewModel.Content = desired;
+                return true;
+            }
+
+            MarkdownTextSplice splice = MarkdownTextDiff.Compute(document.Text, desired);
+            if (splice.IsNoOp)
+            {
+                return false;
+            }
+
+            // Edit only the changed span: one undo step, caret/selection outside the span preserved. The
+            // document's TextChanged then mirrors the new text into the view model (persist, reschedule,
+            // preview); the guard stops that mirror from bouncing back through the PropertyChanged handler.
+            applyingDocumentEdit = true;
+            try
+            {
+                document.Replace(splice.Offset, splice.RemovedLength, splice.InsertedText);
+            }
+            finally
+            {
+                applyingDocumentEdit = false;
+            }
+
+            return true;
         }
 
         private void ConfigureLevelSelector()
@@ -284,7 +355,15 @@ namespace YASN.Views
             string stylePath = PreviewStyleManager.ToStyleAbsolutePath(PreviewStyleManager.ResolveStyle(configuredStyle));
             string styleHref = new Uri(stylePath).AbsoluteUri;
             string baseHref = new Uri(AppPaths.DataDirectory + Path.DirectorySeparatorChar).AbsoluteUri;
-            string html = MarkdownPreviewDocument.Render(viewModel.Content, styleHref, baseHref);
+
+            // KaTeX is vendored under the data-dir style folder (materialized from the bundle). Pass its
+            // folder as an absolute file URI so math renders offline; empty if the assets are missing so
+            // the preview still works (math falls back to source text).
+            string katexDir = Path.Combine(AppPaths.StyleRoot, "katex");
+            string katexBaseHref = File.Exists(Path.Combine(katexDir, "katex.min.js"))
+                ? new Uri(katexDir + Path.DirectorySeparatorChar).AbsoluteUri
+                : string.Empty;
+            string html = MarkdownPreviewDocument.Render(viewModel.Content, styleHref, baseHref, katexBaseHref);
             string htmlPath = AppPaths.GetNoteHtmlCachePath(viewModel.NoteId);
             string? directory = Path.GetDirectoryName(htmlPath);
 
@@ -658,14 +737,24 @@ namespace YASN.Views
                 || !int.TryParse(payload.AsSpan(0, separator), out int sourceLine)
                 || sourceLine < 0)
             {
+                AppLogger.Warn($"Task toggle ignored: unparseable payload '{payload}'.");
                 return;
             }
 
             bool isChecked = payload[(separator + 1)..] == "1";
-            if (NoteTaskEditor.TrySetChecked(viewModel.Content, sourceLine, isChecked, out string updated))
+            bool applied = ApplyTransform(content =>
+                NoteTaskEditor.TrySetChecked(content, sourceLine, isChecked, out string updated) ? updated : null);
+            if (applied)
             {
+                AppLogger.Debug($"Task toggle: note '{viewModel.NoteId}' line {sourceLine} -> checked={isChecked}.");
                 caretLine = sourceLine;
-                viewModel.Content = updated;
+            }
+            else
+            {
+                // No change applied: the reported line is out of range, is not a task item, or already
+                // holds the requested state. Most often a stale preview (the source changed after the
+                // preview last rendered). Logged so the "click does nothing" reports are diagnosable.
+                AppLogger.Warn($"Task toggle no-op: note '{viewModel.NoteId}' line {sourceLine} checked={isChecked} did not match a toggleable task item (possibly a stale preview).");
             }
         }
 
@@ -690,6 +779,14 @@ namespace YASN.Views
             if (bounds is not null)
             {
                 quickLayout.ApplyBounds(this, bounds);
+
+                // QuickLayout resized the window to an explicit user choice, so any width saved when the
+                // text+preview split was entered is now stale. Drop it: leaving split mode should collapse
+                // from this new width (the NaN-means-collapse path in AdjustWidthForMode) rather than snap
+                // back to the pre-split width, which left the editor column un-reclaimed.
+                savedLeftPhysical = double.NaN;
+                savedWidthDip = double.NaN;
+
                 PersistCurrentBounds();
             }
         }
@@ -697,8 +794,8 @@ namespace YASN.Views
         private async void HandleSetReminderClick(object? sender, RoutedEventArgs e)
         {
             ReminderManagerDialog dialog = new ReminderManagerDialog(
-                () => viewModel.Content,
-                updated => viewModel.Content = updated,
+                () => LiveContent,
+                updated => ReplaceAll(updated),
                 FocusEditorAtLine,
                 YASN.Localization.LocalizationService.Current);
             await dialog.ShowDialog(this).ConfigureAwait(true);
@@ -882,6 +979,24 @@ namespace YASN.Views
             }
         }
 
+        /// <summary>
+        /// Applies the user-configured minimum note width, replacing the XAML default. Governs the
+        /// narrowest resize and the lower bound the editor-mode expand/collapse and QuickLayout clamp to.
+        /// </summary>
+        private void ApplyConfiguredMinWidth()
+        {
+            string raw = settings.GetValue(
+                SettingsUi.SettingsSchemaBuilder.NoteMinWidthKey,
+                shouldSync: true,
+                SettingsUi.SettingsSchemaBuilder.DefaultNoteMinWidth.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            if (!int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int minWidth))
+            {
+                minWidth = SettingsUi.SettingsSchemaBuilder.DefaultNoteMinWidth;
+            }
+
+            MinWidth = Math.Clamp(minWidth, 360, 1200);
+        }
+
         private (bool autoSyncEnabled, long thresholdBytes) ReadAttachmentPolicy()
         {
             string enabledRaw = settings.GetValue(SettingsUi.SettingsSchemaBuilder.AttachmentAutoSyncEnabledKey, shouldSync: true, "true");
@@ -902,15 +1017,14 @@ namespace YASN.Views
 
         private void InsertSnippetAtCaret(string snippet)
         {
-            string current = editorTextEditor.Text ?? string.Empty;
-            int caretIndex = Math.Clamp(editorTextEditor.CaretOffset, 0, current.Length);
-            string updated = current.Insert(caretIndex, snippet);
-
-            // Route through the view model so the change persists and re-renders the preview.
-            viewModel.Content = updated;
-            editorTextEditor.Text = updated;
-            editorTextEditor.CaretOffset = caretIndex + snippet.Length;
-            editorTextEditor.Focus();
+            // Insert through the document at the caret like the catalog snippet path, so the insert is one
+            // undoable edit that leaves surrounding undo history and the caret intact (the old full-text
+            // reset discarded both). Caret lands at the end of the inserted text.
+            MarkdownEditorEdit edit = MarkdownEditorCommandService.InsertSnippet(
+                RequireEditorDocument(),
+                CurrentEditorSelection(),
+                new MarkdownSnippet("Insert", snippet, snippet.Length));
+            ApplyEditorEdit(edit);
         }
 
         private async Task ShowErrorAsync(string message)
@@ -966,6 +1080,7 @@ namespace YASN.Views
 
         private void PersistCurrentBounds()
         {
+            AppLogger.Debug($"Note '{viewModel.NoteId}' bounds: pos=({Position.X},{Position.Y}) sizeDip={Width}x{Height} mode={viewModel.DisplayMode}");
             viewModel.UpdateBounds(Position.X, Position.Y, Width, Height);
         }
 
