@@ -60,6 +60,10 @@ namespace YASN.Cli
                     return ListNotes();
                 case CliVerb.NoteInfo:
                     return ShowNoteInfo(command.NoteId!);
+                case CliVerb.NoteGlance:
+                    return GlanceNote(command);
+                case CliVerb.NoteEdit:
+                    return EditNote(command);
                 case CliVerb.OpenData:
                     return ShellFolderOpener.Open(AppPaths.DataDirectory) ? 0 : 1;
                 case CliVerb.OpenCache:
@@ -106,8 +110,91 @@ namespace YASN.Cli
             Console.WriteLine($"Reminder:  {Format(note.ReminderAt)}");
             Console.WriteLine($"Bounds:    {note.Left},{note.Top} {note.Width}x{note.Height}");
             Console.WriteLine($"Display:   {note.DisplayMode}");
+
+            // Counts read from disk; an open note's last few in-flight keystrokes may not yet be saved.
+            string[] lines = CliText.SplitLines(note.Content);
+            int words = note.Content.Split(
+                new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Length;
+            Console.WriteLine($"Lines:     {lines.Length}");
+            Console.WriteLine($"Words:     {words}");
+            Console.WriteLine($"Chars:     {note.Content.Length}");
             Console.WriteLine("Preview:");
             Console.WriteLine(Preview(note.Content));
+            return 0;
+        }
+
+        /// <summary>
+        /// Prints a note's Markdown to stdout, optionally restricted to a 1-based inclusive line range
+        /// (<c>--lines a-b</c>). Reads from disk so it works whether or not an instance is running.
+        /// Output is raw (no line numbers) so it pipes cleanly.
+        /// </summary>
+        private static int GlanceNote(CliCommand command)
+        {
+            AvaloniaNoteDocument? note = new NoteRepository().LoadAll().FirstOrDefault(n => n.Id == command.NoteId);
+            if (note is null)
+            {
+                Console.Error.WriteLine($"No note with id '{command.NoteId}'.");
+                return 1;
+            }
+
+            string? rangeText = command.Options is { } o && o.TryGetValue("lines", out string? r) ? r : null;
+            if (rangeText is null)
+            {
+                Console.WriteLine(note.Content);
+                return 0;
+            }
+
+            if (!CliText.TryParseLineRange(rangeText, out (int Start, int End) range))
+            {
+                Console.Error.WriteLine($"Invalid line range '{rangeText}'. Use <start>-<end> (1-based).");
+                return 2;
+            }
+
+            string[] lines = CliText.SplitLines(note.Content);
+            int start = Math.Min(range.Start, lines.Length);
+            int end = Math.Min(range.End, lines.Length);
+            for (int i = start; i <= end; i++)
+            {
+                Console.WriteLine(lines[i - 1]);
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Replaces or appends a note's Markdown. The content comes from <c>--text</c> when given,
+        /// otherwise from stdin. Routed to a running instance so the edit composes with an open editor;
+        /// when no instance answers (hence no open windows) it falls back to a direct repository write,
+        /// which cannot clobber a live autosave.
+        /// </summary>
+        private static int EditNote(CliCommand command)
+        {
+            bool append = command.Options is { } o && o.ContainsKey("append");
+            string content = command.Options is { } opts && opts.TryGetValue("text", out string? text)
+                ? text
+                : Console.In.ReadToEnd();
+
+            CliCommand resolved = command with { Payload = content };
+            string? requestLine = CliProtocol.ToRequestLine(resolved);
+            string response = CliIpcClient.SendAsync(requestLine!, autoLaunch: false).GetAwaiter().GetResult();
+            if (response.StartsWith(CliProtocol.OkPrefix, StringComparison.Ordinal))
+            {
+                return Report(response);
+            }
+
+            // No running instance: edit on disk directly. With the app down there are no open windows,
+            // so no live autosave can overwrite this write.
+            NoteRepository repository = new();
+            AvaloniaNoteDocument? note = repository.LoadAll().FirstOrDefault(n => n.Id == command.NoteId);
+            if (note is null)
+            {
+                Console.Error.WriteLine($"No note with id '{command.NoteId}'.");
+                return 1;
+            }
+
+            note.Content = append ? CliText.AppendContent(note.Content, content) : content;
+            repository.Save(note);
+            Console.WriteLine($"{(append ? "Appended to" : "Replaced")} note '{command.NoteId}'.");
             return 0;
         }
 
@@ -154,6 +241,11 @@ namespace YASN.Cli
         {
             bool ok = response.StartsWith(CliProtocol.OkPrefix, StringComparison.Ordinal);
             string message = StripPrefix(response);
+            if (message.StartsWith(CliProtocol.PayloadPrefix, StringComparison.Ordinal))
+            {
+                message = CliProtocol.DecodePayload(message[CliProtocol.PayloadPrefix.Length..]);
+            }
+
             if (ok)
             {
                 Console.WriteLine(message);

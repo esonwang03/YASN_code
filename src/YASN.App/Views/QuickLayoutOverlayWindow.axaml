@@ -3,31 +3,53 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:l="clr-namespace:YASN.Localization"
-    WindowDecorations="None"
-    TransparencyLevelHint="Transparent"
-    Background="#66000000"
-    Topmost="True"
-    ShowInTaskbar="False"
+    Title="{l:Tr Window.QuickLayout}"
+    Width="900"
+    Height="600"
     CanResize="False"
-    Cursor="Cross">
-  <Canvas x:Name="OverlayCanvas" Background="Transparent">
+    ShowInTaskbar="False"
+    SystemDecorations="None"
+    WindowStartupLocation="CenterScreen"
+    Background="#0F0F0F">
+  <Grid>
+    <Canvas x:Name="MapCanvas" Background="#0F0F0F" ClipToBounds="True">
+      <Rectangle
+          x:Name="SelectionRectangle"
+          IsVisible="False"
+          Stroke="#FF3D7EFF"
+          StrokeThickness="2"
+          Fill="#553D7EFF" />
+    </Canvas>
     <Border
         x:Name="HintBox"
-        Canvas.Left="40"
-        Canvas.Top="40"
+        VerticalAlignment="Top"
+        HorizontalAlignment="Center"
+        Margin="0,14,0,0"
         Background="#CC202020"
         CornerRadius="6"
-        Padding="16,10">
+        Padding="14,7"
+        IsHitTestVisible="False">
       <TextBlock
           Text="{l:Tr Window.QuickLayout.Hint}"
           Foreground="White"
-          FontSize="14" />
+          FontSize="13"
+          TextWrapping="Wrap" />
     </Border>
-    <Rectangle
-        x:Name="SelectionRectangle"
+    <Border
+        x:Name="WarningBox"
         IsVisible="False"
-        Stroke="#FF3D7EFF"
-        StrokeThickness="2"
-        Fill="#333D7EFF" />
-  </Canvas>
+        VerticalAlignment="Bottom"
+        HorizontalAlignment="Center"
+        Margin="0,0,0,14"
+        Background="#CC8A1F1F"
+        CornerRadius="6"
+        Padding="14,7"
+        IsHitTestVisible="False">
+      <TextBlock
+          Text="{l:Tr Window.QuickLayout.TooSmall}"
+          Foreground="White"
+          FontSize="13"
+          TextWrapping="Wrap" />
+    </Border>
+  </Grid>
 </Window>

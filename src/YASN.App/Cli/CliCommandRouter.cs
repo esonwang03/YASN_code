@@ -1,6 +1,7 @@
 using YASN.Application;
 using YASN.AvaloniaNotes;
 using YASN.Infrastructure.Sync;
+using YASN.WindowLayout;
 
 namespace YASN.Cli
 {
@@ -74,6 +75,101 @@ namespace YASN.Cli
             noteWindows.Close(noteId);
             repository.Delete(noteId);
             return $"Deleted note '{noteId}'.";
+        }
+
+        /// <summary>
+        /// Replaces or appends a note's Markdown. When the note's window is open the edit composes with
+        /// the live editor document (undoable, caret-preserving); when closed it is persisted through
+        /// the repository. The window state — never the caller — decides the path, so a direct disk
+        /// write can never clobber an open window's eager autosave.
+        /// </summary>
+        /// <param name="noteId">The note identifier.</param>
+        /// <param name="append">Whether to append (<see langword="true"/>) or replace.</param>
+        /// <param name="content">The Markdown to apply.</param>
+        /// <returns>A status line for the CLI response.</returns>
+        public string EditNote(string noteId, bool append, string content)
+        {
+            AvaloniaNoteDocument? note = repository.LoadAll().FirstOrDefault(n => n.Id == noteId);
+            if (note is null)
+            {
+                throw new InvalidOperationException($"No note with id '{noteId}'.");
+            }
+
+            string verb = append ? "Appended to" : "Replaced";
+            if (noteWindows.TryEditContent(noteId, current => append ? CliText.AppendContent(current, content) : content))
+            {
+                return $"{verb} note '{noteId}' (live).";
+            }
+
+            note.Content = append ? CliText.AppendContent(note.Content, content) : content;
+            repository.Save(note);
+            return $"{verb} note '{noteId}'.";
+        }
+
+        /// <summary>
+        /// Moves a note's window onto a screen at an explicit physical-pixel rectangle, or raises the
+        /// quick-layout overlay when <paramref name="coords"/> is null. Opens the note first if needed.
+        /// </summary>
+        /// <param name="noteId">The note identifier.</param>
+        /// <param name="screenIndex">The target screen's index in <see cref="NoteWindowManager.EnumerateScreens"/>.</param>
+        /// <param name="coords">The screen-relative rectangle, or null to raise the overlay.</param>
+        /// <returns>A status line for the CLI response.</returns>
+        public string LayoutNote(string noteId, int screenIndex, CliLayoutCoords? coords)
+        {
+            AvaloniaNoteDocument? note = repository.LoadAll().FirstOrDefault(n => n.Id == noteId);
+            if (note is null)
+            {
+                throw new InvalidOperationException($"No note with id '{noteId}'.");
+            }
+
+            if (coords is null)
+            {
+                noteWindows.ShowQuickLayout(note);
+                return $"Opened layout overlay for note '{noteId}'.";
+            }
+
+            IReadOnlyList<ScreenInfo> screens = noteWindows.EnumerateScreens();
+            if (screenIndex < 0 || screenIndex >= screens.Count)
+            {
+                throw new InvalidOperationException(
+                    $"No screen with index {screenIndex} (found {screens.Count}).");
+            }
+
+            WindowRect bounds = CliLayoutMath.Resolve(
+                screens[screenIndex],
+                coords.LeftTopX,
+                coords.LeftTopY,
+                coords.RightBottomX,
+                coords.RightBottomY);
+
+            noteWindows.Open(note);
+            if (!noteWindows.ApplyLayoutBounds(noteId, bounds))
+            {
+                throw new InvalidOperationException($"Could not lay out note '{noteId}'.");
+            }
+
+            return $"Moved note '{noteId}' to screen {screenIndex}.";
+        }
+
+        /// <summary>
+        /// Enumerates the desktop's screens as a formatted, multi-line table for the CLI.
+        /// </summary>
+        /// <returns>The screen table.</returns>
+        public string ListScreens()
+        {
+            IReadOnlyList<ScreenInfo> screens = noteWindows.EnumerateScreens();
+            System.Globalization.CultureInfo culture = System.Globalization.CultureInfo.InvariantCulture;
+            System.Text.StringBuilder builder = new();
+            builder.Append("Index  Bounds (x,y,w,h)              Scaling  Primary");
+            foreach (ScreenInfo screen in screens)
+            {
+                WindowRect b = screen.PhysicalBounds;
+                builder.Append('\n');
+                builder.Append(culture,
+                    $"{screen.Index,5}  {b.Left},{b.Top},{b.Width},{b.Height,-18}  {screen.Scaling,7:0.##}  {(screen.IsPrimary ? "yes" : "no")}");
+            }
+
+            return builder.ToString();
         }
 
         /// <summary>Raises the manage-notes window.</summary>

@@ -46,22 +46,40 @@ namespace YASN.PlatformServices
         }
 
         /// <summary>
-        /// Applies explicit window bounds chosen on the quick-layout overlay.
+        /// Applies explicit window bounds chosen on the quick-layout monitor map.
         /// </summary>
         /// <param name="window">The target window.</param>
         /// <param name="bounds">Bounds with physical-pixel left/top and DIP width/height.</param>
         public void ApplyBounds(Window window, WindowRect bounds)
         {
-            // Left/Top arrive in physical pixels (window position space) and Width/Height in DIP
-            // (window size space). Left/Top is mapped through the platform position seam (identity on
-            // Windows, divide-by-scaling on macOS); Width/Height are already DIP and applied directly.
-            double scaling = WindowScreenScaling.Get(window);
+            // Left/Top arrive in physical pixels (window position space) and Width/Height in DIP, already
+            // sized for the monitor the bounds land on. The position seam (identity on Windows, divide-
+            // by-scaling on macOS) must use that target monitor's scaling — not the window's current
+            // screen — so a note moved across monitors of differing DPI lands at the right place.
+            double scaling = ScalingAt(window, bounds.Left, bounds.Top);
             int left = (int)Math.Round(WindowPositionScaling.PhysicalToPosition(bounds.Left, scaling, WindowPositionScaling.PositionIsLogical));
             int top = (int)Math.Round(WindowPositionScaling.PhysicalToPosition(bounds.Top, scaling, WindowPositionScaling.PositionIsLogical));
             window.Position = new PixelPoint(left, top);
             window.Width = Math.Max(window.MinWidth, bounds.Width);
             window.Height = Math.Max(window.MinHeight, bounds.Height);
             AppLogger.Debug($"QuickLayout applyBounds: bounds={bounds} scaling={scaling} pos=({left},{top}) sizeDip={window.Width}x{window.Height}");
+        }
+
+        // Resolves the scale factor of the monitor that contains a physical-pixel point, falling back to
+        // the window's current screen scaling when the point lands in a gap between monitors.
+        private static double ScalingAt(Window window, double physicalX, double physicalY)
+        {
+            foreach (Screen screen in window.Screens.All)
+            {
+                PixelRect b = screen.Bounds;
+                if (physicalX >= b.X && physicalX < b.X + b.Width &&
+                    physicalY >= b.Y && physicalY < b.Y + b.Height)
+                {
+                    return screen.Scaling <= 0 ? 1.0 : screen.Scaling;
+                }
+            }
+
+            return WindowScreenScaling.Get(window);
         }
 
         // Avalonia exposes window width/height in logical units while screen working areas are physical

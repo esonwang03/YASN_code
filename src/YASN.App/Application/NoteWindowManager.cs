@@ -4,6 +4,7 @@ using YASN.PlatformServices;
 using YASN.Reminders;
 using YASN.ViewModels;
 using YASN.Views;
+using YASN.WindowLayout;
 
 namespace YASN.Application
 {
@@ -158,6 +159,70 @@ namespace YASN.Application
             {
                 _ = window.ShowQuickLayoutOverlay();
             }
+        }
+
+        /// <summary>
+        /// Applies explicit bounds to a note's open window. Returns <see langword="false"/> when no
+        /// window is open. The scaling seam and bounds persistence stay inside the window.
+        /// </summary>
+        /// <param name="noteId">The note identifier.</param>
+        /// <param name="bounds">Bounds with absolute physical-pixel left/top and DIP width/height.</param>
+        /// <returns><see langword="true"/> when an open window received the bounds.</returns>
+        public bool ApplyLayoutBounds(string noteId, WindowRect bounds)
+        {
+            if (noteWindows.TryGetValue(noteId, out FloatingNoteWindow? window))
+            {
+                window.ApplyLayoutBounds(bounds);
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Enumerates the desktop's monitors. Avalonia exposes screens only through a live
+        /// <see cref="Avalonia.Controls.TopLevel"/>, so this reuses any open note window's
+        /// <c>Screens</c>; when none is open it briefly creates a hidden probe window to read them.
+        /// </summary>
+        /// <returns>The monitors with physical bounds, working area, scaling, and primary flag.</returns>
+        public IReadOnlyList<ScreenInfo> EnumerateScreens()
+        {
+            foreach (FloatingNoteWindow open in noteWindows.Values)
+            {
+                return ReadScreens(open);
+            }
+
+            Avalonia.Controls.Window probe = new() { ShowInTaskbar = false, Width = 1, Height = 1 };
+            try
+            {
+                return ReadScreens(probe);
+            }
+            finally
+            {
+                probe.Close();
+            }
+        }
+
+        // Projects a window's Avalonia screen list into ScreenInfo, in enumeration order. Bounds and
+        // working area are absolute physical pixels; scaling guards against a non-positive report.
+        private static IReadOnlyList<ScreenInfo> ReadScreens(Avalonia.Controls.Window window)
+        {
+            List<ScreenInfo> result = new();
+            Avalonia.Platform.Screen? primary = window.Screens.Primary;
+            int index = 0;
+            foreach (Avalonia.Platform.Screen screen in window.Screens.All)
+            {
+                Avalonia.PixelRect bounds = screen.Bounds;
+                Avalonia.PixelRect work = screen.WorkingArea;
+                result.Add(new ScreenInfo(
+                    index++,
+                    new WindowRect(bounds.X, bounds.Y, bounds.Width, bounds.Height),
+                    new WindowRect(work.X, work.Y, work.Width, work.Height),
+                    screen.Scaling <= 0 ? 1.0 : screen.Scaling,
+                    ReferenceEquals(screen, primary)));
+            }
+
+            return result;
         }
 
         /// <summary>

@@ -795,7 +795,19 @@ namespace YASN.Views
         public async Task ShowQuickLayoutOverlay()
         {
             double scaling = WindowScreenScaling.Get(this);
-            QuickLayoutOverlayWindow overlay = new QuickLayoutOverlayWindow(Width, Height, scaling);
+            WindowRect currentBounds = new WindowRect(
+                WindowPositionScaling.PositionToPhysical(Position.X, scaling, WindowPositionScaling.PositionIsLogical),
+                WindowPositionScaling.PositionToPhysical(Position.Y, scaling, WindowPositionScaling.PositionIsLogical),
+                Width * scaling,
+                Height * scaling);
+
+            QuickLayoutOverlayWindow overlay = new QuickLayoutOverlayWindow(
+                BuildMonitorMap(),
+                currentBounds,
+                Width,
+                Height,
+                MinWidth,
+                MinHeight);
             WindowRect? bounds = await overlay.ShowDialog<WindowRect?>(this).ConfigureAwait(true);
             if (bounds is not null)
             {
@@ -810,6 +822,32 @@ namespace YASN.Views
 
                 PersistCurrentBounds();
             }
+        }
+
+        // Snapshots the desktop's monitors as physical-pixel bounds plus per-monitor scaling for the
+        // quick-layout map. Falls back to the primary screen, then a default rectangle, so the overlay
+        // always has at least one monitor to draw.
+        private IReadOnlyList<QuickLayoutMonitor> BuildMonitorMap()
+        {
+            List<QuickLayoutMonitor> result = new List<QuickLayoutMonitor>();
+            foreach (Screen screen in Screens.All)
+            {
+                Avalonia.PixelRect b = screen.Bounds;
+                result.Add(new QuickLayoutMonitor(
+                    new WindowRect(b.X, b.Y, b.Width, b.Height),
+                    screen.Scaling <= 0 ? 1.0 : screen.Scaling));
+            }
+
+            if (result.Count == 0)
+            {
+                Screen? primary = Screens.Primary;
+                Avalonia.PixelRect b = primary?.Bounds ?? new Avalonia.PixelRect(0, 0, 1920, 1080);
+                result.Add(new QuickLayoutMonitor(
+                    new WindowRect(b.X, b.Y, b.Width, b.Height),
+                    primary?.Scaling is { } s and > 0 ? s : 1.0));
+            }
+
+            return result;
         }
 
         private async void HandleSetReminderClick(object? sender, RoutedEventArgs e)
@@ -1103,6 +1141,20 @@ namespace YASN.Views
         {
             AppLogger.Debug($"Note '{viewModel.NoteId}' bounds: pos=({Position.X},{Position.Y}) sizeDip={Width}x{Height} mode={viewModel.DisplayMode}");
             viewModel.UpdateBounds(Position.X, Position.Y, Width, Height);
+        }
+
+        /// <summary>
+        /// Applies explicit bounds chosen programmatically (the <c>note layout</c> CLI verb), mirroring
+        /// the overlay-accept path: it drops any saved text+preview split width so leaving split mode
+        /// collapses from this new width, then persists the new bounds.
+        /// </summary>
+        /// <param name="bounds">Bounds with absolute physical-pixel left/top and DIP width/height.</param>
+        public void ApplyLayoutBounds(WindowRect bounds)
+        {
+            quickLayout.ApplyBounds(this, bounds);
+            savedLeftPhysical = double.NaN;
+            savedWidthDip = double.NaN;
+            PersistCurrentBounds();
         }
 
         /// <summary>
