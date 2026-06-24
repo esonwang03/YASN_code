@@ -8,6 +8,7 @@ namespace YASN.Infrastructure.Markdown
         {
             return new MarkdownPipelineBuilder()
                 .UseAdvancedExtensions()
+                .UseMathematics()
                 .UsePreciseSourceLocation()
                 .UseHexColorText()
                 .UseNoteReminders()
@@ -25,6 +26,7 @@ namespace YASN.Infrastructure.Markdown
         {
             return new MarkdownPipelineBuilder()
                 .UseAdvancedExtensions()
+                .UseMathematics()
                 .UsePreciseSourceLocation()
                 .UseHexColorText()
                 .UseNoteReminders()

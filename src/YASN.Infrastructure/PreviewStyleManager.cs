@@ -156,7 +156,11 @@ namespace YASN.Infrastructure
                 return;
             }
 
-            foreach (string sourcePath in Directory.GetFiles(BundledStyleRoot, "*.css", SearchOption.AllDirectories))
+            // Mirror the entire bundled style tree (CSS plus supporting assets such as the vendored KaTeX
+            // CSS/JS/fonts), not just stylesheets, so the preview can load them from the data dir with the
+            // same file: URIs it uses for the selected stylesheet. ListStyles still filters to *.css, so
+            // these extra files never appear as selectable preview themes.
+            foreach (string sourcePath in Directory.GetFiles(BundledStyleRoot, "*", SearchOption.AllDirectories))
             {
                 string relative = Path.GetRelativePath(BundledStyleRoot, sourcePath);
                 string destination = Path.Combine(AppPaths.StyleRoot, relative);

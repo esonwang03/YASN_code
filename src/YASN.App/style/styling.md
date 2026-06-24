@@ -117,9 +117,10 @@ Selectors: `ol[type="a"|"A"|"i"|"I"]`.
 help cursor).
 
 ### Mathematics
-`$inline$` / `$$block$$` → `<span class="math">` / `<div class="math">`. Styled
-with a math serif and horizontal scroll for block math. Note: no KaTeX/MathJax is
-loaded in the preview, so math shows as its source text.
+`$inline$` / `$$block$$` → `<span class="math">` / `<div class="math">`. KaTeX is
+bundled under `style/katex/` (CSS, JS, fonts) and typesets these at preview load,
+fully offline. The `.math` CSS rule is only a fallback for when those assets are
+missing.
 
 ### MediaLinks
 Recognised media URLs → `<iframe>`/`<video>`/`<audio>`. Selectors constrain them

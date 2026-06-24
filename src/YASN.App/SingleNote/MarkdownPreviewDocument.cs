@@ -186,6 +186,25 @@ namespace YASN.SingleNote
             })();
             """;
 
+        // Renders the KaTeX auto-render pass after the document loads, typesetting the spans/divs the
+        // Markdig Mathematics extension emits (inline \( \) and display \[ \]). KaTeX, its CSS, and its
+        // fonts are vendored under style/katex so math renders fully offline. throwOnError:false leaves
+        // malformed math as its source text rather than blanking the preview.
+        private const string MathRenderScript = """
+            (() => {
+              if (typeof renderMathInElement !== 'function') {
+                return;
+              }
+              renderMathInElement(document.getElementById('page') || document.body, {
+                delimiters: [
+                  { left: '\\[', right: '\\]', display: true },
+                  { left: '\\(', right: '\\)', display: false }
+                ],
+                throwOnError: false
+              });
+            })();
+            """;
+
         /// <summary>
         /// Renders Markdown to a standalone HTML document with the selected style sheet.
         /// </summary>
@@ -195,14 +214,21 @@ namespace YASN.SingleNote
         /// Optional document base URL so relative asset links (for example embedded note images)
         /// resolve against the data root rather than the cached HTML file location. Omitted when empty.
         /// </param>
+        /// <param name="katexBaseHref">
+        /// Optional base URL of the vendored KaTeX asset folder (containing <c>katex.min.css</c>,
+        /// <c>katex.min.js</c>, and <c>contrib/auto-render.min.js</c>). When empty, math falls back to its
+        /// source text and no KaTeX assets are referenced.
+        /// </param>
         /// <returns>A complete HTML document.</returns>
-        public static string Render(string markdown, string styleHref, string baseHref = "")
+        public static string Render(string markdown, string styleHref, string baseHref = "", string katexBaseHref = "")
         {
             string body = Markdown.ToHtml(markdown ?? string.Empty, Pipeline);
             string encodedStyleHref = WebUtility.HtmlEncode(styleHref ?? string.Empty);
             string baseTag = string.IsNullOrEmpty(baseHref)
                 ? string.Empty
                 : $"  <base href=\"{WebUtility.HtmlEncode(baseHref)}\">\n";
+
+            (string katexHead, string katexScripts) = BuildKatexFragments(katexBaseHref);
 
             return $"""
                 <!doctype html>
@@ -211,7 +237,7 @@ namespace YASN.SingleNote
                   <meta charset="utf-8">
                   <meta name="viewport" content="width=device-width, initial-scale=1">
                 {baseTag}  <link rel="stylesheet" href="{encodedStyleHref}">
-                </head>
+                {katexHead}</head>
                 <body>
                   <main id="page">
                 {body}
@@ -220,9 +246,34 @@ namespace YASN.SingleNote
                   <script>{ScrollSyncScript}</script>
                   <script>{TaskCheckboxScript}</script>
                   <script>{EditorJumpBridgeScript}</script>
-                </body>
+                {katexScripts}</body>
                 </html>
                 """;
+        }
+
+        /// <summary>
+        /// Builds the KaTeX <c>&lt;link&gt;</c>/<c>&lt;script&gt;</c> fragments for the document head and
+        /// footer, or empty strings when no KaTeX base is supplied (math then shows as source text).
+        /// </summary>
+        /// <param name="katexBaseHref">The base URL of the vendored KaTeX folder, or empty to disable.</param>
+        /// <returns>The head fragment (stylesheet link) and the footer fragment (scripts + render call).</returns>
+        private static (string Head, string Scripts) BuildKatexFragments(string katexBaseHref)
+        {
+            if (string.IsNullOrEmpty(katexBaseHref))
+            {
+                return (string.Empty, string.Empty);
+            }
+
+            string root = katexBaseHref.EndsWith('/') ? katexBaseHref : katexBaseHref + "/";
+            string cssHref = WebUtility.HtmlEncode(root + "katex.min.css");
+            string jsHref = WebUtility.HtmlEncode(root + "katex.min.js");
+            string autoRenderHref = WebUtility.HtmlEncode(root + "contrib/auto-render.min.js");
+
+            string head = $"  <link rel=\"stylesheet\" href=\"{cssHref}\">\n";
+            string scripts = $"  <script src=\"{jsHref}\"></script>\n" +
+                $"  <script src=\"{autoRenderHref}\"></script>\n" +
+                $"  <script>{MathRenderScript}</script>\n";
+            return (head, scripts);
         }
     }
 }

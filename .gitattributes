@@ -14,3 +14,7 @@
 # Shell scripts must stay LF: they run on the macOS release runner, where CRLF
 # breaks the shebang (bad interpreter: /usr/bin/env bash^M).
 *.sh text eol=lf
+
+# Vendored KaTeX assets ship from upstream; keep them byte-identical (no CRLF
+# normalization on the minified JS/CSS, fonts treated as binary).
+src/YASN.App/style/katex/** -text
