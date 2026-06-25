@@ -20,8 +20,10 @@ namespace YASN.PlatformServices
     /// <c>DisplayName</c>, which is what makes the shell recognize it as a notifying app. An optional
     /// <c>IconUri</c> pointing at an image file gives the toast and Action Center the app icon.</item>
     /// </list>
-    /// This mirrors the per-user registry approach already used by <see cref="WindowsAutoStartService"/>
-    /// and avoids requiring a Start Menu shortcut, which is the alternative AUMID anchor.
+    /// This mirrors the per-user registry approach already used by <see cref="WindowsAutoStartService"/>.
+    /// In addition, <see cref="Ensure"/> creates a Start Menu shortcut stamped with the AUMID via
+    /// <see cref="WindowsStartMenuShortcut"/> — the shell's canonical AUMID anchor — so both anchors
+    /// agree on this app's notifying identity.
     /// </remarks>
     [SupportedOSPlatform("windows")]
     public static class WindowsToastRegistration
@@ -65,6 +67,10 @@ namespace YASN.PlatformServices
                 return;
             }
 
+            // A Start Menu shortcut carrying this AUMID is the shell's canonical anchor for an
+            // unpackaged app's toast identity; pair it with the registry identity written above.
+            WindowsStartMenuShortcut.Ensure(appUserModelId, displayName);
+
             int hr = SetCurrentProcessExplicitAppUserModelID(appUserModelId);
             if (hr != 0)
             {
@@ -73,13 +79,18 @@ namespace YASN.PlatformServices
         }
 
         /// <summary>
-        /// Removes the per-user AUMID registration written by <see cref="Ensure"/>.
+        /// Removes the per-user AUMID registration and Start Menu shortcut written by <see cref="Ensure"/>.
         /// </summary>
         /// <param name="appUserModelId">The AppUserModelID whose registry identity to remove.</param>
-        /// <returns><c>true</c> when a registration existed and was removed; <c>false</c> when none was present.</returns>
-        public static bool Unregister(string appUserModelId)
+        /// <param name="displayName">The display name used to name the Start Menu shortcut at creation.</param>
+        /// <returns><c>true</c> when a registration or shortcut existed and was removed; <c>false</c> when neither was present.</returns>
+        public static bool Unregister(string appUserModelId, string displayName)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(appUserModelId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+
+            // Remove the shortcut regardless of the registry outcome so neither anchor is orphaned.
+            bool shortcutRemoved = WindowsStartMenuShortcut.Remove(displayName);
 
             string subKey = $@"{AppUserModelIdRoot}\{appUserModelId}";
             try
@@ -88,7 +99,7 @@ namespace YASN.PlatformServices
                 {
                     if (existing is null)
                     {
-                        return false;
+                        return shortcutRemoved;
                     }
                 }
 
@@ -98,7 +109,7 @@ namespace YASN.PlatformServices
             catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
             {
                 AppLogger.Warn($"Failed to unregister toast AppUserModelID: {ex.Message}");
-                return false;
+                return shortcutRemoved;
             }
         }
 

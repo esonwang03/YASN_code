@@ -262,14 +262,16 @@ namespace YASN.SettingsUi
         }
 
         /// <summary>
-        /// Removes the per-user Windows AppUserModelID registration that lets toast notifications
-        /// display, reversing what <see cref="WindowsToastRegistration.Ensure"/> writes at startup.
-        /// The registration is re-created on the next launch; this is for cleanup on uninstall.
+        /// Removes the per-user Windows AppUserModelID registration and Start Menu shortcut that let
+        /// toast notifications display, reversing what <see cref="WindowsToastRegistration.Ensure"/>
+        /// writes at startup. Both are re-created on the next launch; this is for cleanup on uninstall.
         /// </summary>
         [System.Runtime.Versioning.SupportedOSPlatform("windows")]
         private static Task<string> UnregisterToastIdentityAsync()
         {
-            bool removed = WindowsToastRegistration.Unregister(YASN.Notifications.RustNotificationSender.AppId);
+            bool removed = WindowsToastRegistration.Unregister(
+                YASN.Notifications.RustNotificationSender.AppId,
+                YASN.Notifications.RustNotificationSender.AppDisplayName);
             string key = removed
                 ? "Settings.Notifications.Unregister.Ok"
                 : "Settings.Notifications.Unregister.NothingToDo";
