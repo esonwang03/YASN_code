@@ -44,6 +44,10 @@ namespace YASN.Migration.Tests
 
             public bool IsSupported => true;
 
+            public void RequestPermission()
+            {
+            }
+
             public Task<NotificationSendResult> SendAsync(NotificationRequest request)
             {
                 Requests.Add(request);

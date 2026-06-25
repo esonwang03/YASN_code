@@ -1,4 +1,5 @@
 using YASN.Native.Notify;
+using YASN.PlatformServices;
 
 namespace YASN.Notifications
 {
@@ -19,7 +20,10 @@ namespace YASN.Notifications
     {
         // Application identifier: the AppUserModelID on Windows; ignored on macOS (the system uses
         // the running .app bundle's identifier) and on Linux. Matches the macOS bundle id.
-        private const string AppId = "io.github.esonwang03.yasn";
+        public const string AppId = "io.github.esonwang03.yasn";
+
+        // Action Center display name for the Windows AUMID identity registered below.
+        public const string AppDisplayName = "YASN";
 
         private readonly bool initialized;
 
@@ -30,7 +34,23 @@ namespace YASN.Notifications
         {
             try
             {
+                // Windows silently drops toasts from an unpackaged app that has no registered AUMID.
+                // Establish that identity before the native manager obtains its toast notifier.
+                if (OperatingSystem.IsWindows())
+                {
+                    WindowsToastRegistration.Ensure(AppId, AppDisplayName);
+                }
+
                 initialized = YasnNotifyMethods.Init(AppId);
+
+                // macOS gates notifications behind a first-run authorization prompt (alert + sound +
+                // badge). Request it here: startup runs on the UI/main thread, which the underlying
+                // authorization API requires. The OS only prompts once and returns the prior decision
+                // thereafter; on Windows/Linux this is a no-op.
+                if (initialized && OperatingSystem.IsMacOS())
+                {
+                    RequestPermission();
+                }
             }
             catch (Exception ex) when (ex is DllNotFoundException or BadImageFormatException)
             {
@@ -46,6 +66,33 @@ namespace YASN.Notifications
         /// </summary>
         public bool IsSupported => initialized
             && (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsLinux());
+
+        /// <summary>
+        /// Requests notification permission (alert, sound, and badge) from the user. On macOS this
+        /// triggers the first-run system authorization prompt; the OS only asks once and returns the
+        /// prior decision thereafter. A no-op on Windows and Linux. Must be called from the main
+        /// thread, as the underlying macOS authorization API is main-thread-only.
+        /// </summary>
+        public void RequestPermission()
+        {
+            if (!IsSupported)
+            {
+                return;
+            }
+
+            try
+            {
+                bool granted = YasnNotifyMethods.RequestNotificationPermission();
+                if (!granted)
+                {
+                    AppLogger.Info("Notification permission was not granted.");
+                }
+            }
+            catch (Exception ex) when (ex is DllNotFoundException or BadImageFormatException)
+            {
+                // Native library absent; nothing to request against. Matches the ctor's degradation.
+            }
+        }
 
         /// <summary>
         /// Sends a notification through the native operating-system channel.

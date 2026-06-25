@@ -39,8 +39,10 @@ fn runtime() -> Option<&'static Runtime> {
 /// is effectively ignored, and the manager falls back to a no-op mock when the process is not a
 /// signed `.app` bundle, e.g. under `dotnet run`); on Linux it is unused.
 ///
-/// On macOS this also performs the first-run notification-permission request. Idempotent: repeated
-/// calls return the result of the first initialization.
+/// Idempotent: repeated calls return the result of the first initialization. On macOS the
+/// first-run permission prompt is **not** triggered here — `requestAuthorizationWithOptions` must
+/// run on the main thread, but this runs on the private runtime thread. Call
+/// [`request_notification_permission`] from the app's main thread instead.
 ///
 /// Returns `true` when a manager is available, `false` when the runtime could not be created.
 #[uniffi::export]
@@ -49,23 +51,45 @@ pub fn init(app_id: String) -> bool {
         return true;
     }
 
-    let Some(rt) = runtime() else {
+    if runtime().is_none() {
         return false;
-    };
+    }
 
     // get_notification_manager is synchronous and infallible: on an unsupported/unconfigured
     // platform it returns a mock that logs instead of displaying, so this never fails here.
     let manager = user_notify::get_notification_manager(app_id, None);
 
-    // macOS requires authorization before notifications display; on other platforms this is a
-    // no-op that returns Ok(true). Best-effort: a failure (e.g. not on the main thread, or denied)
-    // is logged and ignored so initialization still succeeds and send attempts degrade gracefully.
-    if let Err(err) = rt.block_on(manager.first_time_ask_for_notification_permission()) {
-        log::warn!("notification permission request failed: {err:?}");
-    }
-
     let _ = MANAGER.set(manager);
     true
+}
+
+/// Requests notification permission from the user, including sound and badge.
+///
+/// On macOS this triggers the first-run system authorization prompt for alerts, **sound**, and
+/// badges (`UNAuthorizationOptions::Alert | Sound | Badge`); the OS only prompts the user the first
+/// time, returning the prior decision afterwards. **Must be called from the app's main thread** —
+/// the underlying `requestAuthorizationWithOptions` is a main-thread-only API. On Windows and Linux
+/// this is a no-op that reports granted.
+///
+/// Returns `true` when permission is granted (or not required on the platform), `false` when denied
+/// or when [`init`] has not run / the request errored.
+#[uniffi::export]
+pub fn request_notification_permission() -> bool {
+    let Some(manager) = MANAGER.get() else {
+        log::warn!("request_notification_permission called before init");
+        return false;
+    };
+    let Some(rt) = runtime() else {
+        return false;
+    };
+
+    match rt.block_on(manager.first_time_ask_for_notification_permission()) {
+        Ok(granted) => granted,
+        Err(err) => {
+            log::warn!("notification permission request failed: {err:?}");
+            false
+        }
+    }
 }
 
 /// Displays a notification with the given title and body.

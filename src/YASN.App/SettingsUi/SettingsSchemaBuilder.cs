@@ -248,7 +248,32 @@ namespace YASN.SettingsUi
                 });
             }
 
+            if (OperatingSystem.IsWindows())
+            {
+                module.Actions.Add(new SettingAction
+                {
+                    Key = "notifications.unregister",
+                    Label = LocalizationService.Current["Settings.Notifications.Unregister"],
+                    ExecuteAsync = UnregisterToastIdentityAsync
+                });
+            }
+
             return module;
+        }
+
+        /// <summary>
+        /// Removes the per-user Windows AppUserModelID registration that lets toast notifications
+        /// display, reversing what <see cref="WindowsToastRegistration.Ensure"/> writes at startup.
+        /// The registration is re-created on the next launch; this is for cleanup on uninstall.
+        /// </summary>
+        [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+        private static Task<string> UnregisterToastIdentityAsync()
+        {
+            bool removed = WindowsToastRegistration.Unregister(YASN.Notifications.RustNotificationSender.AppId);
+            string key = removed
+                ? "Settings.Notifications.Unregister.Ok"
+                : "Settings.Notifications.Unregister.NothingToDo";
+            return Task.FromResult(LocalizationService.Current[key]);
         }
 
         /// <summary>

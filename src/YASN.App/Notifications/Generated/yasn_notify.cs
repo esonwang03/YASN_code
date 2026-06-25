@@ -743,6 +743,8 @@ static class _UniFFILib {
     
     
     
+    
+    
 
     static _UniFFILib() {
         _UniFFILib.uniffiCheckContractApiVersion();
@@ -759,6 +761,17 @@ static class _UniFFILib {
     public static extern
 #endif
      sbyte uniffi_yasn_notify_fn_func_init(RustBuffer @appId,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("yasn_notify")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("yasn_notify", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     sbyte uniffi_yasn_notify_fn_func_request_notification_permission(ref UniffiRustCallStatus _uniffi_out_err
     );
 
     #if NET8_0_OR_GREATER
@@ -1363,6 +1376,17 @@ static class _UniFFILib {
     [DllImport("yasn_notify", CallingConvention = CallingConvention.Cdecl)]
     public static extern
 #endif
+     ushort uniffi_yasn_notify_checksum_func_request_notification_permission(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("yasn_notify")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("yasn_notify", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
      ushort uniffi_yasn_notify_checksum_func_show_notification(
     );
 
@@ -1388,8 +1412,14 @@ static class _UniFFILib {
     static void uniffiCheckApiChecksums() {
         {
             var checksum = _UniFFILib.uniffi_yasn_notify_checksum_func_init();
-            if (checksum != 8137) {
-                throw new UniffiContractChecksumException($"YASN.Native.Notify: uniffi bindings expected function `uniffi_yasn_notify_checksum_func_init` checksum `8137`, library returned `{checksum}`");
+            if (checksum != 47289) {
+                throw new UniffiContractChecksumException($"YASN.Native.Notify: uniffi bindings expected function `uniffi_yasn_notify_checksum_func_init` checksum `47289`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_yasn_notify_checksum_func_request_notification_permission();
+            if (checksum != 5962) {
+                throw new UniffiContractChecksumException($"YASN.Native.Notify: uniffi bindings expected function `uniffi_yasn_notify_checksum_func_request_notification_permission` checksum `5962`, library returned `{checksum}`");
             }
         }
         {
@@ -1488,8 +1518,10 @@ internal static class YasnNotifyMethods {
     /// is effectively ignored, and the manager falls back to a no-op mock when the process is not a
     /// signed `.app` bundle, e.g. under `dotnet run`); on Linux it is unused.
     ///
-    /// On macOS this also performs the first-run notification-permission request. Idempotent: repeated
-    /// calls return the result of the first initialization.
+    /// Idempotent: repeated calls return the result of the first initialization. On macOS the
+    /// first-run permission prompt is **not** triggered here — `requestAuthorizationWithOptions` must
+    /// run on the main thread, but this runs on the private runtime thread. Call
+    /// [`request_notification_permission`] from the app's main thread instead.
     ///
     /// Returns `true` when a manager is available, `false` when the runtime could not be created.
     /// </summary>
@@ -1497,6 +1529,26 @@ internal static class YasnNotifyMethods {
         return FfiConverterBoolean.INSTANCE.Lift(
     _UniffiHelpers.RustCall( (ref UniffiRustCallStatus _status) =>
     _UniFFILib.uniffi_yasn_notify_fn_func_init(FfiConverterString.INSTANCE.Lower(@appId), ref _status)
+));
+    }
+
+
+    /// <summary>
+    /// Requests notification permission from the user, including sound and badge.
+    ///
+    /// On macOS this triggers the first-run system authorization prompt for alerts, **sound**, and
+    /// badges (`UNAuthorizationOptions::Alert | Sound | Badge`); the OS only prompts the user the first
+    /// time, returning the prior decision afterwards. **Must be called from the app's main thread** —
+    /// the underlying `requestAuthorizationWithOptions` is a main-thread-only API. On Windows and Linux
+    /// this is a no-op that reports granted.
+    ///
+    /// Returns `true` when permission is granted (or not required on the platform), `false` when denied
+    /// or when [`init`] has not run / the request errored.
+    /// </summary>
+    public static bool RequestNotificationPermission() {
+        return FfiConverterBoolean.INSTANCE.Lift(
+    _UniffiHelpers.RustCall( (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_yasn_notify_fn_func_request_notification_permission( ref _status)
 ));
     }
 

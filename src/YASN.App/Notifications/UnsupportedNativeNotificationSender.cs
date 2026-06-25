@@ -11,6 +11,13 @@ namespace YASN.Notifications
         public bool IsSupported => false;
 
         /// <summary>
+        /// No-op: there is no native channel to request permission from.
+        /// </summary>
+        public void RequestPermission()
+        {
+        }
+
+        /// <summary>
         /// Returns an unsupported result without showing an in-app notification.
         /// </summary>
         /// <param name="request">The notification that could not be sent.</param>
