@@ -66,6 +66,28 @@ namespace YASN.Migration.Tests
         }
 
         [Fact]
+        public void EnabledReminderShowsNextFireTime()
+        {
+            string html = Render("[!Standup][]{0 0 9 * * 1-5}{Daily standup}");
+            Assert.Contains("class=\"yasn-reminder-next\"", html, StringComparison.Ordinal);
+            Assert.Contains("Next:", html, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void DisabledReminderOmitsNextFireTime()
+        {
+            string html = Render("[!Off][X]{* * * * *}{nope}");
+            Assert.DoesNotContain("yasn-reminder-next", html, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void InvalidCronOmitsNextFireTime()
+        {
+            string html = Render("[!Bad][]{not cron}{x}");
+            Assert.DoesNotContain("yasn-reminder-next", html, StringComparison.Ordinal);
+        }
+
+        [Fact]
         public void OrdinaryLinksAreNotTreatedAsReminders()
         {
             string html = Render("[click here](https://example.com)");

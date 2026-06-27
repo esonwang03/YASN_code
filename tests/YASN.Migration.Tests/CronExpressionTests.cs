@@ -28,10 +28,18 @@ namespace YASN.Migration.Tests
         [InlineData("* * 0 * *")]
         [InlineData("* * * 13 *")]
         [InlineData("abc * * * *")]
-        [InlineData("5-1 * * * *")]
         public void RejectsInvalidExpressions(string expr)
         {
             Assert.False(CronExpression.TryParse(expr, out _));
+        }
+
+        [Fact]
+        public void AcceptsWrappingRange()
+        {
+            // Cronos treats a descending range as wrapping: "23-1" in the hour field means 23, 0, 1.
+            Assert.True(CronExpression.TryParse("0 23-1 * * *", out CronExpression? cron));
+            DateTimeOffset next = cron!.GetNextOccurrence(Utc(2026, 1, 1, 10, 0))!.Value;
+            Assert.Equal(Utc(2026, 1, 1, 23, 0), next);
         }
 
         [Fact]

@@ -48,6 +48,7 @@ namespace YASN.Localization
                     ["Reminder.Manager.Recurring"] = "Recurring",
                     ["Reminder.Manager.Once"] = "Once",
                     ["Reminder.Manager.TimesLeft"] = "{0} times left",
+                    ["Reminder.NextFire"] = "Next: {0}",
                     ["Settings.Title"] = "Settings",
                     ["Menu.Settings"] = "Settings",
                     ["Settings.Save"] = "Save",

@@ -1,8 +1,10 @@
+using System.Globalization;
 using System.Net;
 using Markdig;
 using Markdig.Renderers;
 using Markdig.Renderers.Html;
 using YASN.Infrastructure.Reminders;
+using YASN.Localization;
 
 namespace YASN.Infrastructure.Markdown.Extensions
 {
@@ -34,6 +36,7 @@ namespace YASN.Infrastructure.Markdown.Extensions
             // paragraph wrapper Markdig adds, so the label cannot introduce a block element that breaks
             // the badge onto multiple lines.
             string displayHtml = RenderInline(rule.DisplayText);
+            string nextHtml = BuildNextOccurrenceHtml(rule);
             string countHtml = rule.Enabled && rule.RemainingCount is { } remaining && remaining > 1
                 ? $" <span class=\"yasn-reminder-count\">×{remaining.ToString(System.Globalization.CultureInfo.InvariantCulture)}</span>"
                 : string.Empty;
@@ -48,8 +51,30 @@ namespace YASN.Infrastructure.Markdown.Extensions
                 .Write(WebUtility.HtmlEncode(title))
                 .Write("\"><span class=\"yasn-reminder-icon\">\U0001F514</span> ")
                 .Write(displayHtml)
+                .Write(nextHtml)
                 .Write(countHtml)
                 .Write("</span>");
+        }
+
+        /// <summary>
+        /// Builds the localized "next fire" span shown between the display label and the count badge,
+        /// or an empty string for rules that will never fire (disabled, invalid, or with no upcoming
+        /// occurrence). The next occurrence is computed from the current UTC time and rendered in local
+        /// time so it reads naturally to the user.
+        /// </summary>
+        private static string BuildNextOccurrenceHtml(NoteReminderRule rule)
+        {
+            if (!rule.IsSchedulable || rule.Schedule!.GetNextOccurrence(DateTimeOffset.UtcNow) is not { } next)
+            {
+                return string.Empty;
+            }
+
+            string when = next.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
+            string label = string.Format(
+                CultureInfo.CurrentCulture,
+                LocalizationService.Current["Reminder.NextFire"],
+                when);
+            return $" <span class=\"yasn-reminder-next\">{WebUtility.HtmlEncode(label)}</span>";
         }
 
         private static string BuildTitle(NoteReminderRule rule)
