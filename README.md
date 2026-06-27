@@ -21,6 +21,14 @@ YASN is a cross-platform Avalonia sticky-notes app for Windows and macOS. It kee
 - `dotnet publish src/YASN.App/YASN.App.csproj -c Release -r osx-x64 --self-contained false -o publish\osx-x64`
 - `dotnet publish src/YASN.App/YASN.App.csproj -c Release -r osx-arm64 --self-contained false -o publish\osx-arm64`
 
+## Git Hooks
+
+A pre-commit hook in `scripts/hooks/` runs `dotnet format YASN.sln --verify-no-changes` (the same lint check CI enforces) and blocks the commit if any file is unformatted. Enable it once per clone:
+
+- `git config core.hooksPath scripts/hooks`
+
+If the hook fails, run `dotnet format YASN.sln`, re-stage, and commit again. Use `git commit --no-verify` to bypass it for a single commit.
+
 ## Verification
 
 CI restores, tests, and builds the solution on Windows and macOS. Platform behavior that requires the host OS, such as tray/menu-bar integration, native notifications, auto-start, and window-level semantics, still needs manual verification on the matching desktop platform. Virtual desktop integration is not supported in the Avalonia shell; quick move and resize use Avalonia's cross-platform window and screen APIs.

@@ -11,7 +11,6 @@ using YASN.Infrastructure;
 using YASN.Infrastructure.Settings;
 using YASN.Infrastructure.Sync;
 using YASN.Localization;
-using YASN.Notifications;
 using YASN.PlatformServices;
 using YASN.ViewModels;
 

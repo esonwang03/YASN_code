@@ -1,0 +1,12 @@
+#!/bin/sh
+# Run the formatter/linter before each commit, matching the CI lint step.
+# Blocks the commit if any file is not formatted. Run `dotnet format YASN.sln`
+# to fix, then re-stage and commit again.
+echo "pre-commit: dotnet format --verify-no-changes"
+dotnet format YASN.sln --verify-no-changes --no-restore
+status=$?
+if [ "$status" -ne 0 ]; then
+	echo "pre-commit: formatting check failed. Run 'dotnet format YASN.sln' and re-stage." >&2
+	exit "$status"
+fi
+exit 0
