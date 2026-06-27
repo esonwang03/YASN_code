@@ -11,6 +11,7 @@ using YASN.Infrastructure;
 using YASN.Infrastructure.Settings;
 using YASN.Infrastructure.Sync;
 using YASN.Localization;
+using YASN.Notifications;
 using YASN.PlatformServices;
 using YASN.ViewModels;
 
@@ -68,7 +69,7 @@ namespace YASN.Views
             this.showTutorial = showTutorial;
             InitializeComponent();
 
-            viewModel = new MainWindowViewModel(repository, windows, sync);
+            viewModel = new MainWindowViewModel(repository, windows, sync, platformServices.Notifications);
             DataContext = viewModel;
 
             Button bottomMostButton = this.FindControl<Button>("CreateBottomMostButton")

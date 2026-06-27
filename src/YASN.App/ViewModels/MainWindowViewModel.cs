@@ -6,6 +6,9 @@ using YASN.Application;
 using YASN.AvaloniaNotes;
 using YASN.Core;
 using YASN.Infrastructure.Sync;
+using YASN.Notifications;
+using YASN.PlatformServices;
+using YASN.SyncNotifications;
 
 namespace YASN.ViewModels
 {
@@ -18,6 +21,8 @@ namespace YASN.ViewModels
         private readonly NoteRepository repository;
         private readonly INoteWindowManager windows;
         private readonly ThreeWaySyncEngine? sync;
+        private readonly PlatformServiceBundle? platformServices;
+        private readonly SyncNotificationReporter? syncReporter;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
@@ -25,11 +30,13 @@ namespace YASN.ViewModels
         /// <param name="repository">The note repository.</param>
         /// <param name="windows">The shared note window manager.</param>
         /// <param name="sync">The sync engine, or null when sync is unavailable.</param>
-        public MainWindowViewModel(NoteRepository repository, INoteWindowManager windows, ThreeWaySyncEngine? sync = null)
+        /// <param name="notifications">Optional service used to toast the result of a manual sync.</param>
+        public MainWindowViewModel(NoteRepository repository, INoteWindowManager windows, ThreeWaySyncEngine? sync = null, INotificationService? notifications = null)
         {
             this.repository = repository;
             this.windows = windows;
             this.sync = sync;
+            this.syncReporter = notifications is null ? null : new SyncNotificationReporter(notifications);
             if (sync is not null)
             {
                 sync.SyncCompleted += HandleSyncCompleted;
@@ -78,12 +85,22 @@ namespace YASN.ViewModels
         }
 
         /// <summary>
-        /// Triggers a manual sync pass, if sync is configured.
+        /// Triggers a manual sync pass, if sync is configured, then toasts the result when complete.
         /// </summary>
-        public void SyncNow()
+        public async void SyncNow()
         {
+            if (sync is null)
+            {
+                return;
+            }
+
             AppLogger.Info("Manual sync triggered by user.");
-            _ = sync?.SyncNowAsync();
+            SyncResult result = await sync.SyncNowAsync().ConfigureAwait(true);
+
+            if (syncReporter is not null)
+            {
+                await syncReporter.ReportCompletedAsync(result).ConfigureAwait(true);
+            }
         }
 
         /// <summary>

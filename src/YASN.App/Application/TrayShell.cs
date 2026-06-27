@@ -177,7 +177,8 @@ namespace YASN.Application
                 return;
             }
 
-            mainWindow = new MainWindow(repository, noteWindows, platformServices, localization, keybindings, settings, OnSettingsSaved, sync?.Engine, ShowTutorialNote);
+            mainWindow = new MainWindow(repository, noteWindows, platformServices, localization, keybindings, settings
+                , OnSettingsSaved, sync?.Engine, ShowTutorialNote);
             mainWindow.Closed += (_, _) => mainWindow = null;
             mainWindow.Show();
         }

@@ -24,6 +24,23 @@ namespace YASN.Migration.Tests
             Assert.Equal(["Sync started", "Sync complete"], notifications.Requests.Select(request => request.Title));
         }
 
+        /// <summary>
+        /// A skipped pass whose reason is "disabled" (sync turned off) toasts a distinct message that
+        /// points the user at Settings, rather than a misleading "Sync complete".
+        /// </summary>
+        [Fact]
+        public async Task ReportsDisabledNotificationWhenSyncIsOff()
+        {
+            RecordingNotificationService notifications = new RecordingNotificationService();
+            SyncNotificationReporter reporter = new SyncNotificationReporter(notifications);
+
+            await reporter.ReportCompletedAsync(SyncResult.Skipped("disabled"));
+
+            NotificationRequest request = Assert.Single(notifications.Requests);
+            Assert.Equal("Sync is disabled", request.Title);
+            Assert.Equal("sync:disabled", request.ActivationArgument);
+        }
+
         private sealed class RecordingNotificationService : INotificationService
         {
             internal List<NotificationRequest> Requests { get; } = new();

@@ -74,7 +74,7 @@ namespace YASN.Application
                 if (supported == false && notifications is not null)
                 {
                     AppLogger.Warn("Sync: server did not return an ETag for the probe file; recommend switching change detection to Last-Modified.");
-                    await notifications.SendAsync(new Notifications.NotificationRequest(
+                    await notifications.SendAsync(new NotificationRequest(
                         Localization.LocalizationService.Current["Sync.ETag.Unsupported.Title"],
                         Localization.LocalizationService.Current["Sync.ETag.Unsupported.Body"],
                         "sync:etag-unsupported")).ConfigureAwait(false);

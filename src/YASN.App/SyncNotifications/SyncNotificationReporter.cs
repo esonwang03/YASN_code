@@ -1,4 +1,6 @@
+using System.Globalization;
 using YASN.Infrastructure.Sync;
+using YASN.Localization;
 using YASN.Notifications;
 
 namespace YASN.SyncNotifications
@@ -9,14 +11,17 @@ namespace YASN.SyncNotifications
     public sealed class SyncNotificationReporter
     {
         private readonly INotificationService notifications;
+        private readonly LocalizationService localization;
 
         /// <summary>
         /// Initializes a sync notification reporter.
         /// </summary>
         /// <param name="notifications">The notification service to use.</param>
-        public SyncNotificationReporter(INotificationService notifications)
+        /// <param name="localization">The localization service for notification text, or the shared instance when omitted.</param>
+        public SyncNotificationReporter(INotificationService notifications, LocalizationService? localization = null)
         {
             this.notifications = notifications;
+            this.localization = localization ?? LocalizationService.Current;
         }
 
         /// <summary>
@@ -24,7 +29,10 @@ namespace YASN.SyncNotifications
         /// </summary>
         public Task<NotificationSendResult> ReportStartedAsync()
         {
-            return notifications.SendAsync(new NotificationRequest("Sync started", "YASN is syncing notes.", "sync:started"));
+            return notifications.SendAsync(new NotificationRequest(
+                localization["Sync.Notify.Started.Title"],
+                localization["Sync.Notify.Started.Body"],
+                "sync:started"));
         }
 
         /// <summary>
@@ -35,11 +43,32 @@ namespace YASN.SyncNotifications
         {
             if (!result.Success)
             {
-                return notifications.SendAsync(new NotificationRequest("Sync failed", result.Message, "sync:failed"));
+                // The message is a server/exception detail and is not localizable; the title is.
+                return notifications.SendAsync(new NotificationRequest(
+                    localization["Sync.Notify.Failed.Title"],
+                    result.Message,
+                    "sync:failed"));
             }
 
-            string body = $"{result.FilesUploaded} uploaded / {result.FilesDownloaded} downloaded / {result.FilesDeleted} deleted";
-            return notifications.SendAsync(new NotificationRequest("Sync complete", body, "sync:complete"));
+            // A skipped pass with the "disabled" reason means sync is turned off; point the user at Settings.
+            if (string.Equals(result.Message, "disabled", StringComparison.Ordinal))
+            {
+                return notifications.SendAsync(new NotificationRequest(
+                    localization["Sync.Notify.Disabled.Title"],
+                    localization["Sync.Notify.Disabled.Body"],
+                    "sync:disabled"));
+            }
+
+            string body = string.Format(
+                CultureInfo.CurrentCulture,
+                localization["Sync.Notify.Complete.Body"],
+                result.FilesUploaded,
+                result.FilesDownloaded,
+                result.FilesDeleted);
+            return notifications.SendAsync(new NotificationRequest(
+                localization["Sync.Notify.Complete.Title"],
+                body,
+                "sync:complete"));
         }
     }
 }
