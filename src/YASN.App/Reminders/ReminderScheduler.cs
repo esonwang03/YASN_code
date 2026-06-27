@@ -12,6 +12,13 @@ namespace YASN.Reminders
     /// </summary>
     public sealed class ReminderScheduler : IDisposable
     {
+        /// <summary>
+        /// Largest delay armed in a single <see cref="Timer"/> hop. <see cref="Timer"/> overflows for due
+        /// times beyond ~49.7 days, so longer waits are split into hops of at most this span. Kept well
+        /// under the limit (24 days) to leave headroom for scheduling slack.
+        /// </summary>
+        private static readonly TimeSpan MaxTimerDelay = TimeSpan.FromDays(24);
+
         private readonly INotificationService notifications;
         private readonly ReminderStateStore? stateStore;
         private readonly Func<DateTimeOffset> clock;
@@ -216,14 +223,42 @@ namespace YASN.Reminders
                 return;
             }
 
-            TimeSpan delay = next - clock();
-            if (delay < TimeSpan.Zero)
+            ArmCronAt(note, rule, next);
+        }
+
+        /// <summary>
+        /// Arms a timer aimed at a fixed target occurrence. <see cref="Timer"/> rejects due times beyond
+        /// ~49.7 days (its millisecond field overflows), so a far-future occurrence — a yearly or monthly
+        /// rule — is reached in bounded hops: each wake that arrives before the target simply re-arms for
+        /// the remaining span; the wake that reaches it fires.
+        /// </summary>
+        private void ArmCronAt(AvaloniaNoteDocument note, NoteReminderRule rule, DateTimeOffset target)
+        {
+            TimeSpan remaining = target - clock();
+            if (remaining < TimeSpan.Zero)
             {
-                delay = TimeSpan.Zero;
+                remaining = TimeSpan.Zero;
             }
 
+            bool reached = remaining <= MaxTimerDelay;
+            TimeSpan delay = reached ? remaining : MaxTimerDelay;
+
             string key = note.Id + ":" + rule.RuleId;
-            Timer timer = new Timer(_ => OnCronTimerFired(note, rule), state: null, delay, Timeout.InfiniteTimeSpan);
+            Timer timer = new Timer(
+                _ =>
+                {
+                    if (reached)
+                    {
+                        OnCronTimerFired(note, rule);
+                    }
+                    else
+                    {
+                        ArmCronAt(note, rule, target);
+                    }
+                },
+                state: null,
+                delay,
+                Timeout.InfiniteTimeSpan);
             lock (gate)
             {
                 if (cronTimers.Remove(key, out Timer? existing))

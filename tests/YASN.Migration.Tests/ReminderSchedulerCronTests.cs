@@ -232,6 +232,29 @@ namespace YASN.Migration.Tests
             Assert.Null(state.GetLastFired("13", ruleId));
         }
 
+        [Fact]
+        public void FarFutureOccurrenceDoesNotOverflowTimer()
+        {
+            // A reminder whose next occurrence is months away yields a delay past Timer's ~49.7-day
+            // ceiling; arming it must split into bounded hops rather than throw ArgumentOutOfRangeException.
+            RecordingNotificationService notifications = new RecordingNotificationService();
+            ReminderStateStore state = new ReminderStateStore(statePath);
+            DateTimeOffset now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            using ReminderScheduler scheduler = new ReminderScheduler(notifications, state, () => now);
+
+            // Fires once a year, on Jan 1 at 09:00 — ~364 days out from "now".
+            AvaloniaNoteDocument note = new AvaloniaNoteDocument
+            {
+                Id = "20",
+                Content = "[!yearly][]{0 0 9 1 1 *}{new year}"
+            };
+
+            Exception? error = Record.Exception(() => scheduler.RescheduleCron(note));
+
+            Assert.Null(error);
+            Assert.Empty(notifications.Requests);
+        }
+
         private static async Task WaitForAsync(Func<bool> condition)
         {
             for (int attempt = 0; attempt < 100 && !condition(); attempt++)
