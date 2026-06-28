@@ -202,6 +202,7 @@ namespace YASN.SettingsUi
             }
             module.Fields.Add(language);
 
+
             SettingField theme = new SettingField
             {
                 Key = ThemePreference.SettingKey,
@@ -214,6 +215,14 @@ namespace YASN.SettingsUi
             theme.Options.Add(new SettingOption { Label = LocalizationService.Current["Settings.Theme.Light"], Value = ThemePreference.LightValue });
             theme.Options.Add(new SettingOption { Label = LocalizationService.Current["Settings.Theme.Dark"], Value = ThemePreference.DarkValue });
             module.Fields.Add(theme);
+
+            module.Fields.Add(new SettingField
+            {
+                Key = "log.maxSizeKb",
+                Title = LocalizationService.Current["Settings.Log.MaxSize"],
+                FieldType = SettingFieldType.Text,
+                ShouldSync = false
+            });
 
             module.Fields.Add(new SettingField
             {
@@ -462,14 +471,14 @@ namespace YASN.SettingsUi
             SettingModule module = new SettingModule
             {
                 Key = "attachments",
-                Title = "Attachments"
+                Title = LocalizationService.Current["Settings.Attachments"]
             };
 
             module.Fields.Add(new SettingField
             {
                 Key = AttachmentAutoSyncEnabledKey,
-                Title = "Copy attachments into the note",
-                Description = "When on, files at or under the threshold are copied; larger files are linked in place.",
+                Title = LocalizationService.Current["Settings.Attachments.Toggle"],
+                Description = LocalizationService.Current["Settings.Attachments.Toggle.Description"],
                 FieldType = SettingFieldType.Toggle,
                 ShouldSync = true,
                 BoolValue = true
@@ -478,7 +487,7 @@ namespace YASN.SettingsUi
             module.Fields.Add(new SettingField
             {
                 Key = AttachmentThresholdMbKey,
-                Title = "Copy/link threshold (MB)",
+                Title = LocalizationService.Current["Settings.Attachments.Threshold"],
                 FieldType = SettingFieldType.Number,
                 ShouldSync = true,
                 Minimum = 1,
@@ -494,22 +503,14 @@ namespace YASN.SettingsUi
             SettingModule module = new SettingModule
             {
                 Key = "editor",
-                Title = "Editor"
+                Title = LocalizationService.Current["Settings.Editor"]
             };
 
             module.Fields.Add(new SettingField
             {
-                Key = "log.maxSizeKb",
-                Title = "Log size limit (KB)",
-                FieldType = SettingFieldType.Text,
-                ShouldSync = false
-            });
-
-            module.Fields.Add(new SettingField
-            {
                 Key = NoteMinWidthKey,
-                Title = "Minimum note width (px)",
-                Description = "The narrowest a note window can be resized. Also the lower bound QuickLayout and the text+preview split clamp to.",
+                Title = LocalizationService.Current["Settings.Editor.MinWidth"],
+                Description = LocalizationService.Current["Settings.Editor.MinWidth.Description"],
                 FieldType = SettingFieldType.Number,
                 ShouldSync = true,
                 Minimum = 360,
