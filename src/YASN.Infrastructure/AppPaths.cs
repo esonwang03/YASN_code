@@ -12,6 +12,14 @@ namespace YASN.Infrastructure
         /// <summary>Per-user application folder name used on Windows and Linux.</summary>
         private const string AppFolderName = "yasn";
 
+        /// <summary>
+        /// Optional override for the storage root. When the <c>YASN_DATA_ROOT</c> environment variable is
+        /// set, the persistent, cache, and data directories are all derived from it instead of the
+        /// per-user platform locations. The test suite sets this to a throwaway temp directory so running
+        /// tests never read or write the real user configuration; it also enables a portable install.
+        /// </summary>
+        private const string DataRootOverrideEnvVar = "YASN_DATA_ROOT";
+
         /// <summary>macOS bundle identifier, used for the per-user data and cache folders.</summary>
         private const string MacBundleId = "io.github.esonwang03.yasn";
 
@@ -137,6 +145,12 @@ namespace YASN.Infrastructure
         /// </summary>
         private static string ResolvePersistentRoot()
         {
+            string? overrideRoot = Environment.GetEnvironmentVariable(DataRootOverrideEnvVar);
+            if (!string.IsNullOrWhiteSpace(overrideRoot))
+            {
+                return Path.Combine(Path.GetFullPath(overrideRoot.Trim()), "data");
+            }
+
             if (OperatingSystem.IsMacOS())
             {
                 return Path.Combine(
@@ -154,6 +168,12 @@ namespace YASN.Infrastructure
         /// </summary>
         private static string ResolveCacheRoot()
         {
+            string? overrideRoot = Environment.GetEnvironmentVariable(DataRootOverrideEnvVar);
+            if (!string.IsNullOrWhiteSpace(overrideRoot))
+            {
+                return Path.Combine(Path.GetFullPath(overrideRoot.Trim()), "cache");
+            }
+
             if (OperatingSystem.IsMacOS())
             {
                 return Path.Combine(

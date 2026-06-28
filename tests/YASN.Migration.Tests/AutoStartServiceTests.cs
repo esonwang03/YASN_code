@@ -19,7 +19,9 @@ namespace YASN.Migration.Tests
             }
 
             string executablePath = Path.Combine(Path.GetTempPath(), $"yasn-autostart-{Guid.NewGuid():N}.exe");
-            WindowsAutoStartService service = new WindowsAutoStartService(executablePath);
+            // Isolated Run-key value name so the test never reads or deletes the real install's "YASN"
+            // auto-start entry.
+            WindowsAutoStartService service = new WindowsAutoStartService(executablePath, $"YASN__test_{Guid.NewGuid():N}");
 
             try
             {
@@ -52,8 +54,11 @@ namespace YASN.Migration.Tests
             string originalPath = Path.Combine(Path.GetTempPath(), $"yasn-old-{Guid.NewGuid():N}.exe");
             string currentPath = Path.Combine(Path.GetTempPath(), $"yasn-new-{Guid.NewGuid():N}.exe");
 
-            WindowsAutoStartService writer = new WindowsAutoStartService(originalPath);
-            WindowsAutoStartService reader = new WindowsAutoStartService(currentPath);
+            // Both services share one isolated value name (distinct from the real "YASN" entry) so the
+            // reader observes what the writer set without touching the developer's actual auto-start.
+            string valueName = $"YASN__test_{Guid.NewGuid():N}";
+            WindowsAutoStartService writer = new WindowsAutoStartService(originalPath, valueName);
+            WindowsAutoStartService reader = new WindowsAutoStartService(currentPath, valueName);
 
             try
             {
