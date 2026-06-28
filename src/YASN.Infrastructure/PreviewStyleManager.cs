@@ -4,6 +4,14 @@ namespace YASN.Infrastructure
     {
         internal const string SettingKey = "note.previewStyle";
         internal const string DefaultStyleRelativePath = "default.css";
+
+        /// <summary>
+        /// Relative directory (under the style root) holding vendored KaTeX assets. KaTeX ships its own
+        /// <c>.css</c> files; they support math rendering internally and must never surface as selectable
+        /// preview themes, so <see cref="ListStyles"/> excludes this subtree.
+        /// </summary>
+        private const string VendoredAssetDirectory = "katex/";
+
         private static readonly string BundledStyleRoot = Path.Combine(AppPaths.BundledContentRoot, "style");
         private static readonly object InitLock = new();
         private static bool _initialized;
@@ -53,6 +61,7 @@ namespace YASN.Infrastructure
                 List<string> files = Directory.GetFiles(AppPaths.StyleRoot, "*.css", SearchOption.AllDirectories)
                     .Select(ToStyleRelativePath)
                     .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Where(path => !IsVendoredAsset(path))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
                     .ToList();
@@ -158,8 +167,8 @@ namespace YASN.Infrastructure
 
             // Mirror the entire bundled style tree (CSS plus supporting assets such as the vendored KaTeX
             // CSS/JS/fonts), not just stylesheets, so the preview can load them from the data dir with the
-            // same file: URIs it uses for the selected stylesheet. ListStyles still filters to *.css, so
-            // these extra files never appear as selectable preview themes.
+            // same file: URIs it uses for the selected stylesheet. ListStyles filters to *.css and excludes
+            // the vendored KaTeX subtree, so these supporting files never appear as selectable preview themes.
             foreach (string sourcePath in Directory.GetFiles(BundledStyleRoot, "*", SearchOption.AllDirectories))
             {
                 string relative = Path.GetRelativePath(BundledStyleRoot, sourcePath);
@@ -186,6 +195,11 @@ namespace YASN.Infrastructure
                 File.Copy(sourcePath, destination, overwrite: true);
                 AppLogger.Debug($"Synced bundled preview style: {relative}");
             }
+        }
+
+        private static bool IsVendoredAsset(string styleRelativePath)
+        {
+            return styleRelativePath.StartsWith(VendoredAssetDirectory, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool TryNormalizePathWithoutFallback(string? raw, out string normalized)
