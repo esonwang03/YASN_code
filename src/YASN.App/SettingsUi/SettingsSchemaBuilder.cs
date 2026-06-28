@@ -164,7 +164,7 @@ namespace YASN.SettingsUi
                 module.Fields.Add(new SettingField
                 {
                     Key = AutoStartKey,
-                    Title = "Launch at sign-in",
+                    Title = LocalizationService.Current["Settings.AutoStart"],
                     FieldType = SettingFieldType.Toggle,
                     ShouldSync = false,
                     BoolValue = autoStart.IsEnabled
@@ -196,7 +196,10 @@ namespace YASN.SettingsUi
                 FieldType = SettingFieldType.Select,
                 ShouldSync = true
             };
-            language.Options.Add(new SettingOption { Label = "English", Value = "en" });
+            foreach (string culture in LocalizationService.AvailableCultures)
+            {
+                language.Options.Add(new SettingOption { Label = LocalizationService.NativeName(culture), Value = culture });
+            }
             module.Fields.Add(language);
 
             SettingField theme = new SettingField
