@@ -4,6 +4,8 @@
 
 YASN is a cross-platform Avalonia sticky-notes app for Windows and macOS. It keeps notes in Markdown, renders live previews, persists window metadata, supports reminders, and retains WebDAV sync primitives.
 
+Learn how to use YASN: [YASN Documentation](https://yasn.eson.wang/base/)
+
 ## Repository Layout
 
 - `src/YASN.App`: the Avalonia executable project, tray shell, note windows, platform service abstractions, localization, and packaged resources.
