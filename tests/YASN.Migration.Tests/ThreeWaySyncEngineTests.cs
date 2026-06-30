@@ -176,9 +176,12 @@ namespace YASN.Migration.Tests
             Assert.Equal(2, repository.LoadAll().Count(n => n.SyncKey == "k1"));
         }
 
-        /// <summary>Resolution is rejected while two copies share the key, and succeeds after deleting one.</summary>
+        /// <summary>
+        /// Resolving a conflict picks one row as the winner, deletes the other automatically, and
+        /// clears the conflict — the user no longer has to delete duplicates by hand first.
+        /// </summary>
         [Fact]
-        public async Task ConflictResolvesAfterDeletingDuplicate()
+        public async Task ConflictResolvesByPickingWinner()
         {
             AvaloniaNoteDocument note = Save("k1", "v1", "1");
             await engine.SyncNowAsync();
@@ -187,14 +190,61 @@ namespace YASN.Migration.Tests
             client.SeedRemote("notes/k1.json", NoteWireSerializer.Serialize(new SyncNoteDocument { SyncKey = "k1", Content = "remote v2" }));
             await engine.SyncNowAsync();
 
-            Assert.False(engine.TryResolveConflict("k1", out string? error));
-            Assert.Equal("Sync.Resolve.Duplicates", error);
+            Assert.Equal(2, repository.LoadAll().Count(n => n.SyncKey == "k1"));
 
-            // Delete one of the two copies for the key, leaving a single note so the conflict resolves.
-            string copyId = repository.LoadAll().Where(n => n.SyncKey == "k1").Max(n => n.Id)!;
-            repository.Delete(copyId);
+            // Pick the original local row (id "1") as the winner; the conflict copy is deleted.
+            Assert.True(engine.TryResolveConflict("k1", "1", out _));
+            Assert.DoesNotContain("k1", engine.ConflictedSyncKeys);
+            AvaloniaNoteDocument survivor = repository.LoadAll().Single(n => n.SyncKey == "k1");
+            Assert.Equal("1", survivor.Id);
+        }
 
-            Assert.True(engine.TryResolveConflict("k1", out _));
+        /// <summary>
+        /// Resolving with an unknown winner id (e.g. the row vanished) is rejected rather than
+        /// silently deleting everything.
+        /// </summary>
+        [Fact]
+        public async Task ResolveRejectsUnknownWinner()
+        {
+            AvaloniaNoteDocument note = Save("k1", "v1", "1");
+            await engine.SyncNowAsync();
+            note.Content = "local v2";
+            repository.Save(note);
+            client.SeedRemote("notes/k1.json", NoteWireSerializer.Serialize(new SyncNoteDocument { SyncKey = "k1", Content = "remote v2" }));
+            await engine.SyncNowAsync();
+
+            Assert.False(engine.TryResolveConflict("k1", "does-not-exist", out string? error));
+            Assert.Equal("Sync.Resolve.None", error);
+            Assert.Contains("k1", engine.ConflictedSyncKeys);
+        }
+
+        /// <summary>
+        /// The resolved winner becomes the only truth: after resolve + sync the remote holds the
+        /// winner's content (overwriting the diverged remote version, ignoring edit time), the conflict
+        /// is cleared, exactly one local row remains, and a further pass is a no-op (no re-conflict).
+        /// </summary>
+        [Fact]
+        public async Task ForceResolveOverwritesRemoteAndDoesNotReconflict()
+        {
+            AvaloniaNoteDocument note = Save("k1", "v1", "1");
+            await engine.SyncNowAsync();
+            note.Content = "local wins";
+            repository.Save(note);
+            client.SeedRemote("notes/k1.json", NoteWireSerializer.Serialize(new SyncNoteDocument { SyncKey = "k1", Content = "remote loses" }));
+            await engine.SyncNowAsync();
+
+            Assert.Contains("k1", engine.ConflictedSyncKeys);
+
+            Assert.True(engine.TryResolveConflict("k1", "1", out _));
+            SyncResult resolvePass = await engine.SyncNowAsync();
+
+            Assert.True(resolvePass.Success);
+            Assert.Equal("local wins", await ReadRemote("k1"));
+            Assert.DoesNotContain("k1", engine.ConflictedSyncKeys);
+            Assert.Single(repository.LoadAll(), n => n.SyncKey == "k1");
+
+            SyncResult settled = await engine.SyncNowAsync();
+            Assert.False(settled.Changed);
             Assert.DoesNotContain("k1", engine.ConflictedSyncKeys);
         }
 

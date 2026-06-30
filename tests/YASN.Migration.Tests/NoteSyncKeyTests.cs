@@ -74,5 +74,31 @@ namespace YASN.Migration.Tests
             Assert.NotEqual("1", copy.Id);
             Assert.Equal(2, repository.LoadAll().Count(n => n.SyncKey == "shared"));
         }
+
+        /// <summary>
+        /// A pre-v8 index whose sole note's content lives at <c>&lt;id&gt;.md</c> (id != sync key) is
+        /// migrated on load to <c>&lt;syncKey&gt;.md</c>, and the migration is idempotent across reloads.
+        /// </summary>
+        [Fact]
+        public void MigratesLegacyIdNamedContentToSyncKeyName()
+        {
+            Directory.CreateDirectory(Path.Combine(root, "notes"));
+            // Schema 7 index: a sole note whose id and sync key differ, content stored under the id.
+            string index = "{\"schemaVersion\":7,\"notes\":[{\"id\":\"local-id\",\"syncKey\":\"shared-key\"}]}";
+            File.WriteAllText(Path.Combine(root, "notes.index.json"), index);
+            File.WriteAllText(Path.Combine(root, "notes", "local-id.md"), "# Migrated body");
+
+            NoteRepository repository = new NoteRepository(root);
+            AvaloniaNoteDocument loaded = repository.LoadAll().Single();
+
+            Assert.Equal("# Migrated body", loaded.Content);
+            Assert.True(File.Exists(Path.Combine(root, "notes", "shared-key.md")));
+            Assert.False(File.Exists(Path.Combine(root, "notes", "local-id.md")));
+
+            // Idempotent: a second load via a fresh repository leaves the renamed file in place.
+            AvaloniaNoteDocument reloaded = new NoteRepository(root).LoadAll().Single();
+            Assert.Equal("# Migrated body", reloaded.Content);
+            Assert.True(File.Exists(Path.Combine(root, "notes", "shared-key.md")));
+        }
     }
 }

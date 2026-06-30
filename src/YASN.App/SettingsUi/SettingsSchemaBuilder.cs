@@ -69,6 +69,22 @@ namespace YASN.SettingsUi
         public const int DefaultNoteMinWidth = 620;
 
         /// <summary>
+        /// Synced key controlling what double-clicking the preview does. One of
+        /// <see cref="PreviewDoubleClickNone"/>, <see cref="PreviewDoubleClickInApp"/>, or
+        /// <see cref="PreviewDoubleClickExternal"/>.
+        /// </summary>
+        public const string PreviewDoubleClickActionKey = "editor.previewDoubleClickAction";
+
+        /// <summary>Double-clicking the preview does nothing.</summary>
+        public const string PreviewDoubleClickNone = "none";
+
+        /// <summary>Double-clicking the preview enters the in-app editor at the clicked line (default).</summary>
+        public const string PreviewDoubleClickInApp = "inApp";
+
+        /// <summary>Double-clicking the preview opens the note in the external editor.</summary>
+        public const string PreviewDoubleClickExternal = "external";
+
+        /// <summary>
         /// Builds the settings view model and applies persisted values.
         /// </summary>
         /// <param name="store">The settings store used to load persisted values.</param>
@@ -531,6 +547,20 @@ namespace YASN.SettingsUi
                 previewStyle.Options.Add(new SettingOption { Label = StyleDisplayLabel(style), Value = style });
             }
             module.Fields.Add(previewStyle);
+
+            SettingField doubleClick = new SettingField
+            {
+                Key = PreviewDoubleClickActionKey,
+                Title = LocalizationService.Current["Settings.Editor.PreviewDoubleClick"],
+                Description = LocalizationService.Current["Settings.Editor.PreviewDoubleClick.Description"],
+                FieldType = SettingFieldType.Select,
+                ShouldSync = true,
+                Value = PreviewDoubleClickInApp
+            };
+            doubleClick.Options.Add(new SettingOption { Label = LocalizationService.Current["Settings.Editor.PreviewDoubleClick.None"], Value = PreviewDoubleClickNone });
+            doubleClick.Options.Add(new SettingOption { Label = LocalizationService.Current["Settings.Editor.PreviewDoubleClick.InApp"], Value = PreviewDoubleClickInApp });
+            doubleClick.Options.Add(new SettingOption { Label = LocalizationService.Current["Settings.Editor.PreviewDoubleClick.External"], Value = PreviewDoubleClickExternal });
+            module.Fields.Add(doubleClick);
 
             return module;
         }

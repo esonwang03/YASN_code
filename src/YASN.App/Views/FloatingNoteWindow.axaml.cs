@@ -42,9 +42,11 @@ namespace YASN.Views
         private readonly Control previewPanel;
         private readonly Button editorModeButton;
         private readonly Material.Icons.Avalonia.MaterialIcon editorModeIcon;
+        private readonly Material.Icons.Avalonia.MaterialIcon fullScreenIcon;
         private readonly EditorHotkeyController editorHotkeys;
         private CompletionWindow? completionWindow;
         private List<WindowLevel> supportedLevels = new();
+        private bool previewInitialized;
         private double savedLeftPhysical = double.NaN;
         private double savedWidthDip = double.NaN;
         private Action? openMainWindowAction;
@@ -102,6 +104,8 @@ namespace YASN.Views
                 ?? throw new InvalidOperationException("EditorModeButton was not found.");
             editorModeIcon = this.FindControl<Material.Icons.Avalonia.MaterialIcon>("EditorModeIcon")
                 ?? throw new InvalidOperationException("EditorModeIcon was not found.");
+            fullScreenIcon = this.FindControl<Material.Icons.Avalonia.MaterialIcon>("FullScreenIcon")
+                ?? throw new InvalidOperationException("FullScreenIcon was not found.");
 
             Grid contentGrid = (Grid)editorPanel.Parent!;
             editorColumn = contentGrid.ColumnDefinitions[0];
@@ -144,7 +148,7 @@ namespace YASN.Views
             Loaded += HandleLoaded;
             Closing += HandleClosing;
             Resized += (_, _) => PersistCurrentBounds();
-            viewModel.PreviewRequested += (_, _) => RefreshPreview();
+            viewModel.PreviewRequested += (_, _) => PatchPreviewBody();
             viewModel.PropertyChanged += (_, args) =>
             {
                 if (args.PropertyName == nameof(NoteWindowViewModel.Level))
@@ -330,6 +334,23 @@ namespace YASN.Views
             levelSelector.SelectedItem = next;
         }
 
+        /// <summary>
+        /// Sets the window stacking level from an external caller (the note manager), keeping the level
+        /// selector, the view model, and the live window in step. Unsupported levels are ignored.
+        /// </summary>
+        /// <param name="level">The level to apply.</param>
+        public void SetLevel(WindowLevel level)
+        {
+            if (!supportedLevels.Contains(level))
+            {
+                return;
+            }
+
+            // Routing through the selector raises its SelectionChanged, which writes viewModel.Level
+            // (persisting and applying the level), so the manager need not persist separately.
+            levelSelector.SelectedItem = level;
+        }
+
         private void ApplyInitialWindowState()
         {
             Position = new Avalonia.PixelPoint((int)viewModel.Note.Left, (int)viewModel.Note.Top);
@@ -349,6 +370,11 @@ namespace YASN.Views
             windowLevels.Apply(this, viewModel.Level);
         }
 
+        /// <summary>
+        /// Loads the full preview document into the WebView. Used on first load and when the preview
+        /// style changes — both need a fresh document. Per-edit updates use <see cref="PatchPreviewBody"/>
+        /// instead, which replaces only the body without a reload (no flicker).
+        /// </summary>
         private void RefreshPreview()
         {
             PreviewStyleManager.EnsureInitialized();
@@ -375,6 +401,38 @@ namespace YASN.Views
 
             File.WriteAllText(htmlPath, html);
             previewWebView.Navigate(new Uri(htmlPath));
+            previewInitialized = true;
+        }
+
+        /// <summary>
+        /// Updates the preview after a content edit by replacing only the rendered body inside the
+        /// loaded document, via the <c>__setBody</c> bridge, instead of navigating to a fresh document.
+        /// A full reload tears the WebView down and white-repaints it on every keystroke (the flicker);
+        /// patching the body in place avoids that. Falls back to a full <see cref="RefreshPreview"/> when
+        /// the document has not been loaded yet (first render) or the script call fails.
+        /// </summary>
+        private async void PatchPreviewBody()
+        {
+            if (!previewInitialized)
+            {
+                RefreshPreview();
+                return;
+            }
+
+            try
+            {
+                string body = MarkdownPreviewDocument.RenderBody(viewModel.Content);
+                string encoded = System.Text.Json.JsonSerializer.Serialize(body);
+                await previewWebView.InvokeScript($"window.__setBody && window.__setBody({encoded})").ConfigureAwait(true);
+                ScrollPreviewToCaretLine(onlyIfOffscreen: false, smooth: false);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or ObjectDisposedException)
+            {
+                // The WebView may not be ready (or was torn down); fall back to a full reload so the
+                // preview still reflects the edit.
+                AppLogger.Debug($"Preview body patch failed, falling back to reload: {ex.Message}");
+                RefreshPreview();
+            }
         }
 
         /// <summary>
@@ -594,6 +652,41 @@ namespace YASN.Views
         }
 
         /// <summary>
+        /// Toggles the window between full-screen and normal. Full-screen is transient state, not
+        /// persisted; the matching icon is swapped so the button reads as "enter" vs "exit".
+        /// </summary>
+        private void HandleFullScreenClick(object? sender, RoutedEventArgs e)
+        {
+            bool entering = WindowState != WindowState.FullScreen;
+            WindowState = entering ? WindowState.FullScreen : WindowState.Normal;
+            fullScreenIcon.Kind = entering ? Material.Icons.MaterialIconKind.FullscreenExit : Material.Icons.MaterialIconKind.Fullscreen;
+        }
+
+        /// <summary>
+        /// Opens the note's Markdown file in the operating system's default handler for editing
+        /// outside the app. Image and relative-link resolution in the external editor is out of scope.
+        /// </summary>
+        private void HandleEditExternalClick(object? sender, RoutedEventArgs e)
+        {
+            OpenInExternalEditor();
+        }
+
+        /// <summary>
+        /// Opens the note's content file with the OS default application. The live editor content is
+        /// flushed to disk first so the external editor sees the latest text.
+        /// </summary>
+        private void OpenInExternalEditor()
+        {
+            // Persist any unsaved live edits so the external editor opens the current text.
+            viewModel.Content = LiveContent;
+            string path = viewModel.GetContentFilePath();
+            if (!SystemShellLauncher.Open(path))
+            {
+                AppLogger.Warn($"Failed to open note '{viewModel.NoteId}' in the external editor ('{path}').");
+            }
+        }
+
+        /// <summary>
         /// Advances the editor display mode in the order Preview → Text → Split → Preview.
         /// </summary>
         private void CycleEditorMode()
@@ -729,7 +822,7 @@ namespace YASN.Views
                 string payload = focusBody[MarkdownPreviewDocument.FocusEditorLineMessagePrefix.Length..];
                 if (int.TryParse(payload, out int sourceLine) && sourceLine >= 0)
                 {
-                    FocusEditorAtLine(sourceLine);
+                    HandlePreviewDoubleClick(sourceLine);
                 }
 
                 return;
@@ -742,6 +835,33 @@ namespace YASN.Views
                 {
                     AppLogger.Warn($"Failed to open preview link '{target}' in the default application.");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Handles a double-click on the preview according to the configured action: do nothing, jump
+        /// into the in-app editor at the clicked line (the default), or open the note in the external
+        /// editor. Read from the synced editor setting each click so a settings change takes effect
+        /// without reopening the window.
+        /// </summary>
+        /// <param name="sourceLine">The 0-based source line of the double-clicked block.</param>
+        private void HandlePreviewDoubleClick(int sourceLine)
+        {
+            string action = settings.GetValue(
+                SettingsUi.SettingsSchemaBuilder.PreviewDoubleClickActionKey,
+                shouldSync: true,
+                SettingsUi.SettingsSchemaBuilder.PreviewDoubleClickInApp);
+
+            switch (action)
+            {
+                case SettingsUi.SettingsSchemaBuilder.PreviewDoubleClickNone:
+                    break;
+                case SettingsUi.SettingsSchemaBuilder.PreviewDoubleClickExternal:
+                    OpenInExternalEditor();
+                    break;
+                default:
+                    FocusEditorAtLine(sourceLine);
+                    break;
             }
         }
 

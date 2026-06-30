@@ -11,6 +11,7 @@ namespace YASN.ViewModels
     /// </summary>
     public sealed class NoteListItemViewModel : INotifyPropertyChanged
     {
+        private readonly Action<NoteListItemViewModel, WindowLevel>? changeLevel;
         private bool isOpen;
         private bool isConflicted;
 
@@ -19,10 +20,18 @@ namespace YASN.ViewModels
         /// </summary>
         /// <param name="note">The note this row represents.</param>
         /// <param name="isOpen">Whether the note currently has an open window.</param>
-        public NoteListItemViewModel(AvaloniaNoteDocument note, bool isOpen)
+        /// <param name="availableLevels">The window stacking levels selectable for this row.</param>
+        /// <param name="changeLevel">A callback that persists and applies a level change, or null when level editing is unavailable.</param>
+        public NoteListItemViewModel(
+            AvaloniaNoteDocument note,
+            bool isOpen,
+            IReadOnlyList<WindowLevel>? availableLevels = null,
+            Action<NoteListItemViewModel, WindowLevel>? changeLevel = null)
         {
             Note = note;
             this.isOpen = isOpen;
+            AvailableLevels = availableLevels ?? new[] { WindowLevel.Normal, WindowLevel.TopMost };
+            this.changeLevel = changeLevel;
         }
 
         /// <inheritdoc />
@@ -44,9 +53,28 @@ namespace YASN.ViewModels
         public string Title => Note.Title;
 
         /// <summary>
-        /// Gets the note window stacking level.
+        /// Gets the window stacking levels selectable for this note.
         /// </summary>
-        public WindowLevel Level => Note.Level;
+        public IReadOnlyList<WindowLevel> AvailableLevels { get; }
+
+        /// <summary>
+        /// Gets or sets the note window stacking level. Setting it routes through the manager callback
+        /// to persist and apply the change; a no-op when the level is unchanged or no callback was
+        /// supplied (e.g. the designer).
+        /// </summary>
+        public WindowLevel SelectedLevel
+        {
+            get => Note.Level;
+            set
+            {
+                if (Note.Level == value || changeLevel is null)
+                {
+                    return;
+                }
+
+                changeLevel(this, value);
+            }
+        }
 
         /// <summary>
         /// Gets or sets whether the note currently has an open window.
@@ -112,7 +140,7 @@ namespace YASN.ViewModels
         /// <summary>
         /// Gets the localized window level text.
         /// </summary>
-        public string LevelText => LocalizationService.Current[$"Window.Level.{Level}"];
+        public string LevelText => LocalizationService.Current[$"Window.Level.{Note.Level}"];
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {

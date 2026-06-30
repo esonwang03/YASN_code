@@ -173,6 +173,9 @@ namespace YASN.Infrastructure.Sync
                 }
 
                 HashSet<string> conflicted = new HashSet<string>(state.GetConflictedKeys(), StringComparer.Ordinal);
+                HashSet<string> forced = new HashSet<string>(
+                    state.GetQueue().Where(q => q.Operation == ForceUploadOp).Select(q => q.SyncKey),
+                    StringComparer.Ordinal);
                 HashSet<string> keys = new HashSet<string>(StringComparer.Ordinal);
                 keys.UnionWith(localByKey.Keys);
                 keys.UnionWith(remoteByKey.Keys);
@@ -180,7 +183,7 @@ namespace YASN.Infrastructure.Sync
 
                 // Decide every eligible key up front (pure, no IO) so a bulk delete can be confirmed
                 // before anything is applied.
-                List<PlannedKey> work = BuildWorkItems(keys, conflicted, localByKey, remoteByKey);
+                List<PlannedKey> work = BuildWorkItems(keys, conflicted, forced, localByKey, remoteByKey);
                 Logging.AppLogger.Info(
                     $"Sync pass: {localByKey.Count} local, {remoteByKey.Count} remote, {work.Count} key(s) to process.");
 
@@ -443,33 +446,51 @@ namespace YASN.Infrastructure.Sync
         }
 
         /// <summary>
-        /// Attempts to resolve a conflict by re-baselining from the single surviving note for the key.
-        /// Fails when zero or more than one note still shares the key (the user must delete duplicates
-        /// down to exactly one first).
+        /// Marks a queued change as a forced upload: the next pass uploads the local note for this key
+        /// unconditionally, overwriting whatever the remote holds regardless of its validator. Used by
+        /// conflict resolution to make the chosen version the single source of truth.
+        /// </summary>
+        private const string ForceUploadOp = "force-upload";
+
+        /// <summary>
+        /// Resolves a conflict by declaring one surviving row the single source of truth: every other
+        /// local row sharing the key is deleted, the conflict and baseline are cleared, and a forced
+        /// upload is queued so the next pass overwrites the remote unconditionally (ignoring its edit
+        /// time / validator) rather than re-detecting divergence.
         /// </summary>
         /// <param name="syncKey">The conflicted sync key.</param>
+        /// <param name="winningNoteId">The id of the row that should win and become the truth.</param>
         /// <param name="error">A short reason when resolution is rejected.</param>
         /// <returns><see langword="true"/> when the conflict was cleared.</returns>
-        public bool TryResolveConflict(string syncKey, out string? error)
+        public bool TryResolveConflict(string syncKey, string winningNoteId, out string? error)
         {
             error = null;
-            int count = repository.LoadAll().Count(n => n.SyncKey == syncKey);
-            if (count == 0)
+            List<AvaloniaNoteDocument> rows = repository.LoadAll().Where(n => n.SyncKey == syncKey).ToList();
+            if (rows.Count == 0)
             {
                 error = "Sync.Resolve.None";
                 return false;
             }
 
-            if (count > 1)
+            AvaloniaNoteDocument? winner = rows.FirstOrDefault(n => n.Id == winningNoteId);
+            if (winner is null)
             {
-                error = "Sync.Resolve.Duplicates";
+                error = "Sync.Resolve.None";
                 return false;
             }
 
-            // Clear conflict and drop the baseline so the survivor re-uploads as the new truth.
+            // Delete the losing rows. They share the sync key with the surviving winner, so the key still
+            // has a live local note afterward and no remote tombstone is implied.
+            foreach (AvaloniaNoteDocument loser in rows.Where(n => n.Id != winningNoteId))
+            {
+                repository.Delete(loser.Id);
+            }
+
+            // Clear the conflict and drop the baseline, then queue a forced upload so the next pass
+            // overwrites the remote with the winner regardless of the remote's current validator.
             state.ClearConflict(syncKey);
             state.DeleteBaseline(syncKey);
-            state.Enqueue(syncKey, "upsert");
+            state.Enqueue(syncKey, ForceUploadOp);
             return true;
         }
 

@@ -38,11 +38,15 @@ namespace YASN.Infrastructure.Sync
 
         /// <summary>
         /// Resolves each eligible key to a <see cref="PlannedKey"/> using the pure
-        /// <see cref="SyncDecider"/>, skipping conflicted keys and freshly duplicated pairs. No IO.
+        /// <see cref="SyncDecider"/>, skipping conflicted keys and freshly duplicated pairs. Keys in
+        /// <paramref name="forced"/> (a resolved conflict's winner) are overridden to an unconditional
+        /// <see cref="SyncAction.Upload"/> so the chosen version overwrites the remote regardless of its
+        /// validator. No IO.
         /// </summary>
         private List<PlannedKey> BuildWorkItems(
             HashSet<string> keys,
             HashSet<string> conflicted,
+            HashSet<string> forced,
             Dictionary<string, List<AvaloniaNoteDocument>> localByKey,
             Dictionary<string, RemoteEntry> remoteByKey)
         {
@@ -73,6 +77,24 @@ namespace YASN.Infrastructure.Sync
                 string? remoteETag = remote?.ETag;
 
                 SyncAction action = SyncDecider.Decide(localHash, remoteETag, baseline);
+
+                if (forced.Contains(key))
+                {
+                    if (local is not null)
+                    {
+                        // Forced resolution: upload the winner unconditionally, ignoring the remote's
+                        // validator / edit time, so it cannot re-conflict with the version it replaces.
+                        action = SyncAction.Upload;
+                    }
+                    else
+                    {
+                        // The winner was deleted between resolve and this pass; nothing to force. Drop the
+                        // stale marker so it does not persist forever, and fall through with the decider's
+                        // action.
+                        state.Dequeue(key);
+                    }
+                }
+
                 work.Add(new PlannedKey(key, local, remote, localHash, action));
             }
 

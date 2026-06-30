@@ -54,6 +54,23 @@ namespace YASN.Application
         public event EventHandler? NotesChanged;
 
         /// <summary>
+        /// Gets the window stacking levels supported on this platform, in display order.
+        /// </summary>
+        public IReadOnlyList<Core.WindowLevel> SupportedLevels
+        {
+            get
+            {
+                List<Core.WindowLevel> levels = new List<Core.WindowLevel> { Core.WindowLevel.Normal, Core.WindowLevel.TopMost };
+                if (platformServices.WindowLevels.SupportsBottomMost)
+                {
+                    levels.Add(Core.WindowLevel.BottomMost);
+                }
+
+                return levels;
+            }
+        }
+
+        /// <summary>
         /// Gets whether a note currently has an open window.
         /// </summary>
         /// <param name="noteId">The note identifier.</param>
@@ -136,7 +153,8 @@ namespace YASN.Application
         }
 
         /// <summary>
-        /// Applies a stacking level to a note's open window, if any.
+        /// Applies a stacking level to a note's open window, if any. Routes through the window so its
+        /// own level selector and view model stay in step with a manager-initiated change.
         /// </summary>
         /// <param name="noteId">The note identifier.</param>
         /// <param name="level">The level to apply.</param>
@@ -144,7 +162,7 @@ namespace YASN.Application
         {
             if (noteWindows.TryGetValue(noteId, out FloatingNoteWindow? window))
             {
-                platformServices.WindowLevels.Apply(window, level);
+                window.SetLevel(level);
             }
         }
 

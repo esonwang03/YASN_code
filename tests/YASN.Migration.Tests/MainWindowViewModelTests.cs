@@ -165,10 +165,11 @@ namespace YASN.Migration.Tests
         }
 
         /// <summary>
-        /// Resolving is rejected until duplicate copies are deleted, then succeeds.
+        /// Resolving a conflict from a row picks that row as the winner, deletes the other copy, and
+        /// clears the conflict — no manual duplicate deletion required.
         /// </summary>
         [Fact]
-        public async Task ResolveConflictRequiresSingleCopy()
+        public async Task ResolveConflictPicksRowAndClears()
         {
             using SyncFixture fixture = new SyncFixture(root);
             AvaloniaNoteDocument note = fixture.SaveNote("k1", "v1", "1");
@@ -180,15 +181,12 @@ namespace YASN.Migration.Tests
 
             MainWindowViewModel viewModel = new MainWindowViewModel(fixture.Repository, new FakeNoteWindowManager(), fixture.Engine);
             NoteListItemViewModel conflicted = viewModel.Notes.First(n => n.IsConflicted);
-
-            Assert.False(viewModel.ResolveConflict(conflicted, out string? errorKey));
-            Assert.Equal("Sync.Resolve.Duplicates", errorKey);
-
-            string copyId = fixture.Repository.LoadAll().Where(n => n.SyncKey == "k1").Max(n => n.Id)!;
-            fixture.Repository.Delete(copyId);
+            string winnerId = conflicted.Note.Id;
 
             Assert.True(viewModel.ResolveConflict(conflicted, out _));
             Assert.Empty(fixture.Engine.ConflictedSyncKeys);
+            AvaloniaNoteDocument survivor = fixture.Repository.LoadAll().Single(n => n.SyncKey == "k1");
+            Assert.Equal(winnerId, survivor.Id);
         }
 
         private sealed class SyncFixture : IDisposable
@@ -240,6 +238,9 @@ namespace YASN.Migration.Tests
             private readonly HashSet<string> open = new(StringComparer.Ordinal);
 
             public event EventHandler? NotesChanged;
+
+            public IReadOnlyList<WindowLevel> SupportedLevels { get; } =
+                new[] { WindowLevel.Normal, WindowLevel.TopMost, WindowLevel.BottomMost };
 
             public bool IsOpen(string noteId) => open.Contains(noteId);
 

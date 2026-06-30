@@ -20,6 +20,10 @@ namespace YASN.Application
         public bool IsOpen(string noteId) => false;
 
         /// <inheritdoc />
+        public IReadOnlyList<WindowLevel> SupportedLevels { get; } =
+            new[] { WindowLevel.Normal, WindowLevel.TopMost };
+
+        /// <inheritdoc />
         public void Open(AvaloniaNoteDocument note)
         {
         }

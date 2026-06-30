@@ -169,5 +169,53 @@ namespace YASN.Migration.Tests
 
             Assert.Single(repository.LoadAll());
         }
+
+        /// <summary>
+        /// A sole note is stored under its sync key, not its id, so local and remote naming unify even
+        /// when the two identifiers differ (a kept conflict copy).
+        /// </summary>
+        [Fact]
+        public void SoleNoteIsStoredUnderSyncKey()
+        {
+            NoteRepository repository = new NoteRepository(root);
+            AvaloniaNoteDocument note = new AvaloniaNoteDocument { Id = "local-id", SyncKey = "shared-key", Content = "# Body" };
+
+            repository.Save(note);
+
+            Assert.True(File.Exists(Path.Combine(root, "notes", "shared-key.md")));
+            Assert.False(File.Exists(Path.Combine(root, "notes", "local-id.md")));
+            Assert.Equal("# Body", repository.LoadAll().Single().Content);
+            Assert.Equal(Path.Combine(root, "notes", "shared-key.md"), repository.GetContentFilePath(note));
+        }
+
+        /// <summary>
+        /// A conflict pair (two rows sharing one sync key) stores each row under its own id, since the
+        /// shared sync key cannot name both files; deleting one collapses the survivor back to the
+        /// sync-key name.
+        /// </summary>
+        [Fact]
+        public void ConflictPairUsesIdNamesThenCollapsesOnDelete()
+        {
+            NoteRepository repository = new NoteRepository(root);
+            AvaloniaNoteDocument original = new AvaloniaNoteDocument { Id = "k", SyncKey = "k", Content = "original" };
+            repository.Save(original);
+
+            // Materialize the remote side of a conflict: same sync key, fresh id.
+            AvaloniaNoteDocument copy = new AvaloniaNoteDocument { Id = "k", SyncKey = "k", Content = "remote copy" };
+            repository.CreateConflictCopy(copy);
+            string copyId = copy.Id;
+
+            Assert.NotEqual("k", copyId);
+            Assert.True(File.Exists(Path.Combine(root, "notes", "k.md")));        // original at <SyncKey>.md
+            Assert.True(File.Exists(Path.Combine(root, "notes", $"{copyId}.md"))); // copy at <Id>.md
+            Assert.Equal(2, repository.LoadAll().Count(n => n.SyncKey == "k"));
+
+            // Delete the copy: the survivor stays/returns to the sync-key name.
+            repository.Delete(copyId);
+
+            Assert.False(File.Exists(Path.Combine(root, "notes", $"{copyId}.md")));
+            Assert.True(File.Exists(Path.Combine(root, "notes", "k.md")));
+            Assert.Equal("original", repository.LoadAll().Single(n => n.SyncKey == "k").Content);
+        }
     }
 }

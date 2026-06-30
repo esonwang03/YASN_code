@@ -75,7 +75,7 @@ namespace YASN.ViewModels
 
             foreach (AvaloniaNoteDocument note in ordered)
             {
-                Notes.Add(new NoteListItemViewModel(note, windows.IsOpen(note.Id))
+                Notes.Add(new NoteListItemViewModel(note, windows.IsOpen(note.Id), windows.SupportedLevels, ChangeLevel)
                 {
                     IsConflicted = conflicted.Contains(note.SyncKey)
                 });
@@ -104,10 +104,11 @@ namespace YASN.ViewModels
         }
 
         /// <summary>
-        /// Attempts to mark a conflict resolved for the row's note. Requires exactly one note to
-        /// remain for that sync key; otherwise reports a localization key describing the problem.
+        /// Resolves a conflict for the row's note by declaring it the single source of truth: other
+        /// rows sharing its sync key are deleted, the conflict is cleared, and an immediate sync pass
+        /// is triggered to force-upload the winner over the remote.
         /// </summary>
-        /// <param name="item">The note row.</param>
+        /// <param name="item">The note row that should win.</param>
         /// <param name="errorKey">A localization key describing why resolution failed, if any.</param>
         /// <returns><see langword="true"/> when the conflict was cleared.</returns>
         public bool ResolveConflict(NoteListItemViewModel item, out string? errorKey)
@@ -118,12 +119,17 @@ namespace YASN.ViewModels
                 return false;
             }
 
-            if (!sync.TryResolveConflict(item.Note.SyncKey, out errorKey))
+            if (!sync.TryResolveConflict(item.Note.SyncKey, item.Note.Id, out errorKey))
             {
                 return false;
             }
 
             Refresh();
+
+            // Force the resolved version onto the remote now rather than waiting for the periodic timer.
+            // If a pass is already running it returns "busy"; the queued force-upload marker is durable
+            // and the next pass still honors it.
+            SyncNow();
             return true;
         }
 

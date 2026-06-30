@@ -15,6 +15,13 @@ namespace YASN.Application
         event EventHandler? NotesChanged;
 
         /// <summary>
+        /// Gets the window stacking levels supported on this platform, in display order. Always
+        /// includes <see cref="WindowLevel.Normal"/> and <see cref="WindowLevel.TopMost"/>; includes
+        /// <see cref="WindowLevel.BottomMost"/> only where the platform supports it.
+        /// </summary>
+        IReadOnlyList<WindowLevel> SupportedLevels { get; }
+
+        /// <summary>
         /// Gets whether a note currently has an open window.
         /// </summary>
         /// <param name="noteId">The note identifier.</param>

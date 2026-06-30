@@ -12,7 +12,7 @@ namespace YASN.AvaloniaNotes
         /// Gets or sets the current index schema version.
         /// </summary>
         [JsonPropertyName("schemaVersion")]
-        public int SchemaVersion { get; set; } = 7;
+        public int SchemaVersion { get; set; } = 8;
 
         /// <summary>
         /// Gets or sets serialized note metadata records.

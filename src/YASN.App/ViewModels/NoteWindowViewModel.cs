@@ -44,6 +44,13 @@ namespace YASN.ViewModels
         public string NoteId => note.Id;
 
         /// <summary>
+        /// Returns the absolute path of the note's Markdown content file on disk, resolved against the
+        /// repository's sync-key/id naming rule. Used by the external-editor action.
+        /// </summary>
+        /// <returns>The absolute content file path.</returns>
+        public string GetContentFilePath() => repository.GetContentFilePath(note);
+
+        /// <summary>
         /// Gets the note display title.
         /// </summary>
         public string Title => note.Title;

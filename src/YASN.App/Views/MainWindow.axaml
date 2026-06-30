@@ -12,6 +12,9 @@
     MinHeight="320"
     WindowStartupLocation="CenterScreen"
     Icon="avares://YASN/Resources/YASN.ico">
+  <Window.Resources>
+    <vm:WindowLevelDisplayConverter x:Key="WindowLevelDisplay" />
+  </Window.Resources>
   <Grid ColumnDefinitions="*,Auto" Margin="12">
     <Grid Grid.Column="0" RowDefinitions="*">
       <TextBlock
@@ -37,9 +40,19 @@
                       Background="#E53935" IsVisible="{Binding IsConflicted}" />
               <StackPanel Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Text="{Binding LevelText}" FontSize="12" Foreground="#777777" />
-                  <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="#777777" />
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <ComboBox ItemsSource="{Binding AvailableLevels}"
+                            SelectedItem="{Binding SelectedLevel, Mode=TwoWay}"
+                            FontSize="12"
+                            MinHeight="0"
+                            Padding="6,2">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate>
+                        <TextBlock Text="{Binding Converter={StaticResource WindowLevelDisplay}}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="#777777" VerticalAlignment="Center" />
                 </StackPanel>
                 <TextBlock Text="{Binding ConflictStatusText}" FontSize="12" Foreground="#E53935"
                            IsVisible="{Binding IsConflicted}" />

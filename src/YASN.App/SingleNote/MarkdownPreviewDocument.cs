@@ -131,7 +131,9 @@ namespace YASN.SingleNote
             })();
             """;
 
-        // Makes Markdig's task-list checkboxes interactive (Markdig renders them disabled). Enables each
+        // Makes Markdig's task-list checkboxes interactive (Markdig renders them disabled). Defines a
+        // reusable wiring function on window so it can run on first load and again after each
+        // incremental body patch (innerHTML replacement destroys the prior listeners). Enables each
         // checkbox and, on change, posts the toggle to the host with the 0-based source line read from
         // the nearest data-source-line ancestor (the list-item block), so the host rewrites the source.
         private const string TaskCheckboxScript = """
@@ -141,21 +143,24 @@ namespace YASN.SingleNote
                   window.chrome.webview.postMessage(message);
                 }
               };
-              const boxes = document.querySelectorAll('li.task-list-item input[type="checkbox"]');
-              for (const box of boxes) {
-                box.disabled = false;
-                box.addEventListener('change', () => {
-                  let node = box.closest('[data-source-line]');
-                  if (!node) {
-                    return;
-                  }
-                  const line = parseInt(node.getAttribute('data-source-line'), 10);
-                  if (isNaN(line)) {
-                    return;
-                  }
-                  post('preview-task-toggle:' + line + ':' + (box.checked ? '1' : '0'));
-                });
-              }
+              window.__wireTaskCheckboxes = () => {
+                const boxes = document.querySelectorAll('li.task-list-item input[type="checkbox"]');
+                for (const box of boxes) {
+                  box.disabled = false;
+                  box.addEventListener('change', () => {
+                    let node = box.closest('[data-source-line]');
+                    if (!node) {
+                      return;
+                    }
+                    const line = parseInt(node.getAttribute('data-source-line'), 10);
+                    if (isNaN(line)) {
+                      return;
+                    }
+                    post('preview-task-toggle:' + line + ':' + (box.checked ? '1' : '0'));
+                  });
+                }
+              };
+              window.__wireTaskCheckboxes();
             })();
             """;
 
@@ -163,6 +168,7 @@ namespace YASN.SingleNote
         // data-source-line to the host so the editor caret jumps to that line. Uses the capture phase
         // and the nearest data-source-line ancestor so clicks on inline children (text, spans) still
         // resolve to their block. Left single-clicks are untouched, so text selection still works.
+        // Attached to document, so it survives incremental body patches.
         private const string EditorJumpBridgeScript = """
             (() => {
               const post = (message) => {
@@ -186,22 +192,49 @@ namespace YASN.SingleNote
             })();
             """;
 
+        // Enables incremental preview updates without a full document reload (which tears down and
+        // white-repaints the WebView, the source of the typing flicker). Replaces only the rendered
+        // body inside #page, then re-runs the per-element wiring (task checkboxes, math) that the
+        // innerHTML replacement discarded. The document-level bridges (right-click, scroll-sync,
+        // editor-jump) are attached to document and persist across patches.
+        private const string BodyPatchScript = """
+            (() => {
+              window.__setBody = (html) => {
+                const page = document.getElementById('page');
+                if (!page) {
+                  return;
+                }
+                page.innerHTML = html;
+                if (typeof window.__wireTaskCheckboxes === 'function') {
+                  window.__wireTaskCheckboxes();
+                }
+                if (typeof window.__renderMath === 'function') {
+                  window.__renderMath();
+                }
+              };
+            })();
+            """;
+
         // Renders the KaTeX auto-render pass after the document loads, typesetting the spans/divs the
         // Markdig Mathematics extension emits (inline \( \) and display \[ \]). KaTeX, its CSS, and its
         // fonts are vendored under style/katex so math renders fully offline. throwOnError:false leaves
-        // malformed math as its source text rather than blanking the preview.
+        // malformed math as its source text rather than blanking the preview. Defines a reusable
+        // window.__renderMath so an incremental body patch can re-typeset the new content.
         private const string MathRenderScript = """
             (() => {
-              if (typeof renderMathInElement !== 'function') {
-                return;
-              }
-              renderMathInElement(document.getElementById('page') || document.body, {
-                delimiters: [
-                  { left: '\\[', right: '\\]', display: true },
-                  { left: '\\(', right: '\\)', display: false }
-                ],
-                throwOnError: false
-              });
+              window.__renderMath = () => {
+                if (typeof renderMathInElement !== 'function') {
+                  return;
+                }
+                renderMathInElement(document.getElementById('page') || document.body, {
+                  delimiters: [
+                    { left: '\\[', right: '\\]', display: true },
+                    { left: '\\(', right: '\\)', display: false }
+                  ],
+                  throwOnError: false
+                });
+              };
+              window.__renderMath();
             })();
             """;
 
@@ -222,7 +255,7 @@ namespace YASN.SingleNote
         /// <returns>A complete HTML document.</returns>
         public static string Render(string markdown, string styleHref, string baseHref = "", string katexBaseHref = "")
         {
-            string body = Markdown.ToHtml(markdown ?? string.Empty, Pipeline);
+            string body = RenderBody(markdown);
             string encodedStyleHref = WebUtility.HtmlEncode(styleHref ?? string.Empty);
             string baseTag = string.IsNullOrEmpty(baseHref)
                 ? string.Empty
@@ -246,9 +279,22 @@ namespace YASN.SingleNote
                   <script>{ScrollSyncScript}</script>
                   <script>{TaskCheckboxScript}</script>
                   <script>{EditorJumpBridgeScript}</script>
+                  <script>{BodyPatchScript}</script>
                 {katexScripts}</body>
                 </html>
                 """;
+        }
+
+        /// <summary>
+        /// Renders just the Markdown body HTML (the inner content of <c>#page</c>), for incremental
+        /// preview updates that replace the body without reloading the whole document. Uses the same
+        /// Markdig pipeline as <see cref="Render"/> so the output is identical to a full render's body.
+        /// </summary>
+        /// <param name="markdown">The Markdown content to render.</param>
+        /// <returns>The rendered body HTML fragment.</returns>
+        public static string RenderBody(string markdown)
+        {
+            return Markdown.ToHtml(markdown ?? string.Empty, Pipeline);
         }
 
         /// <summary>
