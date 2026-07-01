@@ -96,6 +96,25 @@ namespace YASN.App.Settings
             }
         }
 
+        private bool _isFieldVisible = true;
+
+        /// <summary>
+        /// Gets or sets whether this field's editor row is shown in the settings window. Defaults to
+        /// visible. Used to conditionally hide fields that only apply when another field is set (e.g.
+        /// the sync-detail fields are hidden while sync is disabled). Hiding leaves <see cref="Value"/>
+        /// and <see cref="BoolValue"/> intact, so the entered content survives and still persists on save.
+        /// </summary>
+        public bool IsFieldVisible
+        {
+            get => _isFieldVisible;
+            set
+            {
+                if (_isFieldVisible == value) return;
+                _isFieldVisible = value;
+                OnPropertyChanged();
+            }
+        }
+
         public Action<SettingField>? OnChanged { get; set; }
         public ObservableCollection<SettingOption> Options { get; } = new();
 
@@ -154,11 +173,35 @@ namespace YASN.App.Settings
         }
     }
 
-    public class SettingAction
+    public class SettingAction : INotifyPropertyChanged
     {
         public string? Key { get; set; }
         public string? Label { get; set; }
         public Func<Task<string>>? ExecuteAsync { get; set; }
+
+        private bool _isActionVisible = true;
+
+        /// <summary>
+        /// Gets or sets whether this action's button is shown in the settings window. Defaults to
+        /// visible. Used to hide actions that only apply when a related field is set (e.g. the sync
+        /// "test connection" button is hidden while sync is disabled).
+        /// </summary>
+        public bool IsActionVisible
+        {
+            get => _isActionVisible;
+            set
+            {
+                if (_isActionVisible == value) return;
+                _isActionVisible = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 
     public class SettingModule : INotifyPropertyChanged

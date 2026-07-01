@@ -331,14 +331,15 @@ namespace YASN.SettingsUi
                 Title = LocalizationService.Current["Settings.Sync.Module"]
             };
 
-            module.Fields.Add(new SettingField
+            SettingField enabled = new SettingField
             {
                 Key = SyncSettings.EnabledKey,
                 Title = LocalizationService.Current["Settings.Sync.Enabled"],
                 FieldType = SettingFieldType.Toggle,
                 ShouldSync = false,
                 BoolValue = false
-            });
+            };
+            module.Fields.Add(enabled);
 
             module.Fields.Add(new SettingField
             {
@@ -415,6 +416,30 @@ namespace YASN.SettingsUi
                 Label = LocalizationService.Current["Settings.Sync.Test"],
                 ExecuteAsync = () => TestConnectionAsync(module)
             });
+
+            // The sync-detail fields (everything except the Enabled toggle) and the test-connection
+            // action only apply when sync is on. Hide them while sync is off, but keep each field's
+            // in-memory Value/BoolValue so entered content is preserved and still persists on save.
+            // Driven live off the Enabled toggle's change hook, with the initial state seeded here
+            // (ApplyValues re-fires this via BoolValue when a value is loaded).
+            void SyncDetailVisibility(SettingField toggle)
+            {
+                foreach (SettingField field in module.Fields)
+                {
+                    if (!ReferenceEquals(field, toggle))
+                    {
+                        field.IsFieldVisible = toggle.BoolValue;
+                    }
+                }
+
+                foreach (SettingAction action in module.Actions)
+                {
+                    action.IsActionVisible = toggle.BoolValue;
+                }
+            }
+
+            enabled.OnChanged = SyncDetailVisibility;
+            SyncDetailVisibility(enabled);
 
             return module;
         }

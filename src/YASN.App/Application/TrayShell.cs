@@ -100,6 +100,9 @@ namespace YASN.Application
                 IsVisible = true,
             };
 
+            // Left-clicking the tray icon opens the manage-notes window; right-click still shows Menu.
+            trayIcon.Clicked += (_, _) => OpenMainWindow();
+
             noteWindows.SetOpenMainWindowAction(OpenMainWindow);
             tutorial.SeedOnFirstRun();
             noteWindows.RestoreOpenNotes();

@@ -27,7 +27,7 @@
               <ItemsControl ItemsSource="{Binding Fields}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="s:SettingField">
-                    <StackPanel Margin="0,4" Spacing="2">
+                    <StackPanel Margin="0,4" Spacing="2" IsVisible="{Binding IsFieldVisible}">
                       <TextBlock Text="{Binding Title}" FontWeight="Medium" TextWrapping="Wrap" />
                       <StackPanel Orientation="Horizontal" Spacing="16"
                                   IsVisible="{Binding FieldType, Converter={StaticResource FieldTypeVisibility}, ConverterParameter=Toggle}">
@@ -80,7 +80,8 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="s:SettingAction">
                     <Button Content="{Binding Label}" HorizontalAlignment="Left" Margin="0,6,0,0"
-                            Tag="{Binding}" Click="HandleActionClick" />
+                            Tag="{Binding}" Click="HandleActionClick"
+                            IsVisible="{Binding IsActionVisible}" />
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>

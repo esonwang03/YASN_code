@@ -43,6 +43,7 @@ namespace YASN.Views
         private readonly Button editorModeButton;
         private readonly Material.Icons.Avalonia.MaterialIcon editorModeIcon;
         private readonly Material.Icons.Avalonia.MaterialIcon fullScreenIcon;
+        private readonly Material.Icons.Avalonia.MaterialIcon maximizeIcon;
         private readonly EditorHotkeyController editorHotkeys;
         private CompletionWindow? completionWindow;
         private List<WindowLevel> supportedLevels = new();
@@ -106,6 +107,8 @@ namespace YASN.Views
                 ?? throw new InvalidOperationException("EditorModeIcon was not found.");
             fullScreenIcon = this.FindControl<Material.Icons.Avalonia.MaterialIcon>("FullScreenIcon")
                 ?? throw new InvalidOperationException("FullScreenIcon was not found.");
+            maximizeIcon = this.FindControl<Material.Icons.Avalonia.MaterialIcon>("MaximizeIcon")
+                ?? throw new InvalidOperationException("MaximizeIcon was not found.");
 
             Grid contentGrid = (Grid)editorPanel.Parent!;
             editorColumn = contentGrid.ColumnDefinitions[0];
@@ -115,6 +118,7 @@ namespace YASN.Views
             previewWebView.EnvironmentRequested += HandlePreviewEnvironmentRequested;
             previewWebView.NavigationCompleted += (_, _) => ScrollPreviewToCaretLine(onlyIfOffscreen: false, smooth: false);
             resizeGrip.AddHandler(Thumb.PointerPressedEvent, HandleResizeGripPressed, RoutingStrategies.Tunnel);
+            RegisterEdgeResizeThumbs();
 
             // Debounce caret moves: editing/cursor changes fire rapidly, but each preview scroll is a
             // WebView script call. Coalesce to the latest line on a short timer before invoking JS.
@@ -660,6 +664,18 @@ namespace YASN.Views
             bool entering = WindowState != WindowState.FullScreen;
             WindowState = entering ? WindowState.FullScreen : WindowState.Normal;
             fullScreenIcon.Kind = entering ? Material.Icons.MaterialIconKind.FullscreenExit : Material.Icons.MaterialIconKind.Fullscreen;
+        }
+
+        /// <summary>
+        /// Toggles the window between maximized and normal, filling the screen's work area (task bar
+        /// preserved). Like full-screen this is transient state, not persisted; the icon is swapped so
+        /// the button reads as "maximize" vs "restore".
+        /// </summary>
+        private void HandleMaximizeClick(object? sender, RoutedEventArgs e)
+        {
+            bool maximizing = WindowState != WindowState.Maximized;
+            WindowState = maximizing ? WindowState.Maximized : WindowState.Normal;
+            maximizeIcon.Kind = maximizing ? Material.Icons.MaterialIconKind.WindowRestore : Material.Icons.MaterialIconKind.WindowMaximize;
         }
 
         /// <summary>
@@ -1254,6 +1270,43 @@ namespace YASN.Views
             if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             {
                 BeginResizeDrag(WindowEdge.SouthEast, e);
+            }
+        }
+
+        /// <summary>
+        /// Binds each borderless-window edge/corner resize thumb to the native resize loop for its edge.
+        /// The window has no OS chrome (<c>WindowDecorations="None"</c>), so these transparent handles are
+        /// the only way to resize from a side or a corner other than the visible bottom-right grip.
+        /// </summary>
+        private void RegisterEdgeResizeThumbs()
+        {
+            (string Name, WindowEdge Edge)[] handles =
+            {
+                ("ResizeLeft", WindowEdge.West),
+                ("ResizeRight", WindowEdge.East),
+                ("ResizeTop", WindowEdge.North),
+                ("ResizeBottom", WindowEdge.South),
+                ("ResizeTopLeft", WindowEdge.NorthWest),
+                ("ResizeTopRight", WindowEdge.NorthEast),
+                ("ResizeBottomLeft", WindowEdge.SouthWest)
+            };
+
+            foreach ((string name, WindowEdge edge) in handles)
+            {
+                Thumb thumb = this.FindControl<Thumb>(name)
+                    ?? throw new InvalidOperationException($"{name} was not found.");
+                // Tunnel like the corner grip so the press starts the resize before the thumb's own
+                // drag handling consumes it. Capture the edge per-thumb via the closure.
+                thumb.AddHandler(
+                    Thumb.PointerPressedEvent,
+                    (_, e) =>
+                    {
+                        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+                        {
+                            BeginResizeDrag(edge, e);
+                        }
+                    },
+                    RoutingStrategies.Tunnel);
             }
         }
 

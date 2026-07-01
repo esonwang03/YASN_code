@@ -128,3 +128,8 @@ Default to surfacing uncertainty, not hiding it.
 
 - `AGENTS.md` predates the Avalonia/`src/` refactor and still describes a WPF app with a single root `YASN.csproj` and root-level entry points — its **layout, paths, and `dotnet run`/`publish` commands are stale**; its hard rules and style guidance remain authoritative. Trust this file and the README for layout.
 - The app is **GUI-subsystem** (`OutputType=WinExe`) yet doubles as a CLI: in tray mode it has no console, so `AppLogger` only echoes to a console under `#if DEBUG` or when diagnose mode raises one (see `Diagnostics/DiagnoseMode.cs`). The CLI path attaches to the parent terminal (`Cli/ConsoleInterop.cs`).
+
+
+## 验证环节
+
+- 请使用powershell而不是bash。
