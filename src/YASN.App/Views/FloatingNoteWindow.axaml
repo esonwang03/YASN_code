@@ -75,9 +75,6 @@
           <Button ToolTip.Tip="{l:Tr Window.SetReminder}" Click="HandleSetReminderClick">
             <mi:MaterialIcon Kind="BellOutline" Width="18" Height="18" />
           </Button>
-          <Button x:Name="FullScreenButton" ToolTip.Tip="{l:Tr Window.FullScreen.Hint}" Click="HandleFullScreenClick">
-            <mi:MaterialIcon x:Name="FullScreenIcon" Kind="Fullscreen" Width="18" Height="18" />
-          </Button>
           <Button x:Name="MaximizeButton" ToolTip.Tip="{l:Tr Window.Maximize.Hint}" Click="HandleMaximizeClick">
             <mi:MaterialIcon x:Name="MaximizeIcon" Kind="WindowMaximize" Width="18" Height="18" />
           </Button>

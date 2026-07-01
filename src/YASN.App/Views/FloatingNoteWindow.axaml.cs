@@ -42,7 +42,6 @@ namespace YASN.Views
         private readonly Control previewPanel;
         private readonly Button editorModeButton;
         private readonly Material.Icons.Avalonia.MaterialIcon editorModeIcon;
-        private readonly Material.Icons.Avalonia.MaterialIcon fullScreenIcon;
         private readonly Material.Icons.Avalonia.MaterialIcon maximizeIcon;
         private readonly EditorHotkeyController editorHotkeys;
         private CompletionWindow? completionWindow;
@@ -105,8 +104,6 @@ namespace YASN.Views
                 ?? throw new InvalidOperationException("EditorModeButton was not found.");
             editorModeIcon = this.FindControl<Material.Icons.Avalonia.MaterialIcon>("EditorModeIcon")
                 ?? throw new InvalidOperationException("EditorModeIcon was not found.");
-            fullScreenIcon = this.FindControl<Material.Icons.Avalonia.MaterialIcon>("FullScreenIcon")
-                ?? throw new InvalidOperationException("FullScreenIcon was not found.");
             maximizeIcon = this.FindControl<Material.Icons.Avalonia.MaterialIcon>("MaximizeIcon")
                 ?? throw new InvalidOperationException("MaximizeIcon was not found.");
 
@@ -659,17 +656,10 @@ namespace YASN.Views
         /// Toggles the window between full-screen and normal. Full-screen is transient state, not
         /// persisted; the matching icon is swapped so the button reads as "enter" vs "exit".
         /// </summary>
-        private void HandleFullScreenClick(object? sender, RoutedEventArgs e)
-        {
-            bool entering = WindowState != WindowState.FullScreen;
-            WindowState = entering ? WindowState.FullScreen : WindowState.Normal;
-            fullScreenIcon.Kind = entering ? Material.Icons.MaterialIconKind.FullscreenExit : Material.Icons.MaterialIconKind.Fullscreen;
-        }
-
         /// <summary>
         /// Toggles the window between maximized and normal, filling the screen's work area (task bar
-        /// preserved). Like full-screen this is transient state, not persisted; the icon is swapped so
-        /// the button reads as "maximize" vs "restore".
+        /// preserved). This is transient state, not persisted; the icon is swapped so the button reads
+        /// as "maximize" vs "restore".
         /// </summary>
         private void HandleMaximizeClick(object? sender, RoutedEventArgs e)
         {
